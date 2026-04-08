@@ -35,7 +35,7 @@ STYLES = {
                 "death_wall": -56.262860362733,
                 "death_snake": -64.32153038562967,
                 "wall_alert_dist": 2500,
-                "wall_proximity_penalty": 0.07410698348554556,
+                "wall_proximity_penalty": 0.08237193971102895,
                 "starvation_penalty": 0.01723777895949217,
                 "starvation_grace_steps": 50,
                 "max_steps": 195,
