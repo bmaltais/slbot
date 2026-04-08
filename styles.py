@@ -16,7 +16,7 @@ STYLES = {
                 "survival": 0.028857587659589037,
                 "death_wall": -16.85274699569581,
                 "death_snake": -13.32675346850765,
-                "wall_proximity_penalty": 0.013707395859968882,
+                "wall_proximity_penalty": 0.01389835639022468,
                 "max_steps": 122,
                 "promote_metric": "compound",
                 "promote_conditions": {
