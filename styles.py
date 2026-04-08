@@ -65,7 +65,7 @@ STYLES = {
             },
             4: {
                 "name": "MASS_MANAGEMENT",
-                "gamma": 0.995,
+                "gamma": 0.9882641349575355,
                 "food_reward": 6.483139445799447,
                 "food_shaping": 0.0696949124926482,
                 "survival": 0.04763527730331995,
@@ -78,7 +78,7 @@ STYLES = {
                 "enemy_proximity_penalty": 4.13494059573601,
                 "enemy_approach_penalty": 0.03862982147038689,
                 "boost_penalty": 0.5494593546281064,
-                "mass_loss_penalty": 3.4276863503314328,
+                "mass_loss_penalty": 2.5341878211286457,
                 "starvation_penalty": 0.11688418011258934,
                 "starvation_grace_steps": 15,
                 "max_steps": 2371,
