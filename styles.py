@@ -68,7 +68,7 @@ STYLES = {
                 "gamma": 0.995,
                 "food_reward": 1.6661419698607358,
                 "food_shaping": 0.05843689554146239,
-                "survival": 0.016001664492539844,
+                "survival": 0.018259658315557252,
                 "survival_escalation": 0.0010884693137572328,
                 "death_wall": -29.531476585246285,
                 "death_snake": -82.82349179287014,
