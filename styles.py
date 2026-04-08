@@ -15,7 +15,7 @@ STYLES = {
                 "food_shaping": 0.005256554733024632,
                 "survival": 0.014929310306884106,
                 "death_wall": -8.666763123781724,
-                "death_snake": -25.626139487868492,
+                "death_snake": -27.852604082188744,
                 "wall_proximity_penalty": 0.003331264123360731,
                 "max_steps": 142,
                 "promote_metric": "compound",
