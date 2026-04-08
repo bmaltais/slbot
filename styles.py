@@ -69,7 +69,7 @@ STYLES = {
                 "food_reward": 2.2995852478883236,
                 "food_shaping": 0.09270284448282123,
                 "survival": 0.012569789117178605,
-                "survival_escalation": 0.0008156436870752123,
+                "survival_escalation": 0.00047722514516301124,
                 "death_wall": -56.60397497489109,
                 "death_snake": -39.29888542664313,
                 "length_bonus": 0.012210105369660756,
@@ -81,7 +81,7 @@ STYLES = {
                 "mass_loss_penalty": 2.2822490813388727,
                 "starvation_penalty": 0.3451587313283221,
                 "starvation_grace_steps": 13,
-                "max_steps": 2068,
+                "max_steps": 1691,
                 "promote_metric": "compound",
                 "promote_conditions": {
                     "avg_steps": 600,
