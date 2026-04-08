@@ -28,9 +28,9 @@ STYLES = {
             2: {
                 "name": "WALL_AVOID",
                 "gamma": 0.8733349727378196,
-                "food_reward": 1.2385404177964832,
+                "food_reward": 1.4970019787696476,
                 "food_shaping": 0.12130134108056848,
-                "survival": 0.14475875300888152,
+                "survival": 0.1640538281988038,
                 "survival_escalation": 0.00015359241310837875,
                 "death_wall": -35.5254304664695,
                 "death_snake": -7.468072750501873,
