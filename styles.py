@@ -28,7 +28,7 @@ STYLES = {
             2: {
                 "name": "WALL_AVOID",
                 "gamma": 0.8366605303153831,
-                "food_reward": 1.9846543737780966,
+                "food_reward": 1.499286037593844,
                 "food_shaping": 0.12316759245764974,
                 "survival": 0.14015036260785463,
                 "survival_escalation": 1.5109407249314018e-06,
@@ -37,7 +37,7 @@ STYLES = {
                 "wall_alert_dist": 2500,
                 "wall_proximity_penalty": 0.003018611285772634,
                 "starvation_penalty": 0.022216779900801398,
-                "starvation_grace_steps": 26,
+                "starvation_grace_steps": 28,
                 "max_steps": 100,
                 "promote_metric": "avg_steps",
                 "promote_threshold": 120,
