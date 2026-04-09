@@ -65,9 +65,9 @@ STYLES = {
             },
             4: {
                 "name": "MASS_MANAGEMENT",
-                "gamma": 0.9312409844208109,
+                "gamma": 0.9090042220813997,
                 "food_reward": 2.898180558568699,
-                "food_shaping": 0.10825272973113569,
+                "food_shaping": 0.11905583999025518,
                 "survival": 0.005481042035309458,
                 "survival_escalation": 0.0024884000029076064,
                 "death_wall": -71.03694134368521,
@@ -80,7 +80,7 @@ STYLES = {
                 "boost_penalty": 0.020585521868126445,
                 "mass_loss_penalty": 1.6783559621154158,
                 "starvation_penalty": 0.1260025103145512,
-                "starvation_grace_steps": 15,
+                "starvation_grace_steps": 13,
                 "max_steps": 1769,
                 "promote_metric": "compound",
                 "promote_conditions": {
