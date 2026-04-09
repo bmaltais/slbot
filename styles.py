@@ -27,7 +27,7 @@ STYLES = {
             },
             2: {
                 "name": "WALL_AVOID",
-                "gamma": 0.862780652880247,
+                "gamma": 0.847471321619311,
                 "food_reward": 1.0978919997806666,
                 "food_shaping": 0.4279999500071425,
                 "survival": 0.07565442660965688,
@@ -38,7 +38,7 @@ STYLES = {
                 "wall_proximity_penalty": 0.00895663631208371,
                 "starvation_penalty": 0.03231444370002579,
                 "starvation_grace_steps": 15,
-                "max_steps": 105,
+                "max_steps": 100,
                 "promote_metric": "avg_steps",
                 "promote_threshold": 120,
                 "promote_wall_death_max": 0.1,
