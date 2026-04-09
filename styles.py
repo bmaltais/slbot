@@ -31,7 +31,7 @@ STYLES = {
                 "food_reward": 3.5465360109846618,
                 "food_shaping": 0.014141043048682573,
                 "survival": 0.020908247158277656,
-                "survival_escalation": 6.090164572624117e-06,
+                "survival_escalation": 6.277067620699958e-06,
                 "death_wall": -8.835919135412418,
                 "death_snake": -7.237930721328061,
                 "wall_alert_dist": 2500,
