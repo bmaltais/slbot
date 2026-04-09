@@ -81,7 +81,7 @@ STYLES = {
                 "mass_loss_penalty": 0.08314378366289923,
                 "starvation_penalty": 0.00010836528252677506,
                 "starvation_grace_steps": 8,
-                "max_steps": 1393,
+                "max_steps": 1450,
                 "promote_metric": "compound",
                 "promote_conditions": {
                     "avg_steps": 600,
