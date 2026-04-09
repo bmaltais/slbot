@@ -75,7 +75,7 @@ STYLES = {
                 "length_bonus": 0.009716526288954318,
                 "wall_proximity_penalty": 0.2511992894499163,
                 "enemy_alert_dist": 2470,
-                "enemy_proximity_penalty": 0.08095538011534525,
+                "enemy_proximity_penalty": 0.0715043196495839,
                 "enemy_approach_penalty": 0.006516473538040706,
                 "boost_penalty": 0.02777986467068732,
                 "mass_loss_penalty": 1.457522793966647,
