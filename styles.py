@@ -12,7 +12,7 @@ STYLES = {
                 "name": "FOOD_VECTOR",
                 "gamma": 0.9813101986013633,
                 "food_reward": 1.800259952869699,
-                "food_shaping": 0.0018519771320631621,
+                "food_shaping": 0.0020696538022769843,
                 "survival": 0.0027708268201499546,
                 "death_wall": -5,
                 "death_snake": -5.918683588048561,
