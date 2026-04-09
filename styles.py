@@ -67,7 +67,7 @@ STYLES = {
                 "name": "MASS_MANAGEMENT",
                 "gamma": 0.8988697373180808,
                 "food_reward": 13.477685107210974,
-                "food_shaping": 0.09706077724518614,
+                "food_shaping": 0.10014212970573641,
                 "survival": 0.007162318360747242,
                 "survival_escalation": 5.591125256266252e-06,
                 "death_wall": -43.70005255178306,
