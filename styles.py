@@ -11,13 +11,13 @@ STYLES = {
             1: {
                 "name": "FOOD_VECTOR",
                 "gamma": 0.9269909823816506,
-                "food_reward": 1.9439842041780717,
+                "food_reward": 2.439605452681451,
                 "food_shaping": 0.00017420727557505424,
-                "survival": 0.001515525150554374,
+                "survival": 0.00157756953477183,
                 "death_wall": -9.543231932196926,
-                "death_snake": -5,
-                "wall_proximity_penalty": 0.0031645182725538365,
-                "max_steps": 1027,
+                "death_snake": -6.026959747035568,
+                "wall_proximity_penalty": 0.0033039677991347095,
+                "max_steps": 904,
                 "promote_metric": "compound",
                 "promote_conditions": {
                     "avg_food": 12,
