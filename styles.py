@@ -79,7 +79,7 @@ STYLES = {
                 "enemy_approach_penalty": 0.0015637699764735678,
                 "boost_penalty": 0.0227321879229258,
                 "mass_loss_penalty": 0.6319773255571772,
-                "starvation_penalty": 0.007630048608571641,
+                "starvation_penalty": 0.007020028758037149,
                 "starvation_grace_steps": 5,
                 "max_steps": 1429,
                 "promote_metric": "compound",
