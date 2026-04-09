@@ -70,7 +70,7 @@ STYLES = {
                 "food_shaping": 0.1408484456577806,
                 "survival": 0.005357540111864998,
                 "survival_escalation": 0.00047068820800952673,
-                "death_wall": -96.86628088713144,
+                "death_wall": -100,
                 "death_snake": -35.35578113795367,
                 "length_bonus": 0.014097480930237683,
                 "wall_proximity_penalty": 0.12694450785430778,
