@@ -38,7 +38,7 @@ STYLES = {
                 "wall_proximity_penalty": 0.00684712701214539,
                 "starvation_penalty": 0.002886260492393403,
                 "starvation_grace_steps": 20,
-                "max_steps": 115,
+                "max_steps": 108,
                 "promote_metric": "avg_steps",
                 "promote_threshold": 120,
                 "promote_wall_death_max": 0.1,
