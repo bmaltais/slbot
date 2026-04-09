@@ -2575,3 +2575,5 @@ timestamp	round	experiment_id	strategy	stage	decision	improvement_pct	baseline_s
 2026-04-09T06:59:12.683940	10261	c85248e6	explore	4	keep	0.1296	1.3	1.5	452	128	40	0.486	[explore] S4/MASS_MANAGEMENT: boost_penalty: 0.0006 -> 0.0008; length_bonus: 0.0009 -> 0.0006; survival_escalation: 0.0004 -> 0.0006
 2026-04-09T06:59:15.651883	10262	1ef01b2e	explore	3	discard	-0.1204	1.3	1.1	452	128	40	0.486	[explore] S3/ENEMY_AVOID: max_steps: 842 -> 866; death_wall: -5.2937 -> -5.0000; food_reward: 3.7535 -> 3.8558
 2026-04-09T08:12:54.818024	10264	6e998bd2	tweak	4	keep	0.1451	1.3	1.5	459	130	40	0.492	[tweak] S4/MASS_MANAGEMENT: starvation_grace_steps: 10 -> 11
+2026-04-09T20:45:03.763052	10267	1d8e3559	tweak	2	keep	0.2453	1.5	1.9	395	114	38	0.414	[tweak] S2/WALL_AVOID: max_steps: 188 -> 195
+2026-04-09T21:15:09.620897	10268	59ad0d1b	tweak	5	discard	-0.1048	1.3	1.2	399	116	38	0.428	[tweak] S5/MASTERY_SURVIVAL: survival: 0.0794 -> 0.0912
