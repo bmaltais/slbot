@@ -121,7 +121,7 @@ STYLES = {
             6: {
                 "name": "APEX_PREDATOR",
                 "gamma": 0.9216026084461483,
-                "food_reward": 6.4159219125203215,
+                "food_reward": 5.870035854600982,
                 "survival": 0.05975675391446128,
                 "death_wall": -46.5776156969103,
                 "death_snake": -84.10207763717753,
