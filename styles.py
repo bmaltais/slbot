@@ -128,7 +128,7 @@ STYLES = {
                 "enemy_alert_dist": 2500,
                 "enemy_proximity_penalty": 0.15,
                 "boost_penalty": 0.1,
-                "contest_food_reward": 0.9063553316067068,
+                "contest_food_reward": 1.006258267174206,
                 "enemy_zone_control_reward": 0.07700264733170671,
                 "kill_opportunity_reward": 23.189915458399838,
                 "max_steps": 10000,
