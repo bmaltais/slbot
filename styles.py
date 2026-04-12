@@ -120,8 +120,8 @@ STYLES = {
             },
             6: {
                 "name": "APEX_PREDATOR",
-                "gamma": 0.9367289548366871,
-                "food_reward": 7.061810385004814,
+                "gamma": 0.9207382218514122,
+                "food_reward": 6.020517660711473,
                 "survival": 0.04276931444336478,
                 "death_wall": -40,
                 "death_snake": -84.10207763717753,
@@ -133,7 +133,7 @@ STYLES = {
                 "kill_opportunity_reward": 12.381485520398133,
                 "max_steps": 9586,
                 "promote_metric": None,
-                "enemy_approach_penalty": 1.2511980831225664,
+                "enemy_approach_penalty": 0.7796366488085644,
                 "promote_window": 500,
                 "promote_conditions": {},
                 "promote_wall_death_max": 1.0
