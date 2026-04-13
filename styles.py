@@ -127,7 +127,7 @@ STYLES = {
                 "death_snake": -68.33528395017073,
                 "enemy_alert_dist": 1021,
                 "enemy_proximity_penalty": 0.03663241731470077,
-                "boost_penalty": 0.021742049009249927,
+                "boost_penalty": 0.017687428187321774,
                 "contest_food_reward": 0.2701115523846602,
                 "enemy_zone_control_reward": 0.0007241584567977896,
                 "kill_opportunity_reward": 8.550420450984676,
