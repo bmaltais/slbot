@@ -124,7 +124,7 @@ STYLES = {
                 "food_reward": 4.101366665040741,
                 "survival": 0.1789453656119041,
                 "death_wall": -52.80746300589298,
-                "death_snake": -76.36496354187213,
+                "death_snake": -68.33528395017073,
                 "enemy_alert_dist": 1021,
                 "enemy_proximity_penalty": 0.03663241731470077,
                 "boost_penalty": 0.021742049009249927,
