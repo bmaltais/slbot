@@ -1456,3 +1456,623 @@
 2026-03-28 16:11:07,565 - INFO - Ep 99026 | S5:MASTERY_SURVIVAL | Rw: 2548.52 | St: 666 | Fd: 247 (0.371/st) | Pk: 56 | Eps: 0.080 | L: 1.0797 | Q: 19.36/100.54 | Rx:25.23% | SnakeCollision | Pos:(27420,36894) Wall:7274 Enemy:23
 2026-03-28 16:12:48,844 - INFO - [Shutdown] KeyboardInterrupt. Saving checkpoint.
 2026-03-28 16:12:49,490 - INFO - [Shutdown] Training ended at episode 99026. UID: 20260328-ecf7e01b
+2026-04-10 20:07:26,289 - INFO - Configuration:
+2026-04-10 20:07:26,290 - INFO -   Style: Standard (Curriculum)
+2026-04-10 20:07:26,290 - INFO -   Mode: curriculum
+2026-04-10 20:07:26,290 - INFO -   Agents: 1
+2026-04-10 20:07:26,290 - INFO -   Frame Stack: 4
+2026-04-10 20:07:26,290 - INFO -   Resolution: (160, 160)
+2026-04-10 20:07:26,290 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 20:07:26,290 - INFO -   LR: 5e-05
+2026-04-10 20:07:26,290 - INFO -   PER: True
+2026-04-10 20:07:26,290 - INFO -   Backend: selenium
+2026-04-10 20:07:26,291 - INFO - Training Run UID: 20260410-6ce3bcd5
+2026-04-10 20:08:44,749 - INFO - Configuration:
+2026-04-10 20:08:44,749 - INFO -   Style: Standard (Curriculum)
+2026-04-10 20:08:44,749 - INFO -   Mode: curriculum
+2026-04-10 20:08:44,750 - INFO -   Agents: 1
+2026-04-10 20:08:44,750 - INFO -   Frame Stack: 4
+2026-04-10 20:08:44,750 - INFO -   Resolution: (160, 160)
+2026-04-10 20:08:44,750 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 20:08:44,750 - INFO -   LR: 5e-05
+2026-04-10 20:08:44,750 - INFO -   PER: True
+2026-04-10 20:08:44,750 - INFO -   Backend: selenium
+2026-04-10 20:08:44,751 - INFO - Training Run UID: 20260410-e9b04b5f
+2026-04-10 20:08:45,260 - INFO -   Parent UID: 20260410-39883f93
+2026-04-10 20:08:45,260 - INFO -   LR was 0.00004998. Force-reset to 5e-05
+2026-04-10 20:08:45,260 - INFO -   --stage override: 3 -> 5
+2026-04-10 20:08:45,261 - INFO - Resumed from episode 99700
+2026-04-10 20:08:45,261 - INFO -   Stage: 5 (MASTERY_SURVIVAL)
+2026-04-10 20:08:50,946 - INFO -   Curriculum Stage: 5 (MASTERY_SURVIVAL)
+2026-04-10 20:08:50,946 - INFO -   Max Steps: 4035
+2026-04-10 20:09:23,150 - INFO - Ep 99701 | S5:MASTERY_SURVIVAL | Rw: -138.46 | St: 284 | Fd: 80 (0.282/st) | Pk: 31 | Eps: 0.080 | L: 0.9539 | Q: 16.74/57.45 | Rx:50.00% | SnakeCollision | Pos:(33328,29375) Wall:10728 Enemy:25
+2026-04-10 20:12:29,784 - INFO - Ep 99702 | S5:MASTERY_SURVIVAL | Rw: 1467.71 | St: 1191 | Fd: 270 (0.227/st) | Pk: 59 | Eps: 0.080 | L: 0.1436 | Q: 14.68/38.16 | Rx:33.67% | SnakeCollision | Pos:(29937,32925) Wall:11356 Enemy:18
+2026-04-10 20:13:47,068 - INFO - Ep 99703 | S5:MASTERY_SURVIVAL | Rw: 618.01 | St: 634 | Fd: 201 (0.317/st) | Pk: 36 | Eps: 0.080 | L: 0.1520 | Q: 16.81/47.60 | Rx:18.30% | SnakeCollision | Pos:(30684,37356) Wall:8841 Enemy:34
+2026-04-10 20:14:07,486 - INFO - Ep 99704 | S5:MASTERY_SURVIVAL | Rw: 212.70 | St: 143 | Fd: 64 (0.448/st) | Pk: 26 | Eps: 0.080 | L: 0.0480 | Q: 15.64/41.97 | Rx:25.87% | SnakeCollision | Pos:(34914,29937) Wall:10473 Enemy:14
+2026-04-10 20:14:28,447 - INFO - Ep 99705 | S5:MASTERY_SURVIVAL | Rw: 107.94 | St: 147 | Fd: 60 (0.408/st) | Pk: 26 | Eps: 0.080 | L: 0.0506 | Q: 17.43/34.77 | Rx:75.51% | SnakeCollision | Pos:(26656,27858) Wall:6463 Enemy:8
+2026-04-10 20:14:35,567 - INFO - Ep 99706 | S5:MASTERY_SURVIVAL | Rw: 64.15 | St: 22 | Fd: 11 (0.500/st) | Pk: 16 | Eps: 0.080 | L: 0.1086 | Q: 16.90/53.94 | Rx:27.27% | SnakeCollision | Pos:(32517,30113) Wall:11560 Enemy:21
+2026-04-10 20:15:51,634 - INFO - Ep 99707 | S5:MASTERY_SURVIVAL | Rw: 507.00 | St: 515 | Fd: 166 (0.322/st) | Pk: 34 | Eps: 0.080 | L: 0.0791 | Q: 17.31/49.04 | Rx:22.91% | SnakeCollision | Pos:(40037,26014) Wall:4058 Enemy:23
+2026-04-10 20:16:49,193 - INFO - Ep 99708 | S5:MASTERY_SURVIVAL | Rw: 374.47 | St: 372 | Fd: 108 (0.290/st) | Pk: 32 | Eps: 0.080 | L: 0.1121 | Q: 17.87/59.22 | Rx:34.14% | SnakeCollision | Pos:(28145,37455) Wall:7404 Enemy:32
+2026-04-10 20:17:48,637 - INFO - [Shutdown] KeyboardInterrupt. Saving checkpoint.
+2026-04-10 20:17:48,838 - INFO - [Shutdown] Training ended at episode 99708. UID: 20260410-e9b04b5f
+2026-04-10 20:35:39,488 - INFO - Configuration:
+2026-04-10 20:35:39,488 - INFO -   Style: Standard (Curriculum)
+2026-04-10 20:35:39,488 - INFO -   Mode: curriculum
+2026-04-10 20:35:39,488 - INFO -   Agents: 1
+2026-04-10 20:35:39,488 - INFO -   Frame Stack: 4
+2026-04-10 20:35:39,488 - INFO -   Resolution: (160, 160)
+2026-04-10 20:35:39,488 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 20:35:39,488 - INFO -   LR: 5e-05
+2026-04-10 20:35:39,488 - INFO -   PER: True
+2026-04-10 20:35:39,488 - INFO -   Backend: selenium
+2026-04-10 20:35:39,489 - INFO - Training Run UID: 20260410-7709aa5e
+2026-04-10 20:35:54,076 - INFO - Configuration:
+2026-04-10 20:35:54,076 - INFO -   Style: Standard (Curriculum)
+2026-04-10 20:35:54,076 - INFO -   Mode: curriculum
+2026-04-10 20:35:54,077 - INFO -   Agents: 1
+2026-04-10 20:35:54,077 - INFO -   Frame Stack: 4
+2026-04-10 20:35:54,077 - INFO -   Resolution: (160, 160)
+2026-04-10 20:35:54,077 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 20:35:54,077 - INFO -   LR: 5e-05
+2026-04-10 20:35:54,077 - INFO -   PER: True
+2026-04-10 20:35:54,077 - INFO -   Backend: selenium
+2026-04-10 20:35:54,077 - INFO - Training Run UID: 20260410-f7c0ed89
+2026-04-10 20:35:54,595 - INFO -   Parent UID: 20260410-e9b04b5f
+2026-04-10 20:35:54,596 - INFO -   LR was 0.00004998. Force-reset to 5e-05
+2026-04-10 20:35:54,596 - INFO -   --stage override: 5 -> 6
+2026-04-10 20:35:54,596 - INFO - Resumed from episode 99708
+2026-04-10 20:35:54,596 - INFO -   Stage: 6 (APEX_PREDATOR)
+2026-04-10 20:36:00,869 - INFO -   Curriculum Stage: 6 (APEX_PREDATOR)
+2026-04-10 20:36:00,869 - INFO -   Max Steps: 99999
+2026-04-10 20:44:37,310 - INFO - Ep 99709 | S6:APEX_PREDATOR | Rw: 13274.99 | St: 3267 | Fd: 792 (0.242/st) | Pk: 55 | Eps: 0.080 | L: 0.3408 | Q: 31.52/87.09 | Rx:18.00% | SnakeCollision | Pos:(45115,35896) Wall:993
+2026-04-10 20:44:37,588 - INFO - [Shutdown] Training ended at episode 99709. UID: 20260410-f7c0ed89
+2026-04-10 20:57:46,508 - INFO - Configuration:
+2026-04-10 20:57:46,509 - INFO -   Style: Standard (Curriculum)
+2026-04-10 20:57:46,509 - INFO -   Mode: curriculum
+2026-04-10 20:57:46,509 - INFO -   Agents: 1
+2026-04-10 20:57:46,509 - INFO -   Frame Stack: 4
+2026-04-10 20:57:46,510 - INFO -   Resolution: (160, 160)
+2026-04-10 20:57:46,510 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 20:57:46,510 - INFO -   LR: 5e-05
+2026-04-10 20:57:46,510 - INFO -   PER: True
+2026-04-10 20:57:46,510 - INFO -   Backend: selenium
+2026-04-10 20:57:46,510 - INFO - Training Run UID: 20260410-f3bc4907
+2026-04-10 20:57:47,015 - INFO -   Parent UID: 20260410-e9b04b5f
+2026-04-10 20:57:47,015 - INFO -   LR was 0.00004998. Force-reset to 5e-05
+2026-04-10 20:57:47,015 - INFO -   --stage override: 5 -> 6
+2026-04-10 20:57:47,015 - INFO - Resumed from episode 99708
+2026-04-10 20:57:47,015 - INFO -   Stage: 6 (APEX_PREDATOR)
+2026-04-10 20:58:22,624 - INFO -   Curriculum Stage: 6 (APEX_PREDATOR)
+2026-04-10 20:58:22,625 - INFO -   Max Steps: 99999
+2026-04-10 20:58:38,013 - INFO - [Shutdown] KeyboardInterrupt. Saving checkpoint.
+2026-04-10 20:58:38,193 - INFO - [Shutdown] Training ended at episode 99708. UID: 20260410-f3bc4907
+2026-04-10 20:58:51,375 - INFO - Configuration:
+2026-04-10 20:58:51,375 - INFO -   Style: Standard (Curriculum)
+2026-04-10 20:58:51,376 - INFO -   Mode: curriculum
+2026-04-10 20:58:51,376 - INFO -   Agents: 1
+2026-04-10 20:58:51,376 - INFO -   Frame Stack: 4
+2026-04-10 20:58:51,376 - INFO -   Resolution: (160, 160)
+2026-04-10 20:58:51,376 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 20:58:51,376 - INFO -   LR: 5e-05
+2026-04-10 20:58:51,376 - INFO -   PER: True
+2026-04-10 20:58:51,376 - INFO -   Backend: selenium
+2026-04-10 20:58:51,376 - INFO - Training Run UID: 20260410-21277e48
+2026-04-10 20:58:51,884 - INFO -   Parent UID: 20260410-f3bc4907
+2026-04-10 20:58:51,884 - INFO -   LR was 0.00000420. Force-reset to 5e-05
+2026-04-10 20:58:51,884 - INFO - Resumed from episode 99708
+2026-04-10 20:58:51,884 - INFO -   Stage: 6 (APEX_PREDATOR)
+2026-04-10 20:58:58,202 - INFO -   Curriculum Stage: 6 (APEX_PREDATOR)
+2026-04-10 20:58:58,202 - INFO -   Max Steps: 99999
+2026-04-10 21:00:08,790 - INFO - Ep 99709 | S6:APEX_PREDATOR | Rw: 1848.12 | St: 617 | Fd: 139 (0.225/st) | Pk: 35 | Eps: 0.080 | L: 0.7450 | Q: 23.88/44.01 | Rx:19.77% | SnakeCollision | Pos:(35637,26240) Wall:6972 Enemy:17
+2026-04-10 21:00:09,076 - INFO - [Shutdown] Training ended at episode 99709. UID: 20260410-21277e48
+2026-04-10 21:20:50,106 - INFO - Configuration:
+2026-04-10 21:20:50,106 - INFO -   Style: Standard (Curriculum)
+2026-04-10 21:20:50,106 - INFO -   Mode: curriculum
+2026-04-10 21:20:50,107 - INFO -   Agents: 1
+2026-04-10 21:20:50,107 - INFO -   Frame Stack: 4
+2026-04-10 21:20:50,107 - INFO -   Resolution: (160, 160)
+2026-04-10 21:20:50,107 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-10 21:20:50,107 - INFO -   LR: 5e-05
+2026-04-10 21:20:50,107 - INFO -   PER: True
+2026-04-10 21:20:50,107 - INFO -   Backend: selenium
+2026-04-10 21:20:50,107 - INFO - Training Run UID: 20260410-efd3d26d
+2026-04-10 21:20:50,655 - INFO -   Parent UID: 20260410-f3bc4907
+2026-04-10 21:20:50,656 - INFO -   LR was 0.00000420. Force-reset to 5e-05
+2026-04-10 21:20:50,656 - INFO - Resumed from episode 99708
+2026-04-10 21:20:50,656 - INFO -   Stage: 6 (APEX_PREDATOR)
+2026-04-10 21:21:00,520 - INFO -   Curriculum Stage: 6 (APEX_PREDATOR)
+2026-04-10 21:21:00,520 - INFO -   Max Steps: 99999
+2026-04-10 21:28:45,523 - INFO - Ep 99709 | S6:APEX_PREDATOR | Rw: 14041.53 | St: 3929 | Fd: 1057 (0.269/st) | Pk: 46 | Eps: 0.080 | L: 0.1401 | Q: 28.63/69.25 | Rx:16.21% | SnakeCollision | Pos:(34727,30244) Wall:10825 Enemy:16
+2026-04-10 21:29:50,629 - INFO - >> Target Network Updated
+2026-04-10 21:30:58,482 - INFO - Ep 99710 | S6:APEX_PREDATOR | Rw: 2991.06 | St: 891 | Fd: 231 (0.259/st) | Pk: 43 | Eps: 0.080 | L: 0.3805 | Q: 36.61/72.30 | Rx:15.82% | SnakeCollision | Pos:(22347,34290) Wall:3647 Enemy:545
+2026-04-10 21:30:58,482 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 2, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 21:33:07,051 - INFO - Ep 99711 | S6:APEX_PREDATOR | Rw: 3742.65 | St: 979 | Fd: 247 (0.252/st) | Pk: 46 | Eps: 0.080 | L: 0.1422 | Q: 39.16/84.23 | Rx:25.64% | SnakeCollision | Pos:(36307,30371) Wall:9653 Enemy:6
+2026-04-10 21:35:36,707 - INFO - Ep 99712 | S6:APEX_PREDATOR | Rw: 4484.31 | St: 1017 | Fd: 265 (0.261/st) | Pk: 43 | Eps: 0.080 | L: 0.3333 | Q: 42.11/98.31 | Rx:58.51% | SnakeCollision | Pos:(34251,34788) Wall:11186 Enemy:41
+2026-04-10 21:37:56,034 - INFO - Ep 99713 | S6:APEX_PREDATOR | Rw: 3190.40 | St: 966 | Fd: 239 (0.247/st) | Pk: 47 | Eps: 0.080 | L: 0.6243 | Q: 41.60/101.56 | Rx:9.11% | SnakeCollision | Pos:(25048,37441) Wall:5041 Enemy:322
+2026-04-10 21:41:00,596 - INFO - Ep 99714 | S6:APEX_PREDATOR | Rw: 4577.54 | St: 1267 | Fd: 310 (0.245/st) | Pk: 49 | Eps: 0.080 | L: 0.2134 | Q: 38.61/97.68 | Rx:10.10% | SnakeCollision | Pos:(30571,37623) Wall:8551 Enemy:14
+2026-04-10 21:43:33,220 - INFO - Ep 99715 | S6:APEX_PREDATOR | Rw: 3686.20 | St: 986 | Fd: 259 (0.263/st) | Pk: 46 | Eps: 0.080 | L: 0.2125 | Q: 38.24/75.44 | Rx:14.71% | SnakeCollision | Pos:(24967,36528) Wall:5433
+2026-04-10 21:47:37,051 - INFO - Ep 99716 | S6:APEX_PREDATOR | Rw: 7053.39 | St: 1512 | Fd: 396 (0.262/st) | Pk: 51 | Eps: 0.080 | L: 0.5083 | Q: 40.81/88.75 | Rx:10.05% | SnakeCollision | Pos:(36159,34630) Wall:9831 Enemy:44
+2026-04-10 21:49:39,056 - INFO - Ep 99717 | S6:APEX_PREDATOR | Rw: 2104.76 | St: 827 | Fd: 221 (0.267/st) | Pk: 38 | Eps: 0.080 | L: 0.1772 | Q: 37.15/75.29 | Rx:13.18% | SnakeCollision | Pos:(27553,37402) Wall:7032 Enemy:43
+2026-04-10 21:54:58,683 - INFO - Ep 99718 | S6:APEX_PREDATOR | Rw: 8564.62 | St: 2010 | Fd: 543 (0.270/st) | Pk: 55 | Eps: 0.080 | L: 0.5509 | Q: 37.56/93.28 | Rx:21.44% | SnakeCollision | Pos:(41606,31304) Wall:4855 Enemy:1782
+2026-04-10 21:55:03,222 - INFO - >> Target Network Updated
+2026-04-10 21:57:48,737 - INFO - Ep 99719 | S6:APEX_PREDATOR | Rw: 4265.04 | St: 1103 | Fd: 275 (0.249/st) | Pk: 53 | Eps: 0.080 | L: 0.4444 | Q: 54.69/117.75 | Rx:23.66% | SnakeCollision | Pos:(38327,33594) Wall:8125 Enemy:23
+2026-04-10 21:58:04,677 - INFO - Ep 99720 | S6:APEX_PREDATOR | Rw: 553.05 | St: 103 | Fd: 45 (0.437/st) | Pk: 43 | Eps: 0.080 | L: 0.6926 | Q: 53.13/124.36 | Rx:33.01% | SnakeCollision | Pos:(34843,32102) Wall:11660 Enemy:26
+2026-04-10 21:58:04,677 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 12, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 22:05:20,611 - INFO - Ep 99721 | S6:APEX_PREDATOR | Rw: 12001.61 | St: 2910 | Fd: 738 (0.254/st) | Pk: 50 | Eps: 0.080 | L: 0.1227 | Q: 55.35/134.24 | Rx:27.59% | SnakeCollision | Pos:(34699,23305) Wall:4505 Enemy:11
+2026-04-10 22:08:24,348 - INFO - Ep 99722 | S6:APEX_PREDATOR | Rw: 6277.04 | St: 1265 | Fd: 333 (0.263/st) | Pk: 63 | Eps: 0.080 | L: 0.5241 | Q: 54.09/103.73 | Rx:18.18% | SnakeCollision | Pos:(30383,29597) Wall:10333 Enemy:18
+2026-04-10 22:08:51,006 - INFO - Ep 99723 | S6:APEX_PREDATOR | Rw: 753.56 | St: 196 | Fd: 61 (0.311/st) | Pk: 52 | Eps: 0.080 | L: 0.5074 | Q: 54.80/133.21 | Rx:7.65% | SnakeCollision | Pos:(28119,25340) Wall:5533
+2026-04-10 22:10:35,182 - INFO - Ep 99724 | S6:APEX_PREDATOR | Rw: 2102.51 | St: 652 | Fd: 156 (0.239/st) | Pk: 37 | Eps: 0.080 | L: 0.6628 | Q: 51.98/101.30 | Rx:13.04% | SnakeCollision | Pos:(28367,24787) Wall:5178 Enemy:616
+2026-04-10 22:10:57,675 - INFO - Ep 99725 | S6:APEX_PREDATOR | Rw: 483.89 | St: 152 | Fd: 38 (0.250/st) | Pk: 32 | Eps: 0.080 | L: 0.4802 | Q: 56.41/99.78 | Rx:27.63% | SnakeCollision | Pos:(36456,33768) Wall:9905 Enemy:29
+2026-04-10 22:11:34,180 - INFO - Ep 99726 | S6:APEX_PREDATOR | Rw: 760.02 | St: 250 | Fd: 72 (0.288/st) | Pk: 33 | Eps: 0.080 | L: 0.4960 | Q: 53.04/110.38 | Rx:15.60% | SnakeCollision | Pos:(32368,26043) Wall:7487 Enemy:31
+2026-04-10 22:12:25,327 - INFO - Ep 99727 | S6:APEX_PREDATOR | Rw: 1444.08 | St: 313 | Fd: 95 (0.304/st) | Pk: 47 | Eps: 0.080 | L: 0.6029 | Q: 53.71/99.49 | Rx:33.55% | SnakeCollision | Pos:(34523,30220) Wall:10943 Enemy:13
+2026-04-10 22:17:23,681 - INFO - Ep 99728 | S6:APEX_PREDATOR | Rw: 8646.91 | St: 2028 | Fd: 536 (0.264/st) | Pk: 49 | Eps: 0.080 | L: 0.2541 | Q: 52.54/102.60 | Rx:21.25% | SnakeCollision | Pos:(25301,30019) Wall:6318 Enemy:42
+2026-04-10 22:17:23,793 - INFO -   >> New Best Fitness: 2835.5 (steps=1167.8, food=305.9, peak_len=46.1). Saved: best_model_20260410-efd3d26d_ep99728_s1167_f305_pk46.pth
+2026-04-10 22:20:26,783 - INFO - >> Target Network Updated
+2026-04-10 22:23:13,302 - INFO - Ep 99729 | S6:APEX_PREDATOR | Rw: 7954.51 | St: 2007 | Fd: 489 (0.244/st) | Pk: 48 | Eps: 0.080 | L: 0.1055 | Q: 63.05/111.94 | Rx:15.94% | SnakeCollision | Pos:(36758,30896) Wall:9475 Enemy:33
+2026-04-10 22:23:13,411 - INFO -   >> New Best Fitness: 2919.3 (steps=1207.8, food=314.6, peak_len=46.2). Saved: best_model_20260410-efd3d26d_ep99729_s1207_f314_pk46.pth
+2026-04-10 22:24:21,157 - INFO - Ep 99730 | S6:APEX_PREDATOR | Rw: 1520.73 | St: 442 | Fd: 116 (0.262/st) | Pk: 35 | Eps: 0.080 | L: 0.6505 | Q: 66.33/106.74 | Rx:37.33% | SnakeCollision | Pos:(30093,37976) Wall:8040 Enemy:31
+2026-04-10 22:24:21,157 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 22, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 22:27:41,697 - INFO - Ep 99731 | S6:APEX_PREDATOR | Rw: 5791.19 | St: 1607 | Fd: 450 (0.280/st) | Pk: 49 | Eps: 0.080 | L: 0.7958 | Q: 68.53/115.36 | Rx:17.55% | SnakeCollision | Pos:(37374,36167) Wall:7967 Enemy:13
+2026-04-10 22:28:26,241 - INFO - Ep 99732 | S6:APEX_PREDATOR | Rw: 1268.26 | St: 287 | Fd: 99 (0.345/st) | Pk: 34 | Eps: 0.080 | L: 0.9333 | Q: 69.47/118.13 | Rx:26.13% | SnakeCollision | Pos:(38821,35779) Wall:6943 Enemy:16
+2026-04-10 22:29:41,764 - INFO - Ep 99733 | S6:APEX_PREDATOR | Rw: 2496.10 | St: 566 | Fd: 146 (0.258/st) | Pk: 37 | Eps: 0.080 | L: 0.5002 | Q: 62.42/105.97 | Rx:33.92% | SnakeCollision | Pos:(30698,27352) Wall:8479 Enemy:5
+2026-04-10 22:36:59,277 - INFO - Ep 99734 | S6:APEX_PREDATOR | Rw: 12442.63 | St: 3718 | Fd: 932 (0.251/st) | Pk: 52 | Eps: 0.080 | L: 0.2379 | Q: 64.44/101.54 | Rx:10.38% | SnakeCollision | Pos:(31959,39642) Wall:6880 Enemy:698
+2026-04-10 22:36:59,370 - INFO -   >> New Best Fitness: 2971.6 (steps=1230.1, food=321.1, peak_len=45.3). Saved: best_model_20260410-efd3d26d_ep99734_s1230_f321_pk45.pth
+2026-04-10 22:39:31,035 - INFO - Ep 99735 | S6:APEX_PREDATOR | Rw: 4892.49 | St: 1227 | Fd: 343 (0.280/st) | Pk: 56 | Eps: 0.080 | L: 0.1171 | Q: 61.98/102.85 | Rx:21.76% | SnakeCollision | Pos:(36029,38055)
+2026-04-10 22:39:31,136 - INFO -   >> New Best Fitness: 2976.7 (steps=1230.0, food=321.9, peak_len=45.7). Saved: best_model_20260410-efd3d26d_ep99735_s1230_f321_pk45.pth
+2026-04-10 22:41:53,114 - INFO - Ep 99736 | S6:APEX_PREDATOR | Rw: 4344.62 | St: 1137 | Fd: 313 (0.275/st) | Pk: 44 | Eps: 0.080 | L: 0.7964 | Q: 63.56/105.00 | Rx:11.26% | SnakeCollision | Pos:(31961,26461) Wall:7879 Enemy:1228
+2026-04-10 22:42:02,573 - INFO - >> Target Network Updated
+2026-04-10 22:42:25,112 - INFO - Ep 99737 | S6:APEX_PREDATOR | Rw: 774.68 | St: 232 | Fd: 75 (0.323/st) | Pk: 50 | Eps: 0.080 | L: 0.7271 | Q: 78.43/128.56 | Rx:3.02% | SnakeCollision | Pos:(39342,31891) Wall:7172
+2026-04-10 22:43:52,756 - INFO - Ep 99738 | S6:APEX_PREDATOR | Rw: 1773.42 | St: 613 | Fd: 154 (0.251/st) | Pk: 39 | Eps: 0.080 | L: 1.5133 | Q: 73.27/108.18 | Rx:12.23% | SnakeCollision | Pos:(36331,38151) Wall:7239
+2026-04-10 22:44:20,176 - INFO - Ep 99739 | S6:APEX_PREDATOR | Rw: 1010.21 | St: 187 | Fd: 66 (0.353/st) | Pk: 39 | Eps: 0.080 | L: 0.3680 | Q: 73.98/111.02 | Rx:16.58% | SnakeCollision | Pos:(36803,27623) Wall:7488 Enemy:563
+2026-04-10 22:48:41,701 - INFO - Ep 99740 | S6:APEX_PREDATOR | Rw: 7479.20 | St: 1620 | Fd: 437 (0.270/st) | Pk: 58 | Eps: 0.080 | L: 0.3316 | Q: 69.48/105.43 | Rx:22.10% | SnakeCollision | Pos:(37124,36703) Wall:7818 Enemy:769
+2026-04-10 22:48:41,701 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 32, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 22:51:34,840 - INFO - Ep 99741 | S6:APEX_PREDATOR | Rw: 4834.54 | St: 1223 | Fd: 326 (0.267/st) | Pk: 50 | Eps: 0.080 | L: 0.6612 | Q: 71.31/102.83 | Rx:14.80% | SnakeCollision | Pos:(36691,37367) Wall:7644
+2026-04-10 22:53:17,848 - INFO - Ep 99742 | S6:APEX_PREDATOR | Rw: 2723.20 | St: 756 | Fd: 194 (0.257/st) | Pk: 38 | Eps: 0.080 | L: 0.6522 | Q: 73.62/107.01 | Rx:19.84% | SnakeCollision | Pos:(27729,27310) Wall:6876 Enemy:20
+2026-04-10 22:54:47,415 - INFO - Ep 99743 | S6:APEX_PREDATOR | Rw: 2135.07 | St: 617 | Fd: 144 (0.233/st) | Pk: 35 | Eps: 0.080 | L: 0.4336 | Q: 72.74/126.49 | Rx:26.26% | SnakeCollision | Pos:(35019,30605) Wall:10853 Enemy:37
+2026-04-10 22:58:25,969 - INFO - Ep 99744 | S6:APEX_PREDATOR | Rw: 5141.02 | St: 1292 | Fd: 313 (0.242/st) | Pk: 50 | Eps: 0.080 | L: 0.3545 | Q: 74.64/103.38 | Rx:27.40% | SnakeCollision | Pos:(27790,36594) Wall:7751 Enemy:952
+2026-04-10 22:59:07,857 - INFO - Ep 99745 | S6:APEX_PREDATOR | Rw: 1379.46 | St: 274 | Fd: 99 (0.361/st) | Pk: 36 | Eps: 0.080 | L: 0.6291 | Q: 68.15/110.79 | Rx:39.78% | SnakeCollision | Pos:(31962,35024) Wall:11454 Enemy:18
+2026-04-10 23:01:31,851 - INFO - Ep 99746 | S6:APEX_PREDATOR | Rw: 3609.13 | St: 903 | Fd: 220 (0.244/st) | Pk: 46 | Eps: 0.080 | L: 0.7460 | Q: 70.20/112.63 | Rx:24.36% | SnakeCollision | Pos:(31060,38570) Wall:7795 Enemy:756
+2026-04-10 23:03:21,948 - INFO - Ep 99747 | S6:APEX_PREDATOR | Rw: 2368.20 | St: 669 | Fd: 191 (0.286/st) | Pk: 45 | Eps: 0.080 | L: 1.1770 | Q: 70.15/113.30 | Rx:19.43% | SnakeCollision | Pos:(31325,38197) Wall:8218 Enemy:596
+2026-04-10 23:07:16,473 - INFO - Ep 99748 | S6:APEX_PREDATOR | Rw: 6029.56 | St: 1426 | Fd: 345 (0.242/st) | Pk: 48 | Eps: 0.080 | L: 0.1537 | Q: 69.61/101.99 | Rx:20.27% | SnakeCollision | Pos:(35582,28239) Wall:8726 Enemy:18
+2026-04-10 23:07:51,156 - INFO - >> Target Network Updated
+2026-04-10 23:08:45,730 - INFO - Ep 99749 | S6:APEX_PREDATOR | Rw: 2133.55 | St: 539 | Fd: 115 (0.213/st) | Pk: 36 | Eps: 0.080 | L: 0.5283 | Q: 78.21/109.80 | Rx:29.31% | SnakeCollision | Pos:(34059,34114) Wall:11823 Enemy:15
+2026-04-10 23:09:22,698 - INFO - Ep 99750 | S6:APEX_PREDATOR | Rw: 1060.28 | St: 250 | Fd: 77 (0.308/st) | Pk: 38 | Eps: 0.080 | L: 0.8429 | Q: 79.78/109.63 | Rx:14.80% | SnakeCollision | Pos:(30079,27413) Wall:8296 Enemy:1383
+2026-04-10 23:09:22,699 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 42, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 23:10:23,920 - INFO - Ep 99751 | S6:APEX_PREDATOR | Rw: 1634.46 | St: 383 | Fd: 100 (0.261/st) | Pk: 40 | Eps: 0.080 | L: 0.3387 | Q: 79.76/107.96 | Rx:33.94% | SnakeCollision | Pos:(30785,33802) Wall:11833 Enemy:17
+2026-04-10 23:15:23,829 - INFO - Ep 99752 | S6:APEX_PREDATOR | Rw: 6249.95 | St: 1751 | Fd: 437 (0.250/st) | Pk: 47 | Eps: 0.080 | L: 1.1584 | Q: 77.63/109.52 | Rx:15.36% | SnakeCollision | Pos:(35018,37539) Wall:8431
+2026-04-10 23:17:09,043 - INFO - Ep 99753 | S6:APEX_PREDATOR | Rw: 3064.62 | St: 687 | Fd: 195 (0.284/st) | Pk: 44 | Eps: 0.080 | L: 0.3846 | Q: 80.43/111.43 | Rx:33.92% | SnakeCollision | Pos:(33133,34346) Wall:12108 Enemy:22
+2026-04-10 23:19:13,324 - INFO - Ep 99754 | S6:APEX_PREDATOR | Rw: 3336.79 | St: 769 | Fd: 198 (0.257/st) | Pk: 45 | Eps: 0.080 | L: 0.5588 | Q: 77.17/115.68 | Rx:26.14% | SnakeCollision | Pos:(31636,27241) Wall:8610 Enemy:1626
+2026-04-10 23:20:27,199 - INFO - Ep 99755 | S6:APEX_PREDATOR | Rw: 1293.62 | St: 454 | Fd: 124 (0.273/st) | Pk: 37 | Eps: 0.080 | L: 0.2223 | Q: 78.44/112.14 | Rx:11.89% | SnakeCollision | Pos:(29685,28086) Wall:8693 Enemy:850
+2026-04-10 23:23:20,676 - INFO - Ep 99756 | S6:APEX_PREDATOR | Rw: 4080.71 | St: 994 | Fd: 226 (0.227/st) | Pk: 37 | Eps: 0.080 | L: 1.0636 | Q: 76.42/103.90 | Rx:11.97% | SnakeCollision | Pos:(32992,26700) Wall:8130
+2026-04-10 23:26:50,571 - INFO - Ep 99757 | S6:APEX_PREDATOR | Rw: 5156.49 | St: 1190 | Fd: 278 (0.234/st) | Pk: 47 | Eps: 0.080 | L: 0.3455 | Q: 77.45/110.80 | Rx:17.39% | SnakeCollision | Pos:(37799,32819) Wall:8741 Enemy:601
+2026-04-10 23:28:15,320 - INFO - Ep 99758 | S6:APEX_PREDATOR | Rw: 2245.66 | St: 509 | Fd: 112 (0.220/st) | Pk: 37 | Eps: 0.080 | L: 0.4403 | Q: 79.12/108.52 | Rx:19.06% | SnakeCollision | Pos:(30415,28384) Wall:9315 Enemy:1001
+2026-04-10 23:30:28,050 - INFO - Ep 99759 | S6:APEX_PREDATOR | Rw: 3611.03 | St: 844 | Fd: 222 (0.263/st) | Pk: 46 | Eps: 0.080 | L: 0.2329 | Q: 77.08/116.59 | Rx:13.39% | SnakeCollision | Pos:(33273,27715) Wall:9108 Enemy:1290
+2026-04-10 23:31:25,293 - INFO - Ep 99760 | S6:APEX_PREDATOR | Rw: 1382.80 | St: 361 | Fd: 99 (0.274/st) | Pk: 35 | Eps: 0.080 | L: 0.7268 | Q: 79.65/104.50 | Rx:20.22% | SnakeCollision | Pos:(32426,27688) Wall:9133 Enemy:841
+2026-04-10 23:31:25,294 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 52, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 23:32:30,714 - INFO - Ep 99761 | S6:APEX_PREDATOR | Rw: 1484.64 | St: 421 | Fd: 105 (0.249/st) | Pk: 44 | Eps: 0.080 | L: 0.4686 | Q: 78.31/118.04 | Rx:26.37% | SnakeCollision | Pos:(32315,34604) Wall:11929 Enemy:18
+2026-04-10 23:33:31,454 - INFO - Ep 99762 | S6:APEX_PREDATOR | Rw: 1851.86 | St: 427 | Fd: 112 (0.262/st) | Pk: 37 | Eps: 0.080 | L: 0.4436 | Q: 78.66/108.87 | Rx:30.91% | SnakeCollision | Pos:(28459,30991) Wall:9618 Enemy:681
+2026-04-10 23:35:10,401 - INFO - >> Target Network Updated
+2026-04-10 23:35:59,952 - INFO - Ep 99763 | S6:APEX_PREDATOR | Rw: 4298.59 | St: 941 | Fd: 232 (0.247/st) | Pk: 40 | Eps: 0.080 | L: 0.9368 | Q: 82.40/110.72 | Rx:34.75% | SnakeCollision | Pos:(28634,32473) Wall:10080 Enemy:155
+2026-04-10 23:36:19,463 - INFO - Ep 99764 | S6:APEX_PREDATOR | Rw: 563.48 | St: 130 | Fd: 61 (0.469/st) | Pk: 30 | Eps: 0.080 | L: 0.2192 | Q: 83.00/111.41 | Rx:8.46% | SnakeCollision | Pos:(28573,31494) Wall:9881 Enemy:964
+2026-04-10 23:36:53,826 - INFO - Ep 99765 | S6:APEX_PREDATOR | Rw: 641.22 | St: 241 | Fd: 55 (0.228/st) | Pk: 30 | Eps: 0.080 | L: 0.5262 | Q: 84.66/111.63 | Rx:14.94% | SnakeCollision | Pos:(34712,35698) Wall:10177
+2026-04-10 23:38:09,551 - INFO - Ep 99766 | S6:APEX_PREDATOR | Rw: 1867.87 | St: 454 | Fd: 118 (0.260/st) | Pk: 40 | Eps: 0.080 | L: 0.8259 | Q: 85.81/110.00 | Rx:19.16% | SnakeCollision | Pos:(25224,34380) Wall:6445 Enemy:21
+2026-04-10 23:39:34,831 - INFO - Ep 99767 | S6:APEX_PREDATOR | Rw: 2045.66 | St: 511 | Fd: 130 (0.254/st) | Pk: 46 | Eps: 0.080 | L: 0.5138 | Q: 85.11/107.55 | Rx:21.33% | SnakeCollision | Pos:(37150,31271) Wall:9222 Enemy:1922
+2026-04-10 23:40:15,896 - INFO - Ep 99768 | S6:APEX_PREDATOR | Rw: 814.76 | St: 274 | Fd: 75 (0.274/st) | Pk: 31 | Eps: 0.080 | L: 0.6644 | Q: 83.92/109.62 | Rx:23.72% | SnakeCollision | Pos:(36550,35301) Wall:9142
+2026-04-10 23:42:41,340 - INFO - Ep 99769 | S6:APEX_PREDATOR | Rw: 3309.55 | St: 837 | Fd: 185 (0.221/st) | Pk: 39 | Eps: 0.080 | L: 0.2835 | Q: 84.26/126.16 | Rx:15.77% | SnakeCollision | Pos:(38828,34335) Wall:7469 Enemy:38
+2026-04-10 23:45:27,702 - INFO - Ep 99770 | S6:APEX_PREDATOR | Rw: 3469.54 | St: 989 | Fd: 224 (0.226/st) | Pk: 46 | Eps: 0.080 | L: 0.6737 | Q: 87.34/110.23 | Rx:24.27% | SnakeCollision | Pos:(29665,32216) Wall:11092 Enemy:20
+2026-04-10 23:45:27,702 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 62, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-10 23:48:26,633 - INFO - Ep 99771 | S6:APEX_PREDATOR | Rw: 4474.36 | St: 1127 | Fd: 261 (0.232/st) | Pk: 42 | Eps: 0.080 | L: 1.0329 | Q: 84.01/104.87 | Rx:29.46% | SnakeCollision | Pos:(27583,30748) Wall:8712 Enemy:863
+2026-04-10 23:50:00,281 - INFO - Ep 99772 | S6:APEX_PREDATOR | Rw: 2798.02 | St: 594 | Fd: 148 (0.249/st) | Pk: 44 | Eps: 0.080 | L: 0.5712 | Q: 81.62/107.50 | Rx:18.35% | SnakeCollision | Pos:(37462,31290) Wall:8925
+2026-04-10 23:54:35,949 - INFO - Ep 99773 | S6:APEX_PREDATOR | Rw: 7252.84 | St: 1614 | Fd: 409 (0.253/st) | Pk: 59 | Eps: 0.080 | L: 0.3534 | Q: 84.35/113.21 | Rx:22.30% | SnakeCollision | Pos:(31039,34605) Wall:11446 Enemy:28
+2026-04-10 23:56:34,347 - INFO - Ep 99774 | S6:APEX_PREDATOR | Rw: 2273.03 | St: 766 | Fd: 205 (0.268/st) | Pk: 46 | Eps: 0.080 | L: 0.5128 | Q: 81.49/106.35 | Rx:0.26% | SnakeCollision | Pos:(37378,34240) Wall:8881
+2026-04-10 23:58:09,641 - INFO - Ep 99775 | S6:APEX_PREDATOR | Rw: 2382.46 | St: 558 | Fd: 145 (0.260/st) | Pk: 50 | Eps: 0.080 | L: 0.3861 | Q: 86.59/110.47 | Rx:27.78% | SnakeCollision | Pos:(35306,35428) Wall:10012 Enemy:22
+2026-04-11 00:00:36,870 - INFO - Ep 99776 | S6:APEX_PREDATOR | Rw: 3776.32 | St: 975 | Fd: 236 (0.242/st) | Pk: 47 | Eps: 0.080 | L: 0.4116 | Q: 82.39/110.90 | Rx:17.03% | SnakeCollision | Pos:(35992,34990) Wall:9778 Enemy:1065
+2026-04-11 00:02:19,174 - INFO - >> Target Network Updated
+2026-04-11 00:03:24,117 - INFO - Ep 99777 | S6:APEX_PREDATOR | Rw: 3718.18 | St: 1035 | Fd: 217 (0.210/st) | Pk: 40 | Eps: 0.080 | L: 0.6735 | Q: 90.95/108.29 | Rx:25.99% | SnakeCollision | Pos:(27829,33496) Wall:9181 Enemy:757
+2026-04-11 00:03:31,927 - INFO - Ep 99778 | S6:APEX_PREDATOR | Rw: 76.34 | St: 29 | Fd: 15 (0.517/st) | Pk: 19 | Eps: 0.080 | L: 0.6373 | Q: 91.54/112.31 | Rx:41.38% | SnakeCollision | Pos:(29480,37009) Wall:8583 Enemy:19
+2026-04-11 00:05:13,358 - INFO - Ep 99779 | S6:APEX_PREDATOR | Rw: 2651.11 | St: 636 | Fd: 178 (0.280/st) | Pk: 42 | Eps: 0.080 | L: 0.7233 | Q: 88.67/109.88 | Rx:25.63% | SnakeCollision | Pos:(33824,35614) Wall:10678 Enemy:13
+2026-04-11 00:09:03,786 - INFO - Ep 99780 | S6:APEX_PREDATOR | Rw: 5687.26 | St: 1281 | Fd: 304 (0.237/st) | Pk: 45 | Eps: 0.080 | L: 0.5356 | Q: 87.85/106.74 | Rx:35.13% | SnakeCollision | Pos:(31211,28216) Wall:9460 Enemy:113
+2026-04-11 00:09:03,787 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 72, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 00:13:27,868 - INFO - Ep 99781 | S6:APEX_PREDATOR | Rw: 3949.61 | St: 1523 | Fd: 315 (0.207/st) | Pk: 41 | Eps: 0.080 | L: 0.6199 | Q: 86.30/112.30 | Rx:13.46% | SnakeCollision | Pos:(27376,32675) Wall:8821 Enemy:410
+2026-04-11 00:14:40,348 - INFO - Ep 99782 | S6:APEX_PREDATOR | Rw: 1443.30 | St: 462 | Fd: 128 (0.277/st) | Pk: 36 | Eps: 0.080 | L: 0.1940 | Q: 88.92/107.12 | Rx:27.71% | SnakeCollision | Pos:(34880,27737) Wall:8649 Enemy:355
+2026-04-11 00:14:51,974 - INFO - Ep 99783 | S6:APEX_PREDATOR | Rw: 284.45 | St: 45 | Fd: 29 (0.644/st) | Pk: 29 | Eps: 0.080 | L: 0.4170 | Q: 88.42/112.93 | Rx:57.78% | SnakeCollision | Pos:(33197,32195) Wall:13258 Enemy:24
+2026-04-11 00:15:58,646 - INFO - Ep 99784 | S6:APEX_PREDATOR | Rw: 1833.16 | St: 406 | Fd: 127 (0.313/st) | Pk: 39 | Eps: 0.080 | L: 0.6299 | Q: 88.88/112.65 | Rx:19.70% | SnakeCollision | Pos:(38706,29285) Wall:7028 Enemy:29
+2026-04-11 00:18:42,638 - INFO - Ep 99785 | S6:APEX_PREDATOR | Rw: 4264.57 | St: 928 | Fd: 214 (0.231/st) | Pk: 43 | Eps: 0.080 | L: 0.1963 | Q: 88.58/109.88 | Rx:14.12% | SnakeCollision | Pos:(33916,28285) Wall:9518 Enemy:1282
+2026-04-11 00:19:06,150 - INFO - Ep 99786 | S6:APEX_PREDATOR | Rw: 606.96 | St: 159 | Fd: 56 (0.352/st) | Pk: 38 | Eps: 0.080 | L: 0.6122 | Q: 88.71/108.57 | Rx:9.43% | SnakeCollision | Pos:(35165,35782) Wall:9839
+2026-04-11 00:19:59,925 - INFO - Ep 99787 | S6:APEX_PREDATOR | Rw: 1511.37 | St: 331 | Fd: 89 (0.269/st) | Pk: 31 | Eps: 0.080 | L: 0.0927 | Q: 87.84/107.82 | Rx:26.59% | SnakeCollision | Pos:(30834,30682) Wall:11460 Enemy:16
+2026-04-11 00:20:48,836 - INFO - Ep 99788 | S6:APEX_PREDATOR | Rw: 1186.90 | St: 310 | Fd: 99 (0.319/st) | Pk: 46 | Eps: 0.080 | L: 0.2979 | Q: 88.45/105.51 | Rx:10.97% | SnakeCollision | Pos:(37114,33698) Wall:9290
+2026-04-11 00:24:17,431 - INFO - Ep 99789 | S6:APEX_PREDATOR | Rw: 4607.88 | St: 1199 | Fd: 303 (0.253/st) | Pk: 46 | Eps: 0.080 | L: 0.5028 | Q: 86.87/109.29 | Rx:12.84% | SnakeCollision | Pos:(36268,34293) Wall:9890 Enemy:1654
+2026-04-11 00:25:50,747 - INFO - Ep 99790 | S6:APEX_PREDATOR | Rw: 1506.12 | St: 549 | Fd: 134 (0.244/st) | Pk: 34 | Eps: 0.080 | L: 0.6238 | Q: 88.56/104.06 | Rx:6.19% | SnakeCollision | Pos:(33793,28439) Wall:9701
+2026-04-11 00:25:50,748 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 82, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 00:26:34,830 - INFO - Ep 99791 | S6:APEX_PREDATOR | Rw: 672.10 | St: 286 | Fd: 73 (0.255/st) | Pk: 39 | Eps: 0.080 | L: 0.2823 | Q: 86.45/119.08 | Rx:2.45% | SnakeCollision | Pos:(35174,36090) Wall:9590 Enemy:508
+2026-04-11 00:27:37,020 - INFO - Ep 99792 | S6:APEX_PREDATOR | Rw: 1359.15 | St: 455 | Fd: 129 (0.284/st) | Pk: 39 | Eps: 0.080 | L: 0.3582 | Q: 90.49/108.94 | Rx:3.08% | SnakeCollision | Pos:(37154,32041) Wall:9365
+2026-04-11 00:28:10,709 - INFO - Ep 99793 | S6:APEX_PREDATOR | Rw: 413.67 | St: 230 | Fd: 62 (0.270/st) | Pk: 29 | Eps: 0.080 | L: 0.4208 | Q: 87.76/106.31 | Rx:0.00% | SnakeCollision | Pos:(36627,34531) Wall:9464
+2026-04-11 00:29:22,503 - INFO - Ep 99794 | S6:APEX_PREDATOR | Rw: 1345.25 | St: 432 | Fd: 101 (0.234/st) | Pk: 31 | Eps: 0.080 | L: 0.2181 | Q: 86.26/112.28 | Rx:16.67% | SnakeCollision | Pos:(30721,39241) Wall:7060 Enemy:26
+2026-04-11 00:30:20,593 - INFO - Ep 99795 | S6:APEX_PREDATOR | Rw: 1160.81 | St: 372 | Fd: 94 (0.253/st) | Pk: 30 | Eps: 0.080 | L: 0.2009 | Q: 88.27/110.36 | Rx:12.90% | SnakeCollision | Pos:(36178,35561) Wall:9282
+2026-04-11 00:30:21,574 - INFO - >> Target Network Updated
+2026-04-11 00:33:26,766 - INFO - Ep 99796 | S6:APEX_PREDATOR | Rw: 3671.53 | St: 1036 | Fd: 228 (0.220/st) | Pk: 43 | Eps: 0.080 | L: 0.6533 | Q: 92.31/106.02 | Rx:19.21% | SnakeCollision | Pos:(36507,34990) Wall:9348
+2026-04-11 00:35:06,820 - INFO - Ep 99797 | S6:APEX_PREDATOR | Rw: 1889.01 | St: 584 | Fd: 158 (0.271/st) | Pk: 39 | Eps: 0.080 | L: 0.4814 | Q: 89.04/104.25 | Rx:9.42% | SnakeCollision | Pos:(34150,29683) Wall:10713 Enemy:789
+2026-04-11 00:35:31,472 - INFO - Ep 99798 | S6:APEX_PREDATOR | Rw: 623.98 | St: 158 | Fd: 51 (0.323/st) | Pk: 31 | Eps: 0.080 | L: 0.2282 | Q: 90.25/104.31 | Rx:44.30% | SnakeCollision | Pos:(29629,32431) Wall:11074 Enemy:830
+2026-04-11 00:35:40,703 - INFO - Ep 99799 | S6:APEX_PREDATOR | Rw: 126.20 | St: 41 | Fd: 21 (0.512/st) | Pk: 25 | Eps: 0.080 | L: 0.3847 | Q: 91.11/105.64 | Rx:0.00% | SnakeCollision | Pos:(34810,34519) Wall:10999 Enemy:1461
+2026-04-11 00:36:46,318 - INFO - Ep 99800 | S6:APEX_PREDATOR | Rw: 1444.37 | St: 362 | Fd: 89 (0.246/st) | Pk: 33 | Eps: 0.080 | L: 0.1892 | Q: 90.38/117.94 | Rx:57.73% | SnakeCollision | Pos:(35578,31317) Wall:10727 Enemy:1724
+2026-04-11 00:36:46,319 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 92, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 00:36:58,648 - INFO - Ep 99801 | S6:APEX_PREDATOR | Rw: 151.93 | St: 67 | Fd: 26 (0.388/st) | Pk: 26 | Eps: 0.080 | L: 0.3468 | Q: 86.76/102.49 | Rx:0.00% | SnakeCollision | Pos:(35166,34734) Wall:10589
+2026-04-11 00:37:44,380 - INFO - Ep 99802 | S6:APEX_PREDATOR | Rw: 808.78 | St: 291 | Fd: 80 (0.275/st) | Pk: 33 | Eps: 0.080 | L: 0.4561 | Q: 90.33/110.18 | Rx:5.50% | SnakeCollision | Pos:(36133,33204) Wall:10354 Enemy:1748
+2026-04-11 00:38:41,155 - INFO - Ep 99803 | S6:APEX_PREDATOR | Rw: 989.80 | St: 347 | Fd: 73 (0.210/st) | Pk: 30 | Eps: 0.080 | L: 0.5234 | Q: 88.27/109.12 | Rx:18.16% | SnakeCollision | Pos:(36033,34715) Wall:9895
+2026-04-11 00:42:25,612 - INFO - Ep 99804 | S6:APEX_PREDATOR | Rw: 3758.27 | St: 1299 | Fd: 272 (0.209/st) | Pk: 36 | Eps: 0.080 | L: 0.3485 | Q: 89.75/107.13 | Rx:16.55% | SnakeCollision | Pos:(36643,34106) Wall:9617 Enemy:1244
+2026-04-11 00:45:04,354 - INFO - Ep 99805 | S6:APEX_PREDATOR | Rw: 2987.25 | St: 1020 | Fd: 230 (0.225/st) | Pk: 31 | Eps: 0.080 | L: 0.1758 | Q: 90.44/104.44 | Rx:21.27% | SnakeCollision | Pos:(31508,27669) Wall:9005 Enemy:1895
+2026-04-11 00:46:29,381 - INFO - Ep 99806 | S6:APEX_PREDATOR | Rw: 1748.67 | St: 494 | Fd: 128 (0.259/st) | Pk: 34 | Eps: 0.080 | L: 0.3557 | Q: 88.68/105.71 | Rx:18.22% | SnakeCollision | Pos:(36933,34523) Wall:9190 Enemy:752
+2026-04-11 00:46:54,715 - INFO - Ep 99807 | S6:APEX_PREDATOR | Rw: 629.17 | St: 171 | Fd: 60 (0.351/st) | Pk: 29 | Eps: 0.080 | L: 0.2488 | Q: 87.92/106.08 | Rx:21.64% | SnakeCollision | Pos:(33544,32778) Wall:12977 Enemy:24
+2026-04-11 00:50:46,822 - INFO - Ep 99808 | S6:APEX_PREDATOR | Rw: 4503.49 | St: 1265 | Fd: 256 (0.202/st) | Pk: 54 | Eps: 0.080 | L: 0.2006 | Q: 91.26/107.40 | Rx:25.30% | SnakeCollision | Pos:(35231,29580) Wall:9995 Enemy:1103
+2026-04-11 00:55:18,325 - INFO - Ep 99809 | S6:APEX_PREDATOR | Rw: 6308.46 | St: 1525 | Fd: 366 (0.240/st) | Pk: 59 | Eps: 0.080 | L: 0.0938 | Q: 90.04/116.30 | Rx:26.75% | SnakeCollision | Pos:(32077,28102) Wall:9524 Enemy:1037
+2026-04-11 00:59:12,087 - INFO - >> Target Network Updated
+2026-04-11 01:07:33,208 - INFO - Ep 99810 | S6:APEX_PREDATOR | Rw: 12068.13 | St: 4054 | Fd: 819 (0.202/st) | Pk: 41 | Eps: 0.080 | L: 0.2534 | Q: 91.06/110.24 | Rx:14.04% | SnakeCollision | Pos:(29812,32404) Wall:11254 Enemy:254
+2026-04-11 01:07:33,209 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 102, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 01:14:18,559 - INFO - Ep 99811 | S6:APEX_PREDATOR | Rw: 6342.59 | St: 2156 | Fd: 433 (0.201/st) | Pk: 41 | Eps: 0.080 | L: 0.2392 | Q: 93.71/102.95 | Rx:12.34% | SnakeCollision | Pos:(33415,28103) Wall:9466 Enemy:650
+2026-04-11 01:16:23,674 - INFO - Ep 99812 | S6:APEX_PREDATOR | Rw: 2864.28 | St: 751 | Fd: 177 (0.236/st) | Pk: 42 | Eps: 0.080 | L: 0.2871 | Q: 92.38/108.96 | Rx:9.72% | SnakeCollision | Pos:(32757,27722) Wall:9164 Enemy:29
+2026-04-11 01:16:51,914 - INFO - Ep 99813 | S6:APEX_PREDATOR | Rw: 652.62 | St: 185 | Fd: 53 (0.286/st) | Pk: 30 | Eps: 0.080 | L: 0.1038 | Q: 91.28/107.93 | Rx:16.22% | SnakeCollision | Pos:(35879,31821) Wall:10588 Enemy:54
+2026-04-11 01:22:10,325 - INFO - Ep 99814 | S6:APEX_PREDATOR | Rw: 5930.98 | St: 1752 | Fd: 355 (0.203/st) | Pk: 43 | Eps: 0.080 | L: 0.2207 | Q: 91.41/105.70 | Rx:15.13% | SnakeCollision | Pos:(36262,30855) Wall:9916 Enemy:966
+2026-04-11 01:26:25,371 - INFO - Ep 99815 | S6:APEX_PREDATOR | Rw: 4369.88 | St: 1484 | Fd: 338 (0.228/st) | Pk: 39 | Eps: 0.080 | L: 0.1656 | Q: 91.73/103.96 | Rx:14.42% | SnakeCollision | Pos:(36652,32063) Wall:9866 Enemy:1025
+2026-04-11 01:27:05,747 - INFO - Ep 99816 | S6:APEX_PREDATOR | Rw: 1179.52 | St: 242 | Fd: 71 (0.293/st) | Pk: 34 | Eps: 0.080 | L: 0.2052 | Q: 93.36/111.96 | Rx:33.47% | SnakeCollision | Pos:(31667,34814) Wall:11567 Enemy:18
+2026-04-11 01:29:14,240 - INFO - >> Target Network Updated
+2026-04-11 01:35:02,443 - INFO - Ep 99817 | S6:APEX_PREDATOR | Rw: 9078.06 | St: 2706 | Fd: 583 (0.215/st) | Pk: 39 | Eps: 0.080 | L: 0.1915 | Q: 95.38/103.93 | Rx:19.55% | SnakeCollision | Pos:(31575,30102) Wall:11362 Enemy:24
+2026-04-11 01:35:21,410 - INFO - Ep 99818 | S6:APEX_PREDATOR | Rw: 321.99 | St: 115 | Fd: 44 (0.383/st) | Pk: 27 | Eps: 0.080 | L: 0.0892 | Q: 93.91/108.23 | Rx:9.57% | SnakeCollision | Pos:(33908,36330) Wall:9980 Enemy:1826
+2026-04-11 01:35:47,141 - INFO - Ep 99819 | S6:APEX_PREDATOR | Rw: 380.27 | St: 166 | Fd: 45 (0.271/st) | Pk: 28 | Eps: 0.080 | L: 0.2704 | Q: 94.80/103.93 | Rx:18.07% | SnakeCollision | Pos:(35986,32760) Wall:10554
+2026-04-11 01:35:56,272 - INFO - Ep 99820 | S6:APEX_PREDATOR | Rw: 77.04 | St: 38 | Fd: 22 (0.579/st) | Pk: 26 | Eps: 0.080 | L: 0.0192 | Q: 94.90/104.42 | Rx:0.00% | SnakeCollision | Pos:(34930,34740) Wall:10762
+2026-04-11 01:35:56,273 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 112, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 01:36:16,771 - INFO - Ep 99821 | S6:APEX_PREDATOR | Rw: 468.50 | St: 125 | Fd: 47 (0.376/st) | Pk: 30 | Eps: 0.080 | L: 0.0277 | Q: 94.32/104.73 | Rx:21.60% | SnakeCollision | Pos:(34891,34065) Wall:11208 Enemy:1225
+2026-04-11 01:37:00,657 - INFO - Ep 99822 | S6:APEX_PREDATOR | Rw: 939.70 | St: 264 | Fd: 77 (0.292/st) | Pk: 32 | Eps: 0.080 | L: 0.1067 | Q: 93.05/103.93 | Rx:40.15% | SnakeCollision | Pos:(33983,29359) Wall:10498 Enemy:1017
+2026-04-11 01:37:18,601 - INFO - Ep 99823 | S6:APEX_PREDATOR | Rw: 306.80 | St: 106 | Fd: 35 (0.330/st) | Pk: 29 | Eps: 0.080 | L: 0.3212 | Q: 94.47/108.69 | Rx:12.26% | SnakeCollision | Pos:(35622,33288) Wall:10837 Enemy:1592
+2026-04-11 01:38:10,771 - INFO - Ep 99824 | S6:APEX_PREDATOR | Rw: 1274.41 | St: 317 | Fd: 85 (0.268/st) | Pk: 36 | Eps: 0.080 | L: 0.1450 | Q: 94.60/104.78 | Rx:45.43% | SnakeCollision | Pos:(33540,35522) Wall:10864 Enemy:465
+2026-04-11 01:40:07,796 - INFO - Ep 99825 | S6:APEX_PREDATOR | Rw: 1488.49 | St: 640 | Fd: 121 (0.189/st) | Pk: 27 | Eps: 0.080 | L: 0.3650 | Q: 94.12/105.20 | Rx:11.88% | SnakeCollision | Pos:(31060,36144) Wall:10106
+2026-04-11 01:41:35,551 - INFO - Ep 99826 | S6:APEX_PREDATOR | Rw: 1406.81 | St: 487 | Fd: 111 (0.228/st) | Pk: 41 | Eps: 0.080 | L: 0.1836 | Q: 94.26/103.71 | Rx:7.19% | SnakeCollision | Pos:(36158,34659) Wall:9817
+2026-04-11 01:52:36,051 - INFO - Ep 99827 | S6:APEX_PREDATOR | Rw: 14261.38 | St: 3653 | Fd: 790 (0.216/st) | Pk: 43 | Eps: 0.080 | L: 0.0619 | Q: 95.28/103.50 | Rx:16.12% | SnakeCollision | Pos:(30599,42223) Wall:4129
+2026-04-11 01:53:12,633 - INFO - Ep 99828 | S6:APEX_PREDATOR | Rw: 930.29 | St: 221 | Fd: 64 (0.290/st) | Pk: 30 | Eps: 0.080 | L: 0.1142 | Q: 94.80/106.23 | Rx:33.03% | SnakeCollision | Pos:(33685,26922) Wall:8256 Enemy:15
+2026-04-11 01:55:39,864 - INFO - Ep 99829 | S6:APEX_PREDATOR | Rw: 2144.54 | St: 790 | Fd: 169 (0.214/st) | Pk: 33 | Eps: 0.080 | L: 0.1183 | Q: 92.95/109.10 | Rx:19.75% | SnakeCollision | Pos:(35738,31921) Wall:10747
+2026-04-11 01:56:12,710 - INFO - Ep 99830 | S6:APEX_PREDATOR | Rw: 709.92 | St: 210 | Fd: 62 (0.295/st) | Pk: 26 | Eps: 0.080 | L: 0.1908 | Q: 90.50/103.68 | Rx:36.67% | SnakeCollision | Pos:(33024,33715) Wall:12738 Enemy:8
+2026-04-11 01:56:12,711 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 122, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 01:58:11,756 - INFO - Ep 99831 | S6:APEX_PREDATOR | Rw: 1341.03 | St: 656 | Fd: 164 (0.250/st) | Pk: 45 | Eps: 0.080 | L: 0.0928 | Q: 94.39/104.52 | Rx:0.30% | SnakeCollision | Pos:(36417,41038) Wall:4669
+2026-04-11 01:58:42,309 - INFO - Ep 99832 | S6:APEX_PREDATOR | Rw: 714.30 | St: 194 | Fd: 70 (0.361/st) | Pk: 28 | Eps: 0.080 | L: 0.2147 | Q: 96.35/107.24 | Rx:36.60% | SnakeCollision | Pos:(29245,30872) Wall:10290 Enemy:271
+2026-04-11 01:58:46,890 - INFO - >> Target Network Updated
+2026-04-11 02:02:53,517 - INFO - Ep 99833 | S6:APEX_PREDATOR | Rw: 3283.85 | St: 1336 | Fd: 297 (0.222/st) | Pk: 39 | Eps: 0.080 | L: 0.1632 | Q: 93.87/104.94 | Rx:9.51% | SnakeCollision | Pos:(35071,31912) Wall:11396 Enemy:22
+2026-04-11 02:03:23,318 - INFO - Ep 99834 | S6:APEX_PREDATOR | Rw: 534.45 | St: 191 | Fd: 65 (0.340/st) | Pk: 37 | Eps: 0.080 | L: 0.2035 | Q: 91.53/103.56 | Rx:12.04% | SnakeCollision | Pos:(33181,36355) Wall:10140 Enemy:359
+2026-04-11 02:04:36,663 - INFO - Ep 99835 | S6:APEX_PREDATOR | Rw: 1527.91 | St: 412 | Fd: 93 (0.226/st) | Pk: 30 | Eps: 0.080 | L: 0.0736 | Q: 95.62/111.60 | Rx:38.59% | SnakeCollision | Pos:(31113,31993) Wall:12455 Enemy:34
+2026-04-11 02:06:23,332 - INFO - Ep 99836 | S6:APEX_PREDATOR | Rw: 2159.99 | St: 644 | Fd: 168 (0.261/st) | Pk: 39 | Eps: 0.080 | L: 0.1755 | Q: 96.51/104.70 | Rx:35.71% | SnakeCollision | Pos:(32652,28526) Wall:9971 Enemy:1715
+2026-04-11 02:07:40,911 - INFO - Ep 99837 | S6:APEX_PREDATOR | Rw: 1238.41 | St: 470 | Fd: 123 (0.262/st) | Pk: 27 | Eps: 0.080 | L: 0.0303 | Q: 95.20/102.00 | Rx:9.36% | SnakeCollision | Pos:(31277,28613) Wall:9859 Enemy:1617
+2026-04-11 02:08:33,500 - INFO - Ep 99838 | S6:APEX_PREDATOR | Rw: 762.14 | St: 304 | Fd: 78 (0.257/st) | Pk: 32 | Eps: 0.080 | L: 0.2663 | Q: 96.01/108.91 | Rx:6.91% | SnakeCollision | Pos:(41501,34133) Wall:4907 Enemy:1042
+2026-04-11 02:10:54,734 - INFO - Ep 99839 | S6:APEX_PREDATOR | Rw: 3140.61 | St: 767 | Fd: 166 (0.216/st) | Pk: 46 | Eps: 0.080 | L: 0.0432 | Q: 93.06/103.64 | Rx:34.29% | SnakeCollision | Pos:(34714,23760) Wall:4944 Enemy:731
+2026-04-11 02:14:32,267 - INFO - Ep 99840 | S6:APEX_PREDATOR | Rw: 2503.11 | St: 1150 | Fd: 231 (0.201/st) | Pk: 30 | Eps: 0.080 | L: 0.2206 | Q: 94.91/102.52 | Rx:10.00% | SnakeCollision | Pos:(36613,34077) Wall:9656 Enemy:1497
+2026-04-11 02:14:32,268 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 132, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 02:18:20,923 - INFO - Ep 99841 | S6:APEX_PREDATOR | Rw: 3603.69 | St: 1269 | Fd: 263 (0.207/st) | Pk: 43 | Eps: 0.080 | L: 0.0458 | Q: 95.99/104.98 | Rx:17.26% | SnakeCollision | Pos:(34135,36189) Wall:10027 Enemy:1543
+2026-04-11 02:19:25,300 - INFO - Ep 99842 | S6:APEX_PREDATOR | Rw: 927.45 | St: 404 | Fd: 90 (0.223/st) | Pk: 36 | Eps: 0.080 | L: 0.1176 | Q: 94.99/106.15 | Rx:2.23% | SnakeCollision | Pos:(35683,30002) Wall:9958
+2026-04-11 02:21:06,778 - INFO - Ep 99843 | S6:APEX_PREDATOR | Rw: 1682.09 | St: 558 | Fd: 125 (0.224/st) | Pk: 39 | Eps: 0.080 | L: 0.1662 | Q: 94.38/103.69 | Rx:12.72% | SnakeCollision | Pos:(33322,32260) Wall:13171 Enemy:24
+2026-04-11 02:23:04,702 - INFO - Ep 99844 | S6:APEX_PREDATOR | Rw: 1808.76 | St: 710 | Fd: 158 (0.223/st) | Pk: 32 | Eps: 0.080 | L: 0.0448 | Q: 95.05/115.50 | Rx:15.07% | SnakeCollision | Pos:(32027,35642) Wall:10860 Enemy:39
+2026-04-11 02:28:35,326 - INFO - >> Target Network Updated
+2026-04-11 02:29:21,220 - INFO - Ep 99845 | S6:APEX_PREDATOR | Rw: 6797.72 | St: 2072 | Fd: 401 (0.194/st) | Pk: 40 | Eps: 0.080 | L: 0.0632 | Q: 92.94/103.66 | Rx:19.69% | SnakeCollision | Pos:(29513,28773) Wall:9150 Enemy:939
+2026-04-11 02:33:40,902 - INFO - Ep 99846 | S6:APEX_PREDATOR | Rw: 5185.47 | St: 1617 | Fd: 379 (0.234/st) | Pk: 39 | Eps: 0.080 | L: 0.0725 | Q: 94.50/101.98 | Rx:9.46% | SnakeCollision | Pos:(37262,30470) Wall:8846
+2026-04-11 02:35:30,994 - INFO - Ep 99847 | S6:APEX_PREDATOR | Rw: 2152.79 | St: 658 | Fd: 162 (0.246/st) | Pk: 33 | Eps: 0.080 | L: 0.1026 | Q: 94.68/106.79 | Rx:24.16% | SnakeCollision | Pos:(29688,36826) Wall:8851 Enemy:1670
+2026-04-11 02:46:15,482 - INFO - Ep 99848 | S6:APEX_PREDATOR | Rw: 11323.99 | St: 3542 | Fd: 728 (0.206/st) | Pk: 46 | Eps: 0.080 | L: 0.1969 | Q: 96.60/102.68 | Rx:12.06% | SnakeCollision | Pos:(28782,36669) Wall:8414 Enemy:716
+2026-04-11 02:46:41,867 - INFO - Ep 99849 | S6:APEX_PREDATOR | Rw: 401.85 | St: 116 | Fd: 38 (0.328/st) | Pk: 27 | Eps: 0.080 | L: 0.1522 | Q: 94.80/101.73 | Rx:42.24% | SnakeCollision | Pos:(34546,34259) Wall:11369 Enemy:33
+2026-04-11 02:49:06,935 - INFO - Ep 99850 | S6:APEX_PREDATOR | Rw: 3519.77 | St: 844 | Fd: 189 (0.224/st) | Pk: 43 | Eps: 0.080 | L: 0.2085 | Q: 93.83/107.24 | Rx:27.73% | SnakeCollision | Pos:(36611,31331) Wall:9757 Enemy:986
+2026-04-11 02:49:06,936 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 142, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 02:50:34,477 - INFO - Ep 99851 | S6:APEX_PREDATOR | Rw: 992.40 | St: 492 | Fd: 106 (0.215/st) | Pk: 32 | Eps: 0.080 | L: 0.0532 | Q: 96.85/102.48 | Rx:7.32% | SnakeCollision | Pos:(36575,31231) Wall:9761
+2026-04-11 02:51:10,919 - INFO - Ep 99852 | S6:APEX_PREDATOR | Rw: 560.08 | St: 227 | Fd: 63 (0.278/st) | Pk: 26 | Eps: 0.080 | L: 0.1413 | Q: 96.66/106.75 | Rx:18.94% | SnakeCollision | Pos:(29284,35487) Wall:9604 Enemy:1068
+2026-04-11 02:58:07,904 - INFO - >> Target Network Updated
+2026-04-11 02:59:20,170 - INFO - Ep 99853 | S6:APEX_PREDATOR | Rw: 7229.95 | St: 2598 | Fd: 468 (0.180/st) | Pk: 39 | Eps: 0.080 | L: 0.0834 | Q: 96.38/106.04 | Rx:12.86% | SnakeCollision | Pos:(36838,31322) Wall:9536
+2026-04-11 03:00:51,686 - INFO - Ep 99854 | S6:APEX_PREDATOR | Rw: 1616.77 | St: 507 | Fd: 123 (0.243/st) | Pk: 41 | Eps: 0.080 | L: 0.1509 | Q: 93.61/101.47 | Rx:5.92% | SnakeCollision | Pos:(36390,33136) Wall:10112
+2026-04-11 03:01:08,320 - INFO - Ep 99855 | S6:APEX_PREDATOR | Rw: 175.70 | St: 96 | Fd: 33 (0.344/st) | Pk: 28 | Eps: 0.080 | L: 0.3169 | Q: 94.45/102.40 | Rx:0.00% | SnakeCollision | Pos:(36352,33662) Wall:10035
+2026-04-11 03:03:15,103 - INFO - Ep 99856 | S6:APEX_PREDATOR | Rw: 1750.63 | St: 749 | Fd: 182 (0.243/st) | Pk: 29 | Eps: 0.080 | L: 0.0848 | Q: 95.58/103.86 | Rx:18.83% | SnakeCollision | Pos:(31480,36071) Wall:10316 Enemy:1102
+2026-04-11 03:05:46,261 - INFO - Ep 99857 | S6:APEX_PREDATOR | Rw: 1980.66 | St: 875 | Fd: 183 (0.209/st) | Pk: 31 | Eps: 0.080 | L: 0.1545 | Q: 96.16/102.37 | Rx:12.57% | SnakeCollision | Pos:(29136,34793) Wall:9911 Enemy:674
+2026-04-11 03:06:13,143 - INFO - Ep 99858 | S6:APEX_PREDATOR | Rw: 669.10 | St: 173 | Fd: 46 (0.266/st) | Pk: 29 | Eps: 0.080 | L: 0.1505 | Q: 97.51/106.60 | Rx:42.77% | SnakeCollision | Pos:(30947,34044) Wall:11805 Enemy:0
+2026-04-11 03:08:06,684 - INFO - Ep 99859 | S6:APEX_PREDATOR | Rw: 1440.07 | St: 622 | Fd: 116 (0.186/st) | Pk: 34 | Eps: 0.080 | L: 0.0929 | Q: 95.41/101.98 | Rx:4.98% | SnakeCollision | Pos:(34002,28293) Wall:9498 Enemy:1581
+2026-04-11 03:10:30,286 - INFO - Ep 99860 | S6:APEX_PREDATOR | Rw: 2761.03 | St: 773 | Fd: 163 (0.211/st) | Pk: 39 | Eps: 0.080 | L: 0.1666 | Q: 94.39/102.65 | Rx:27.30% | SnakeCollision | Pos:(34279,30965) Wall:11651 Enemy:14
+2026-04-11 03:10:30,287 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 152, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:12:57,235 - INFO - Ep 99861 | S6:APEX_PREDATOR | Rw: 1916.43 | St: 791 | Fd: 159 (0.201/st) | Pk: 39 | Eps: 0.080 | L: 0.0802 | Q: 97.26/103.10 | Rx:7.33% | SnakeCollision | Pos:(34931,39463) Wall:6685 Enemy:836
+2026-04-11 03:13:08,734 - INFO - Ep 99862 | S6:APEX_PREDATOR | Rw: 310.12 | St: 55 | Fd: 27 (0.491/st) | Pk: 26 | Eps: 0.080 | L: 0.1295 | Q: 93.34/105.86 | Rx:100.00% | SnakeCollision | Pos:(33593,36477) Wall:9933 Enemy:39
+2026-04-11 03:15:38,857 - INFO - Ep 99863 | S6:APEX_PREDATOR | Rw: 4771.62 | St: 864 | Fd: 207 (0.240/st) | Pk: 65 | Eps: 0.080 | L: 0.0834 | Q: 95.99/107.13 | Rx:43.17% | SnakeCollision | Pos:(39394,29960) Wall:6679 Enemy:797
+2026-04-11 03:16:44,139 - INFO - Ep 99864 | S6:APEX_PREDATOR | Rw: 1585.48 | St: 375 | Fd: 118 (0.315/st) | Pk: 30 | Eps: 0.080 | L: 0.1880 | Q: 96.84/105.92 | Rx:18.13% | SnakeCollision | Pos:(31527,38516) Wall:7943 Enemy:532
+2026-04-11 03:17:34,444 - INFO - Ep 99865 | S6:APEX_PREDATOR | Rw: 2352.86 | St: 294 | Fd: 108 (0.367/st) | Pk: 53 | Eps: 0.080 | L: 0.0879 | Q: 94.94/106.36 | Rx:83.67% | SnakeCollision | Pos:(26547,31359) Wall:7877 Enemy:139
+2026-04-11 03:17:58,450 - INFO - Ep 99866 | S6:APEX_PREDATOR | Rw: 1110.07 | St: 152 | Fd: 60 (0.395/st) | Pk: 38 | Eps: 0.080 | L: 0.1373 | Q: 96.19/102.04 | Rx:21.05% | SnakeCollision | Pos:(29524,27766) Wall:8336 Enemy:783
+2026-04-11 03:18:47,018 - INFO - Ep 99867 | S6:APEX_PREDATOR | Rw: 1449.40 | St: 283 | Fd: 79 (0.279/st) | Pk: 35 | Eps: 0.080 | L: 0.2044 | Q: 96.02/102.34 | Rx:32.16% | SnakeCollision | Pos:(28970,29725) Wall:9436 Enemy:571
+2026-04-11 03:19:07,799 - INFO - Ep 99868 | S6:APEX_PREDATOR | Rw: 424.79 | St: 128 | Fd: 41 (0.320/st) | Pk: 31 | Eps: 0.080 | L: 0.1111 | Q: 95.76/102.66 | Rx:14.84% | SnakeCollision | Pos:(28089,33200) Wall:9488 Enemy:1034
+2026-04-11 03:19:49,914 - INFO - Ep 99869 | S6:APEX_PREDATOR | Rw: 1268.61 | St: 257 | Fd: 72 (0.280/st) | Pk: 35 | Eps: 0.080 | L: 0.2300 | Q: 96.09/102.29 | Rx:10.89% | SnakeCollision | Pos:(35857,34256) Wall:10276 Enemy:1291
+2026-04-11 03:20:11,573 - INFO - Ep 99870 | S6:APEX_PREDATOR | Rw: 374.59 | St: 133 | Fd: 34 (0.256/st) | Pk: 27 | Eps: 0.080 | L: 0.0730 | Q: 94.76/103.31 | Rx:53.38% | SnakeCollision | Pos:(30760,33462) Wall:11987 Enemy:12
+2026-04-11 03:20:11,574 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 162, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:20:16,684 - INFO - Ep 99871 | S6:APEX_PREDATOR | Rw: -55.26 | St: 7 | Fd: 4 (0.571/st) | Pk: 8 | Eps: 0.080 | L: 0.0910 | Q: 95.26/111.97 | Rx:0.00% | SnakeCollision | Pos:(35051,34908) Wall:10560 Enemy:249
+2026-04-11 03:23:54,301 - INFO - Ep 99872 | S6:APEX_PREDATOR | Rw: 4832.97 | St: 1275 | Fd: 267 (0.209/st) | Pk: 36 | Eps: 0.080 | L: 0.0826 | Q: 96.86/104.43 | Rx:25.80% | SnakeCollision | Pos:(31014,29965) Wall:10990 Enemy:30
+2026-04-11 03:24:52,964 - INFO - Ep 99873 | S6:APEX_PREDATOR | Rw: 1430.66 | St: 342 | Fd: 79 (0.231/st) | Pk: 36 | Eps: 0.080 | L: 0.2553 | Q: 94.31/105.16 | Rx:14.91% | SnakeCollision | Pos:(33258,39149) Wall:7360 Enemy:1528
+2026-04-11 03:27:04,217 - INFO - Ep 99874 | S6:APEX_PREDATOR | Rw: 4338.65 | St: 713 | Fd: 177 (0.248/st) | Pk: 66 | Eps: 0.080 | L: 0.1881 | Q: 95.05/110.11 | Rx:19.21% | SnakeCollision | Pos:(34418,35679) Wall:10352 Enemy:973
+2026-04-11 03:27:18,421 - INFO - Ep 99875 | S6:APEX_PREDATOR | Rw: 372.74 | St: 76 | Fd: 35 (0.461/st) | Pk: 32 | Eps: 0.080 | L: 0.0928 | Q: 93.21/105.82 | Rx:17.11% | SnakeCollision | Pos:(31897,29277) Wall:10659 Enemy:915
+2026-04-11 03:27:33,652 - INFO - >> Target Network Updated
+2026-04-11 03:27:41,059 - INFO - Ep 99876 | S6:APEX_PREDATOR | Rw: 541.03 | St: 139 | Fd: 48 (0.345/st) | Pk: 30 | Eps: 0.080 | L: 0.1202 | Q: 94.48/107.99 | Rx:38.85% | SnakeCollision | Pos:(32004,29778) Wall:11171 Enemy:548
+2026-04-11 03:28:52,919 - INFO - Ep 99877 | S6:APEX_PREDATOR | Rw: 1204.00 | St: 408 | Fd: 99 (0.243/st) | Pk: 38 | Eps: 0.080 | L: 0.1154 | Q: 96.62/104.71 | Rx:7.84% | SnakeCollision | Pos:(37455,27339) Wall:6840
+2026-04-11 03:29:06,467 - INFO - Ep 99878 | S6:APEX_PREDATOR | Rw: 191.14 | St: 72 | Fd: 31 (0.431/st) | Pk: 27 | Eps: 0.080 | L: 0.2697 | Q: 96.59/103.59 | Rx:9.72% | SnakeCollision | Pos:(34605,34539) Wall:11137 Enemy:1536
+2026-04-11 03:29:22,889 - INFO - Ep 99879 | S6:APEX_PREDATOR | Rw: 284.54 | St: 94 | Fd: 39 (0.415/st) | Pk: 27 | Eps: 0.080 | L: 0.1039 | Q: 97.20/107.67 | Rx:12.77% | SnakeCollision | Pos:(31705,29954) Wall:11267 Enemy:1458
+2026-04-11 03:29:43,608 - INFO - Ep 99880 | S6:APEX_PREDATOR | Rw: 358.30 | St: 127 | Fd: 46 (0.362/st) | Pk: 28 | Eps: 0.080 | L: 0.1540 | Q: 95.64/104.52 | Rx:9.45% | SnakeCollision | Pos:(35467,33401) Wall:10958 Enemy:761
+2026-04-11 03:29:43,609 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 172, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:30:00,530 - INFO - Ep 99881 | S6:APEX_PREDATOR | Rw: 370.96 | St: 98 | Fd: 45 (0.459/st) | Pk: 27 | Eps: 0.080 | L: 0.1269 | Q: 96.40/104.63 | Rx:36.73% | SnakeCollision | Pos:(35548,32545) Wall:10999 Enemy:443
+2026-04-11 03:30:14,245 - INFO - Ep 99882 | S6:APEX_PREDATOR | Rw: 176.96 | St: 73 | Fd: 30 (0.411/st) | Pk: 26 | Eps: 0.080 | L: 0.2146 | Q: 96.96/105.10 | Rx:1.37% | SnakeCollision | Pos:(35186,33315) Wall:11252 Enemy:1457
+2026-04-11 03:30:44,370 - INFO - Ep 99883 | S6:APEX_PREDATOR | Rw: 826.43 | St: 192 | Fd: 61 (0.318/st) | Pk: 36 | Eps: 0.080 | L: 0.1054 | Q: 94.69/103.49 | Rx:23.44% | SnakeCollision | Pos:(31161,34407) Wall:11678 Enemy:26
+2026-04-11 03:31:36,414 - INFO - Ep 99884 | S6:APEX_PREDATOR | Rw: 959.02 | St: 304 | Fd: 75 (0.247/st) | Pk: 30 | Eps: 0.080 | L: 0.0528 | Q: 97.43/109.44 | Rx:17.11% | SnakeCollision | Pos:(35586,31890) Wall:10890 Enemy:977
+2026-04-11 03:33:26,013 - INFO - Ep 99885 | S6:APEX_PREDATOR | Rw: 3010.68 | St: 652 | Fd: 145 (0.222/st) | Pk: 37 | Eps: 0.080 | L: 0.2492 | Q: 95.22/109.57 | Rx:18.25% | SnakeCollision | Pos:(26777,36402) Wall:7056 Enemy:1136
+2026-04-11 03:33:37,065 - INFO - Ep 99886 | S6:APEX_PREDATOR | Rw: 113.31 | St: 52 | Fd: 25 (0.481/st) | Pk: 25 | Eps: 0.080 | L: 0.1805 | Q: 95.18/103.84 | Rx:3.85% | SnakeCollision | Pos:(28780,32524) Wall:10226 Enemy:988
+2026-04-11 03:34:18,878 - INFO - Ep 99887 | S6:APEX_PREDATOR | Rw: 777.01 | St: 276 | Fd: 74 (0.268/st) | Pk: 28 | Eps: 0.080 | L: 0.1968 | Q: 96.14/105.03 | Rx:12.32% | SnakeCollision | Pos:(35130,30917) Wall:10943 Enemy:639
+2026-04-11 03:34:41,590 - INFO - Ep 99888 | S6:APEX_PREDATOR | Rw: 484.67 | St: 142 | Fd: 51 (0.359/st) | Pk: 30 | Eps: 0.080 | L: 0.0987 | Q: 93.96/105.26 | Rx:29.58% | SnakeCollision | Pos:(34127,35252) Wall:10868 Enemy:827
+2026-04-11 03:34:57,619 - INFO - Ep 99889 | S6:APEX_PREDATOR | Rw: 277.74 | St: 90 | Fd: 33 (0.367/st) | Pk: 26 | Eps: 0.080 | L: 0.1768 | Q: 97.80/102.71 | Rx:35.56% | SnakeCollision | Pos:(32176,29494) Wall:10918 Enemy:507
+2026-04-11 03:35:29,690 - INFO - Ep 99890 | S6:APEX_PREDATOR | Rw: 519.04 | St: 205 | Fd: 53 (0.259/st) | Pk: 29 | Eps: 0.080 | L: 0.1485 | Q: 96.51/102.51 | Rx:16.59% | SnakeCollision | Pos:(34553,34997) Wall:10834 Enemy:1552
+2026-04-11 03:35:29,690 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 182, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:35:49,644 - INFO - Ep 99891 | S6:APEX_PREDATOR | Rw: 321.37 | St: 123 | Fd: 43 (0.350/st) | Pk: 26 | Eps: 0.080 | L: 0.0662 | Q: 97.48/104.74 | Rx:0.81% | SnakeCollision | Pos:(35856,31938) Wall:10634 Enemy:1202
+2026-04-11 03:35:59,841 - INFO - Ep 99892 | S6:APEX_PREDATOR | Rw: 127.72 | St: 46 | Fd: 23 (0.500/st) | Pk: 25 | Eps: 0.080 | L: 0.1454 | Q: 95.56/102.59 | Rx:13.04% | SnakeCollision | Pos:(35385,30684) Wall:10602 Enemy:530
+2026-04-11 03:36:05,841 - INFO - Ep 99893 | S6:APEX_PREDATOR | Rw: -55.93 | St: 10 | Fd: 5 (0.500/st) | Pk: 9 | Eps: 0.080 | L: 0.0619 | Q: 94.77/106.57 | Rx:50.00% | SnakeCollision | Pos:(34610,35197) Wall:10642 Enemy:386
+2026-04-11 03:36:18,390 - INFO - Ep 99894 | S6:APEX_PREDATOR | Rw: 385.31 | St: 63 | Fd: 29 (0.460/st) | Pk: 28 | Eps: 0.080 | L: 0.2047 | Q: 94.75/103.85 | Rx:76.19% | SnakeCollision | Pos:(30656,35277) Wall:10677 Enemy:338
+2026-04-11 03:36:35,420 - INFO - Ep 99895 | S6:APEX_PREDATOR | Rw: 474.44 | St: 97 | Fd: 41 (0.423/st) | Pk: 27 | Eps: 0.080 | L: 0.1727 | Q: 95.28/102.21 | Rx:30.93% | SnakeCollision | Pos:(35211,35758) Wall:9828 Enemy:397
+2026-04-11 03:37:52,026 - INFO - Ep 99896 | S6:APEX_PREDATOR | Rw: 1258.69 | St: 441 | Fd: 114 (0.259/st) | Pk: 28 | Eps: 0.080 | L: 0.2653 | Q: 95.42/103.69 | Rx:11.79% | SnakeCollision | Pos:(27529,36540) Wall:7583 Enemy:9
+2026-04-11 03:39:27,080 - INFO - Ep 99897 | S6:APEX_PREDATOR | Rw: 2560.42 | St: 525 | Fd: 123 (0.234/st) | Pk: 48 | Eps: 0.080 | L: 0.0883 | Q: 94.15/104.92 | Rx:25.14% | SnakeCollision | Pos:(34798,29538) Wall:10238
+2026-04-11 03:41:28,848 - INFO - Ep 99898 | S6:APEX_PREDATOR | Rw: 2891.85 | St: 714 | Fd: 165 (0.231/st) | Pk: 36 | Eps: 0.080 | L: 0.1064 | Q: 95.25/103.55 | Rx:18.49% | SnakeCollision | Pos:(30083,38555) Wall:7505 Enemy:1020
+2026-04-11 03:41:45,327 - INFO - Ep 99899 | S6:APEX_PREDATOR | Rw: 314.56 | St: 93 | Fd: 34 (0.366/st) | Pk: 26 | Eps: 0.080 | L: 0.1378 | Q: 95.96/103.03 | Rx:6.45% | SnakeCollision | Pos:(35863,32155) Wall:10660 Enemy:1606
+2026-04-11 03:42:03,003 - INFO - Ep 99900 | S6:APEX_PREDATOR | Rw: 325.11 | St: 104 | Fd: 45 (0.433/st) | Pk: 26 | Eps: 0.080 | L: 0.1062 | Q: 96.61/105.27 | Rx:1.92% | SnakeCollision | Pos:(35597,32314) Wall:10941 Enemy:1052
+2026-04-11 03:42:03,003 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 192, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:42:18,705 - INFO - Ep 99901 | S6:APEX_PREDATOR | Rw: 170.21 | St: 86 | Fd: 29 (0.337/st) | Pk: 26 | Eps: 0.080 | L: 0.0469 | Q: 96.95/103.79 | Rx:10.47% | SnakeCollision | Pos:(33841,35312) Wall:10948 Enemy:1559
+2026-04-11 03:42:52,096 - INFO - Ep 99902 | S6:APEX_PREDATOR | Rw: 586.56 | St: 212 | Fd: 57 (0.269/st) | Pk: 26 | Eps: 0.080 | L: 0.1051 | Q: 95.61/103.12 | Rx:8.96% | SnakeCollision | Pos:(33100,35770) Wall:10730 Enemy:845
+2026-04-11 03:43:07,879 - INFO - Ep 99903 | S6:APEX_PREDATOR | Rw: 298.72 | St: 89 | Fd: 33 (0.371/st) | Pk: 30 | Eps: 0.080 | L: 0.1601 | Q: 92.85/102.18 | Rx:2.25% | SnakeCollision | Pos:(35210,34715) Wall:10567 Enemy:801
+2026-04-11 03:44:40,757 - INFO - Ep 99904 | S6:APEX_PREDATOR | Rw: 1690.32 | St: 613 | Fd: 141 (0.230/st) | Pk: 33 | Eps: 0.080 | L: 0.1626 | Q: 94.64/102.91 | Rx:8.97% | SnakeCollision | Pos:(35630,33013) Wall:10881 Enemy:1394
+2026-04-11 03:45:58,641 - INFO - Ep 99905 | S6:APEX_PREDATOR | Rw: 1544.63 | St: 434 | Fd: 107 (0.247/st) | Pk: 38 | Eps: 0.080 | L: 0.1092 | Q: 97.44/102.49 | Rx:23.96% | SnakeCollision | Pos:(29895,38070) Wall:7871 Enemy:1891
+2026-04-11 03:46:23,116 - INFO - Ep 99906 | S6:APEX_PREDATOR | Rw: 397.68 | St: 156 | Fd: 47 (0.301/st) | Pk: 28 | Eps: 0.080 | L: 0.1156 | Q: 96.50/102.90 | Rx:3.85% | SnakeCollision | Pos:(35691,31090) Wall:10533 Enemy:1360
+2026-04-11 03:48:10,935 - INFO - Ep 99907 | S6:APEX_PREDATOR | Rw: 1819.53 | St: 593 | Fd: 137 (0.231/st) | Pk: 37 | Eps: 0.080 | L: 0.1284 | Q: 94.35/103.25 | Rx:10.29% | SnakeCollision | Pos:(33555,36080) Wall:10326
+2026-04-11 03:48:58,339 - INFO - Ep 99908 | S6:APEX_PREDATOR | Rw: 898.56 | St: 279 | Fd: 75 (0.269/st) | Pk: 32 | Eps: 0.080 | L: 0.1665 | Q: 95.62/103.05 | Rx:11.83% | SnakeCollision | Pos:(38426,30729) Wall:7845
+2026-04-11 03:48:58,353 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.15->0.17, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.285)
+2026-04-11 03:49:22,918 - INFO - Ep 99909 | S6:APEX_PREDATOR | Rw: 505.84 | St: 155 | Fd: 59 (0.381/st) | Pk: 26 | Eps: 0.080 | L: 0.2177 | Q: 95.96/102.31 | Rx:13.55% | SnakeCollision | Pos:(33506,36081) Wall:10339
+2026-04-11 03:49:22,930 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.17->0.19, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.285)
+2026-04-11 03:49:40,668 - INFO - Ep 99910 | S6:APEX_PREDATOR | Rw: 248.11 | St: 103 | Fd: 40 (0.388/st) | Pk: 30 | Eps: 0.080 | L: 0.1328 | Q: 96.11/103.82 | Rx:0.00% | SnakeCollision | Pos:(36149,31555) Wall:10263
+2026-04-11 03:49:40,669 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 202, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:49:40,684 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.19->0.21, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.286)
+2026-04-11 03:50:06,788 - INFO - Ep 99911 | S6:APEX_PREDATOR | Rw: 571.60 | St: 169 | Fd: 57 (0.337/st) | Pk: 27 | Eps: 0.080 | L: 0.1732 | Q: 96.73/104.12 | Rx:27.22% | SnakeCollision | Pos:(32734,36210) Wall:10332 Enemy:1212
+2026-04-11 03:50:06,802 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.21->0.23, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.286)
+2026-04-11 03:50:23,513 - INFO - Ep 99912 | S6:APEX_PREDATOR | Rw: 245.20 | St: 96 | Fd: 33 (0.344/st) | Pk: 26 | Eps: 0.080 | L: 0.0406 | Q: 96.33/102.51 | Rx:0.00% | SnakeCollision | Pos:(36112,32698) Wall:10432
+2026-04-11 03:50:23,527 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.23->0.25, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.287)
+2026-04-11 03:50:48,604 - INFO - Ep 99913 | S6:APEX_PREDATOR | Rw: 430.09 | St: 160 | Fd: 53 (0.331/st) | Pk: 28 | Eps: 0.080 | L: 0.2129 | Q: 95.10/102.72 | Rx:4.38% | SnakeCollision | Pos:(35087,35140) Wall:10371
+2026-04-11 03:50:48,618 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.25->0.27, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.287)
+2026-04-11 03:51:10,653 - INFO - Ep 99914 | S6:APEX_PREDATOR | Rw: 393.07 | St: 137 | Fd: 43 (0.314/st) | Pk: 30 | Eps: 0.080 | L: 0.1285 | Q: 96.36/102.76 | Rx:13.14% | SnakeCollision | Pos:(32954,36075) Wall:10448 Enemy:1743
+2026-04-11 03:51:10,665 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.27->0.29, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.288)
+2026-04-11 03:51:32,365 - INFO - Ep 99915 | S6:APEX_PREDATOR | Rw: 382.71 | St: 135 | Fd: 53 (0.393/st) | Pk: 27 | Eps: 0.080 | L: 0.0768 | Q: 96.64/102.36 | Rx:10.37% | SnakeCollision | Pos:(35579,34101) Wall:10593 Enemy:1536
+2026-04-11 03:51:32,380 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.29->0.31, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.288)
+2026-04-11 03:52:08,904 - INFO - Ep 99916 | S6:APEX_PREDATOR | Rw: 704.50 | St: 226 | Fd: 68 (0.301/st) | Pk: 28 | Eps: 0.080 | L: 0.1709 | Q: 97.29/101.84 | Rx:21.24% | SnakeCollision | Pos:(34695,35546) Wall:10312
+2026-04-11 03:52:08,918 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.31->0.33, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.288)
+2026-04-11 03:52:37,143 - INFO - Ep 99917 | S6:APEX_PREDATOR | Rw: 576.73 | St: 184 | Fd: 66 (0.359/st) | Pk: 26 | Eps: 0.080 | L: 0.2145 | Q: 97.90/102.61 | Rx:8.15% | SnakeCollision | Pos:(32414,36399) Wall:10145 Enemy:958
+2026-04-11 03:52:37,156 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.33->0.35, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.289)
+2026-04-11 03:53:03,914 - INFO - Ep 99918 | S6:APEX_PREDATOR | Rw: 443.56 | St: 174 | Fd: 64 (0.368/st) | Pk: 27 | Eps: 0.080 | L: 0.1504 | Q: 95.29/105.59 | Rx:3.45% | SnakeCollision | Pos:(34469,29216) Wall:10149
+2026-04-11 03:53:03,925 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.35->0.37, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.289)
+2026-04-11 03:55:50,021 - INFO - >> Target Network Updated
+2026-04-11 03:56:40,546 - INFO - Ep 99919 | S6:APEX_PREDATOR | Rw: 3610.14 | St: 1210 | Fd: 250 (0.207/st) | Pk: 34 | Eps: 0.080 | L: 0.0403 | Q: 97.21/106.65 | Rx:25.62% | SnakeCollision | Pos:(35119,35331) Wall:10211 Enemy:1494
+2026-04-11 03:56:40,560 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.37->0.39, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.289)
+2026-04-11 03:56:56,329 - INFO - Ep 99920 | S6:APEX_PREDATOR | Rw: 247.15 | St: 89 | Fd: 42 (0.472/st) | Pk: 25 | Eps: 0.080 | L: 0.3313 | Q: 96.27/105.18 | Rx:26.97% | SnakeCollision | Pos:(30340,29928) Wall:10567 Enemy:867
+2026-04-11 03:56:56,330 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 212, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 03:56:56,343 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.39->0.41, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.289)
+2026-04-11 03:57:17,758 - INFO - Ep 99921 | S6:APEX_PREDATOR | Rw: 324.88 | St: 134 | Fd: 43 (0.321/st) | Pk: 28 | Eps: 0.080 | L: 0.1031 | Q: 95.68/107.51 | Rx:1.49% | SnakeCollision | Pos:(35460,32898) Wall:11066 Enemy:1198
+2026-04-11 03:57:17,773 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.41->0.43, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.290)
+2026-04-11 03:57:33,625 - INFO - Ep 99922 | S6:APEX_PREDATOR | Rw: 387.98 | St: 86 | Fd: 38 (0.442/st) | Pk: 27 | Eps: 0.080 | L: 0.1756 | Q: 95.05/104.01 | Rx:96.51% | SnakeCollision | Pos:(31085,31496) Wall:12191 Enemy:29
+2026-04-11 03:57:33,638 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.43->0.45, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.291)
+2026-04-11 03:58:45,699 - INFO - Ep 99923 | S6:APEX_PREDATOR | Rw: 1228.40 | St: 470 | Fd: 121 (0.257/st) | Pk: 40 | Eps: 0.080 | L: 0.1355 | Q: 95.22/107.27 | Rx:1.49% | SnakeCollision | Pos:(38451,31208) Wall:7945
+2026-04-11 03:58:45,715 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.45->0.47, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.290)
+2026-04-11 03:58:51,359 - INFO - Ep 99924 | S6:APEX_PREDATOR | Rw: -50.37 | St: 11 | Fd: 6 (0.545/st) | Pk: 12 | Eps: 0.080 | L: 0.1343 | Q: 93.78/104.04 | Rx:0.00% | SnakeCollision | Pos:(31744,35286) Wall:11145 Enemy:1207
+2026-04-11 03:58:51,374 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.47->0.49, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.292)
+2026-04-11 04:00:03,040 - INFO - Ep 99925 | S6:APEX_PREDATOR | Rw: 1113.79 | St: 409 | Fd: 117 (0.286/st) | Pk: 39 | Eps: 0.080 | L: 0.1470 | Q: 97.40/106.17 | Rx:11.98% | SnakeCollision | Pos:(34408,35182) Wall:10775 Enemy:1583
+2026-04-11 04:00:03,054 - INFO - [SuperPattern] Adjusted rewards: wall_pen=0.00->0.00, enemy_pen=0.49->0.50, straight_pen=0.00->0.00, food_reward=8.00->8.00 (wall_ratio=0.00, snake_ratio=1.00, food_ratio=0.292)
+2026-04-11 04:00:34,335 - INFO - Ep 99926 | S6:APEX_PREDATOR | Rw: 455.04 | St: 205 | Fd: 63 (0.307/st) | Pk: 27 | Eps: 0.080 | L: 0.3785 | Q: 94.04/102.72 | Rx:7.80% | SnakeCollision | Pos:(34892,30174) Wall:10660
+2026-04-11 04:00:50,581 - INFO - Ep 99927 | S6:APEX_PREDATOR | Rw: 228.48 | St: 92 | Fd: 41 (0.446/st) | Pk: 25 | Eps: 0.080 | L: 0.1617 | Q: 95.03/104.70 | Rx:7.61% | SnakeCollision | Pos:(30701,29691) Wall:10592 Enemy:1112
+2026-04-11 04:01:06,766 - INFO - Ep 99928 | S6:APEX_PREDATOR | Rw: 267.94 | St: 92 | Fd: 41 (0.446/st) | Pk: 25 | Eps: 0.080 | L: 0.1658 | Q: 92.77/102.56 | Rx:4.35% | SnakeCollision | Pos:(32895,35840) Wall:10688 Enemy:1669
+2026-04-11 04:01:18,747 - INFO - Ep 99929 | S6:APEX_PREDATOR | Rw: 137.18 | St: 60 | Fd: 26 (0.433/st) | Pk: 26 | Eps: 0.080 | L: 0.0690 | Q: 94.55/101.57 | Rx:8.33% | SnakeCollision | Pos:(32537,35627) Wall:10920 Enemy:922
+2026-04-11 04:01:32,944 - INFO - Ep 99930 | S6:APEX_PREDATOR | Rw: 226.57 | St: 76 | Fd: 33 (0.434/st) | Pk: 27 | Eps: 0.080 | L: 0.2380 | Q: 96.12/105.44 | Rx:7.89% | SnakeCollision | Pos:(34862,34139) Wall:11191 Enemy:1478
+2026-04-11 04:01:32,945 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 222, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:01:45,426 - INFO - Ep 99931 | S6:APEX_PREDATOR | Rw: 177.35 | St: 64 | Fd: 33 (0.516/st) | Pk: 25 | Eps: 0.080 | L: 0.1153 | Q: 95.74/104.75 | Rx:9.38% | SnakeCollision | Pos:(32619,29935) Wall:11381 Enemy:728
+2026-04-11 04:01:58,952 - INFO - Ep 99932 | S6:APEX_PREDATOR | Rw: 149.89 | St: 72 | Fd: 29 (0.403/st) | Pk: 27 | Eps: 0.080 | L: 0.0756 | Q: 95.35/103.64 | Rx:13.89% | SnakeCollision | Pos:(34970,33700) Wall:11317 Enemy:1215
+2026-04-11 04:02:36,336 - INFO - Ep 99933 | S6:APEX_PREDATOR | Rw: 537.44 | St: 232 | Fd: 72 (0.310/st) | Pk: 27 | Eps: 0.080 | L: 0.1728 | Q: 93.02/100.78 | Rx:11.21% | SnakeCollision | Pos:(34427,30328) Wall:11088
+2026-04-11 04:03:13,216 - INFO - Ep 99934 | S6:APEX_PREDATOR | Rw: 974.07 | St: 225 | Fd: 68 (0.302/st) | Pk: 34 | Eps: 0.080 | L: 0.4581 | Q: 93.81/103.76 | Rx:46.22% | SnakeCollision | Pos:(32162,35410) Wall:11110 Enemy:1279
+2026-04-11 04:05:18,502 - INFO - Ep 99935 | S6:APEX_PREDATOR | Rw: 1519.29 | St: 683 | Fd: 155 (0.227/st) | Pk: 32 | Eps: 0.080 | L: 0.0725 | Q: 97.25/105.07 | Rx:18.30% | SnakeCollision | Pos:(29361,32210) Wall:10790 Enemy:1149
+2026-04-11 04:05:45,949 - INFO - Ep 99936 | S6:APEX_PREDATOR | Rw: 542.12 | St: 177 | Fd: 61 (0.345/st) | Pk: 27 | Eps: 0.080 | L: 0.0925 | Q: 94.09/102.01 | Rx:13.56% | SnakeCollision | Pos:(34077,34891) Wall:11201 Enemy:1474
+2026-04-11 04:06:09,998 - INFO - Ep 99937 | S6:APEX_PREDATOR | Rw: 448.02 | St: 152 | Fd: 61 (0.401/st) | Pk: 27 | Eps: 0.080 | L: 0.2374 | Q: 96.35/103.19 | Rx:15.13% | SnakeCollision | Pos:(35478,32474) Wall:11067 Enemy:1393
+2026-04-11 04:07:48,994 - INFO - Ep 99938 | S6:APEX_PREDATOR | Rw: 1103.95 | St: 547 | Fd: 110 (0.201/st) | Pk: 36 | Eps: 0.080 | L: 0.0274 | Q: 95.90/103.56 | Rx:11.15% | SnakeCollision | Pos:(35214,30787) Wall:10802
+2026-04-11 04:08:31,520 - INFO - Ep 99939 | S6:APEX_PREDATOR | Rw: 537.36 | St: 258 | Fd: 75 (0.291/st) | Pk: 30 | Eps: 0.080 | L: 0.1278 | Q: 97.99/101.68 | Rx:14.73% | SnakeCollision | Pos:(32368,35728) Wall:10813 Enemy:741
+2026-04-11 04:09:45,441 - INFO - Ep 99940 | S6:APEX_PREDATOR | Rw: 1149.33 | St: 417 | Fd: 107 (0.257/st) | Pk: 31 | Eps: 0.080 | L: 0.1741 | Q: 96.54/102.98 | Rx:23.50% | SnakeCollision | Pos:(35565,33259) Wall:10899
+2026-04-11 04:09:45,442 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 232, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:09:58,211 - INFO - Ep 99941 | S6:APEX_PREDATOR | Rw: 135.52 | St: 66 | Fd: 29 (0.439/st) | Pk: 26 | Eps: 0.080 | L: 0.1047 | Q: 95.34/103.88 | Rx:4.55% | SnakeCollision | Pos:(34821,34690) Wall:10876
+2026-04-11 04:10:41,856 - INFO - Ep 99942 | S6:APEX_PREDATOR | Rw: 559.90 | St: 263 | Fd: 66 (0.251/st) | Pk: 27 | Eps: 0.080 | L: 0.0566 | Q: 96.81/106.05 | Rx:31.94% | SnakeCollision | Pos:(32421,29632) Wall:11075 Enemy:631
+2026-04-11 04:11:11,364 - INFO - Ep 99943 | S6:APEX_PREDATOR | Rw: 515.80 | St: 190 | Fd: 60 (0.316/st) | Pk: 29 | Eps: 0.080 | L: 0.0823 | Q: 94.54/103.77 | Rx:41.05% | SnakeCollision | Pos:(34591,34644) Wall:11072 Enemy:1010
+2026-04-11 04:11:19,118 - INFO - Ep 99944 | S6:APEX_PREDATOR | Rw: 28.54 | St: 27 | Fd: 16 (0.593/st) | Pk: 20 | Eps: 0.080 | L: 0.2019 | Q: 96.97/103.08 | Rx:0.00% | SnakeCollision | Pos:(35329,31703) Wall:11092
+2026-04-11 04:11:48,446 - INFO - Ep 99945 | S6:APEX_PREDATOR | Rw: 498.30 | St: 192 | Fd: 71 (0.370/st) | Pk: 27 | Eps: 0.080 | L: 0.1061 | Q: 96.72/103.83 | Rx:4.17% | SnakeCollision | Pos:(34634,30220) Wall:10870 Enemy:962
+2026-04-11 04:12:07,027 - INFO - Ep 99946 | S6:APEX_PREDATOR | Rw: 305.19 | St: 110 | Fd: 50 (0.455/st) | Pk: 25 | Eps: 0.080 | L: 0.1222 | Q: 94.06/101.23 | Rx:13.64% | SnakeCollision | Pos:(33059,35642) Wall:10863 Enemy:1046
+2026-04-11 04:12:44,235 - INFO - Ep 99947 | S6:APEX_PREDATOR | Rw: 557.99 | St: 233 | Fd: 65 (0.279/st) | Pk: 27 | Eps: 0.080 | L: 0.1369 | Q: 96.56/102.10 | Rx:21.89% | SnakeCollision | Pos:(33646,29843) Wall:11076 Enemy:760
+2026-04-11 04:13:40,150 - INFO - Ep 99948 | S6:APEX_PREDATOR | Rw: 1178.31 | St: 392 | Fd: 124 (0.316/st) | Pk: 32 | Eps: 0.080 | L: 0.1430 | Q: 97.97/103.28 | Rx:4.59% | SnakeCollision | Pos:(34291,28441) Wall:9534 Enemy:1315
+2026-04-11 04:14:30,739 - INFO - Ep 99949 | S6:APEX_PREDATOR | Rw: 1204.54 | St: 302 | Fd: 88 (0.291/st) | Pk: 40 | Eps: 0.080 | L: 0.0466 | Q: 95.02/102.80 | Rx:26.82% | SnakeCollision | Pos:(36921,30219) Wall:9043 Enemy:1596
+2026-04-11 04:15:12,276 - INFO - Ep 99950 | S6:APEX_PREDATOR | Rw: 626.54 | St: 252 | Fd: 70 (0.278/st) | Pk: 28 | Eps: 0.080 | L: 0.4262 | Q: 95.43/105.60 | Rx:23.41% | SnakeCollision | Pos:(35753,32127) Wall:10766 Enemy:1276
+2026-04-11 04:15:12,277 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 242, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:16:17,189 - INFO - Ep 99951 | S6:APEX_PREDATOR | Rw: 1273.85 | St: 365 | Fd: 92 (0.252/st) | Pk: 35 | Eps: 0.080 | L: 0.0609 | Q: 97.52/102.76 | Rx:38.08% | SnakeCollision | Pos:(29161,35244) Wall:9667 Enemy:615
+2026-04-11 04:16:30,877 - INFO - Ep 99952 | S6:APEX_PREDATOR | Rw: 152.85 | St: 73 | Fd: 28 (0.384/st) | Pk: 26 | Eps: 0.080 | L: 0.1326 | Q: 97.14/103.72 | Rx:17.81% | SnakeCollision | Pos:(33727,29531) Wall:10757 Enemy:1067
+2026-04-11 04:16:38,219 - INFO - Ep 99953 | S6:APEX_PREDATOR | Rw: 13.87 | St: 24 | Fd: 13 (0.542/st) | Pk: 17 | Eps: 0.080 | L: 0.2517 | Q: 96.83/103.18 | Rx:0.00% | SnakeCollision | Pos:(33942,29689) Wall:10815 Enemy:1225
+2026-04-11 04:17:02,140 - INFO - Ep 99954 | S6:APEX_PREDATOR | Rw: 371.04 | St: 153 | Fd: 56 (0.366/st) | Pk: 27 | Eps: 0.080 | L: 0.1356 | Q: 95.68/105.35 | Rx:9.15% | SnakeCollision | Pos:(34706,30289) Wall:10872 Enemy:1784
+2026-04-11 04:17:35,240 - INFO - Ep 99955 | S6:APEX_PREDATOR | Rw: 520.20 | St: 209 | Fd: 60 (0.287/st) | Pk: 28 | Eps: 0.080 | L: 0.3903 | Q: 97.43/102.08 | Rx:22.49% | SnakeCollision | Pos:(35273,30877) Wall:10800 Enemy:1328
+2026-04-11 04:18:10,328 - INFO - Ep 99956 | S6:APEX_PREDATOR | Rw: 651.28 | St: 219 | Fd: 83 (0.379/st) | Pk: 26 | Eps: 0.080 | L: 0.1329 | Q: 94.95/103.66 | Rx:10.05% | SnakeCollision | Pos:(35404,32130) Wall:11112 Enemy:717
+2026-04-11 04:19:04,608 - INFO - Ep 99957 | S6:APEX_PREDATOR | Rw: 823.83 | St: 323 | Fd: 102 (0.316/st) | Pk: 32 | Eps: 0.080 | L: 0.1023 | Q: 96.77/104.99 | Rx:12.38% | SnakeCollision | Pos:(32548,35429) Wall:11118 Enemy:960
+2026-04-11 04:20:09,832 - INFO - Ep 99958 | S6:APEX_PREDATOR | Rw: 856.07 | St: 376 | Fd: 105 (0.279/st) | Pk: 28 | Eps: 0.080 | L: 0.0619 | Q: 97.02/106.36 | Rx:7.18% | SnakeCollision | Pos:(35028,30804) Wall:10965 Enemy:1277
+2026-04-11 04:20:21,036 - INFO - Ep 99959 | S6:APEX_PREDATOR | Rw: 110.22 | St: 54 | Fd: 23 (0.426/st) | Pk: 25 | Eps: 0.080 | L: 0.2510 | Q: 96.02/106.94 | Rx:0.00% | SnakeCollision | Pos:(35370,31435) Wall:10965
+2026-04-11 04:20:37,166 - INFO - Ep 99960 | S6:APEX_PREDATOR | Rw: 238.95 | St: 92 | Fd: 36 (0.391/st) | Pk: 30 | Eps: 0.080 | L: 0.1775 | Q: 96.12/102.95 | Rx:0.00% | SnakeCollision | Pos:(35357,31410) Wall:10967
+2026-04-11 04:20:37,167 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 252, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:21:35,857 - INFO - Ep 99961 | S6:APEX_PREDATOR | Rw: 1186.02 | St: 383 | Fd: 102 (0.266/st) | Pk: 33 | Eps: 0.080 | L: 0.2557 | Q: 95.56/103.70 | Rx:9.14% | SnakeCollision | Pos:(35672,32055) Wall:10836 Enemy:892
+2026-04-11 04:22:08,423 - INFO - Ep 99962 | S6:APEX_PREDATOR | Rw: 538.15 | St: 213 | Fd: 72 (0.338/st) | Pk: 30 | Eps: 0.080 | L: 0.2773 | Q: 95.03/102.21 | Rx:5.16% | SnakeCollision | Pos:(32265,29362) Wall:10795 Enemy:1255
+2026-04-11 04:23:04,924 - INFO - Ep 99963 | S6:APEX_PREDATOR | Rw: 1100.25 | St: 328 | Fd: 91 (0.277/st) | Pk: 31 | Eps: 0.080 | L: 0.0811 | Q: 98.09/102.73 | Rx:16.77% | SnakeCollision | Pos:(33409,35373) Wall:11046 Enemy:687
+2026-04-11 04:23:51,762 - INFO - Ep 99964 | S6:APEX_PREDATOR | Rw: 1185.00 | St: 297 | Fd: 86 (0.290/st) | Pk: 33 | Eps: 0.080 | L: 0.2017 | Q: 93.05/103.31 | Rx:44.11% | SnakeCollision | Pos:(35104,33367) Wall:11315 Enemy:1023
+2026-04-11 04:24:01,832 - INFO - >> Target Network Updated
+2026-04-11 04:24:30,210 - INFO - Ep 99965 | S6:APEX_PREDATOR | Rw: 503.20 | St: 236 | Fd: 67 (0.284/st) | Pk: 30 | Eps: 0.080 | L: 0.2189 | Q: 96.16/106.49 | Rx:5.93% | SnakeCollision | Pos:(35583,33589) Wall:10790
+2026-04-11 04:25:11,928 - INFO - Ep 99966 | S6:APEX_PREDATOR | Rw: 612.80 | St: 250 | Fd: 77 (0.308/st) | Pk: 31 | Eps: 0.080 | L: 0.0434 | Q: 97.76/105.46 | Rx:6.80% | SnakeCollision | Pos:(34681,34747) Wall:10936 Enemy:1494
+2026-04-11 04:26:17,134 - INFO - Ep 99967 | S6:APEX_PREDATOR | Rw: 1129.45 | St: 424 | Fd: 104 (0.245/st) | Pk: 31 | Eps: 0.080 | L: 0.1755 | Q: 97.24/101.92 | Rx:6.60% | SnakeCollision | Pos:(37414,28749) Wall:7824
+2026-04-11 04:26:52,285 - INFO - Ep 99968 | S6:APEX_PREDATOR | Rw: 434.59 | St: 216 | Fd: 57 (0.264/st) | Pk: 29 | Eps: 0.080 | L: 0.2922 | Q: 96.86/101.74 | Rx:9.26% | SnakeCollision | Pos:(33983,35312) Wall:10885 Enemy:935
+2026-04-11 04:27:16,824 - INFO - Ep 99969 | S6:APEX_PREDATOR | Rw: 371.71 | St: 147 | Fd: 58 (0.395/st) | Pk: 25 | Eps: 0.080 | L: 0.2514 | Q: 96.19/102.47 | Rx:13.61% | SnakeCollision | Pos:(31038,29644) Wall:10720 Enemy:964
+2026-04-11 04:27:25,208 - INFO - Ep 99970 | S6:APEX_PREDATOR | Rw: 47.09 | St: 32 | Fd: 18 (0.562/st) | Pk: 22 | Eps: 0.080 | L: 0.1827 | Q: 95.38/106.96 | Rx:0.00% | SnakeCollision | Pos:(31334,29514) Wall:10726 Enemy:911
+2026-04-11 04:27:25,208 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 262, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:27:46,974 - INFO - Ep 99971 | S6:APEX_PREDATOR | Rw: 427.88 | St: 128 | Fd: 55 (0.430/st) | Pk: 25 | Eps: 0.080 | L: 0.0870 | Q: 97.06/102.70 | Rx:18.75% | SnakeCollision | Pos:(33315,35726) Wall:10730 Enemy:1253
+2026-04-11 04:28:28,846 - INFO - Ep 99972 | S6:APEX_PREDATOR | Rw: 725.58 | St: 256 | Fd: 96 (0.375/st) | Pk: 26 | Eps: 0.080 | L: 0.1568 | Q: 97.70/102.84 | Rx:15.62% | SnakeCollision | Pos:(34060,29829) Wall:10884 Enemy:1222
+2026-04-11 04:28:46,459 - INFO - Ep 99973 | S6:APEX_PREDATOR | Rw: 225.64 | St: 80 | Fd: 40 (0.500/st) | Pk: 25 | Eps: 0.080 | L: 0.0630 | Q: 97.94/103.00 | Rx:23.75% | SnakeCollision | Pos:(29439,32911) Wall:10864 Enemy:886
+2026-04-11 04:29:06,172 - INFO - Ep 99974 | S6:APEX_PREDATOR | Rw: 249.04 | St: 99 | Fd: 36 (0.364/st) | Pk: 27 | Eps: 0.080 | L: 0.1512 | Q: 97.18/101.67 | Rx:6.06% | SnakeCollision | Pos:(35570,32047) Wall:10934 Enemy:1046
+2026-04-11 04:29:28,704 - INFO - Ep 99975 | S6:APEX_PREDATOR | Rw: 305.94 | St: 110 | Fd: 46 (0.418/st) | Pk: 28 | Eps: 0.080 | L: 0.1430 | Q: 95.67/106.44 | Rx:23.64% | SnakeCollision | Pos:(31046,30125) Wall:11143 Enemy:634
+2026-04-11 04:30:11,004 - INFO - Ep 99976 | S6:APEX_PREDATOR | Rw: 495.53 | St: 242 | Fd: 62 (0.256/st) | Pk: 28 | Eps: 0.080 | L: 0.1340 | Q: 96.46/103.18 | Rx:11.16% | SnakeCollision | Pos:(35541,32879) Wall:10988 Enemy:535
+2026-04-11 04:30:32,940 - INFO - Ep 99977 | S6:APEX_PREDATOR | Rw: 377.21 | St: 128 | Fd: 59 (0.461/st) | Pk: 25 | Eps: 0.080 | L: 0.0631 | Q: 93.52/100.63 | Rx:6.25% | SnakeCollision | Pos:(35616,32573) Wall:10930 Enemy:1143
+2026-04-11 04:32:41,554 - INFO - Ep 99978 | S6:APEX_PREDATOR | Rw: 2500.68 | St: 840 | Fd: 203 (0.242/st) | Pk: 36 | Eps: 0.080 | L: 0.1091 | Q: 97.07/103.27 | Rx:22.50% | SnakeCollision | Pos:(35579,31857) Wall:10890 Enemy:904
+2026-04-11 04:33:32,117 - INFO - Ep 99979 | S6:APEX_PREDATOR | Rw: 977.35 | St: 307 | Fd: 77 (0.251/st) | Pk: 35 | Eps: 0.080 | L: 0.2395 | Q: 96.85/105.09 | Rx:6.19% | SnakeCollision | Pos:(37553,29575) Wall:8176 Enemy:1782
+2026-04-11 04:34:25,557 - INFO - Ep 99980 | S6:APEX_PREDATOR | Rw: 716.62 | St: 312 | Fd: 90 (0.288/st) | Pk: 26 | Eps: 0.080 | L: 0.0797 | Q: 95.45/101.54 | Rx:10.58% | SnakeCollision | Pos:(34936,34370) Wall:10995
+2026-04-11 04:34:25,558 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 272, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:34:40,019 - INFO - Ep 99981 | S6:APEX_PREDATOR | Rw: 141.89 | St: 80 | Fd: 24 (0.300/st) | Pk: 25 | Eps: 0.080 | L: 0.0637 | Q: 96.67/100.70 | Rx:5.00% | SnakeCollision | Pos:(34492,34364) Wall:11339 Enemy:588
+2026-04-11 04:34:58,259 - INFO - Ep 99982 | S6:APEX_PREDATOR | Rw: 248.23 | St: 107 | Fd: 41 (0.383/st) | Pk: 27 | Eps: 0.080 | L: 0.1416 | Q: 96.91/103.72 | Rx:35.51% | SnakeCollision | Pos:(35121,32382) Wall:11420 Enemy:903
+2026-04-11 04:35:09,120 - INFO - Ep 99983 | S6:APEX_PREDATOR | Rw: 133.05 | St: 51 | Fd: 26 (0.510/st) | Pk: 25 | Eps: 0.080 | L: 0.1505 | Q: 97.14/103.43 | Rx:9.80% | SnakeCollision | Pos:(35247,32300) Wall:11288 Enemy:1180
+2026-04-11 04:35:51,370 - INFO - Ep 99984 | S6:APEX_PREDATOR | Rw: 567.76 | St: 253 | Fd: 73 (0.289/st) | Pk: 30 | Eps: 0.080 | L: 0.2821 | Q: 94.19/106.35 | Rx:16.60% | SnakeCollision | Pos:(32535,29496) Wall:10943 Enemy:863
+2026-04-11 04:37:29,598 - INFO - Ep 99985 | S6:APEX_PREDATOR | Rw: 1074.85 | St: 540 | Fd: 112 (0.207/st) | Pk: 33 | Eps: 0.080 | L: 0.1355 | Q: 95.86/106.27 | Rx:16.48% | SnakeCollision | Pos:(31014,29623) Wall:10691 Enemy:670
+2026-04-11 04:37:57,377 - INFO - Ep 99986 | S6:APEX_PREDATOR | Rw: 544.31 | St: 181 | Fd: 79 (0.436/st) | Pk: 25 | Eps: 0.080 | L: 0.1131 | Q: 96.86/102.20 | Rx:8.29% | SnakeCollision | Pos:(29799,34488) Wall:10632 Enemy:666
+2026-04-11 04:38:26,943 - INFO - Ep 99987 | S6:APEX_PREDATOR | Rw: 366.99 | St: 192 | Fd: 57 (0.297/st) | Pk: 26 | Eps: 0.080 | L: 0.1376 | Q: 97.32/103.71 | Rx:11.46% | SnakeCollision | Pos:(32858,29520) Wall:10951 Enemy:770
+2026-04-11 04:39:12,936 - INFO - Ep 99988 | S6:APEX_PREDATOR | Rw: 791.46 | St: 274 | Fd: 90 (0.328/st) | Pk: 27 | Eps: 0.080 | L: 0.1750 | Q: 96.76/103.16 | Rx:21.90% | SnakeCollision | Pos:(35421,31673) Wall:10995 Enemy:890
+2026-04-11 04:39:49,117 - INFO - Ep 99989 | S6:APEX_PREDATOR | Rw: 786.67 | St: 243 | Fd: 86 (0.354/st) | Pk: 29 | Eps: 0.080 | L: 0.1857 | Q: 97.16/105.19 | Rx:4.53% | SnakeCollision | Pos:(35599,32250) Wall:10933
+2026-04-11 04:40:27,995 - INFO - Ep 99990 | S6:APEX_PREDATOR | Rw: 671.47 | St: 241 | Fd: 79 (0.328/st) | Pk: 30 | Eps: 0.080 | L: 0.0112 | Q: 97.38/103.44 | Rx:16.60% | SnakeCollision | Pos:(34666,34526) Wall:11101
+2026-04-11 04:40:27,996 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 282, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:41:10,288 - INFO - Ep 99991 | S6:APEX_PREDATOR | Rw: 1168.17 | St: 249 | Fd: 67 (0.269/st) | Pk: 38 | Eps: 0.080 | L: 0.2524 | Q: 97.94/106.23 | Rx:41.37% | SnakeCollision | Pos:(31548,34328) Wall:11956 Enemy:33
+2026-04-11 04:42:13,259 - INFO - Ep 99992 | S6:APEX_PREDATOR | Rw: 743.76 | St: 363 | Fd: 89 (0.245/st) | Pk: 26 | Eps: 0.080 | L: 0.2092 | Q: 96.25/101.19 | Rx:6.34% | SnakeCollision | Pos:(34830,30223) Wall:10738 Enemy:1432
+2026-04-11 04:42:43,278 - INFO - Ep 99993 | S6:APEX_PREDATOR | Rw: 371.95 | St: 196 | Fd: 52 (0.265/st) | Pk: 26 | Eps: 0.080 | L: 0.2037 | Q: 97.48/103.24 | Rx:4.59% | SnakeCollision | Pos:(35480,33698) Wall:10850 Enemy:1072
+2026-04-11 04:43:05,399 - INFO - Ep 99994 | S6:APEX_PREDATOR | Rw: 485.53 | St: 139 | Fd: 63 (0.453/st) | Pk: 25 | Eps: 0.080 | L: 0.3392 | Q: 97.12/104.66 | Rx:4.32% | SnakeCollision | Pos:(34624,30693) Wall:11213 Enemy:1203
+2026-04-11 04:43:25,565 - INFO - Ep 99995 | S6:APEX_PREDATOR | Rw: 311.32 | St: 123 | Fd: 45 (0.366/st) | Pk: 27 | Eps: 0.080 | L: 0.3233 | Q: 96.33/104.20 | Rx:3.25% | SnakeCollision | Pos:(33400,30000) Wall:11309 Enemy:812
+2026-04-11 04:43:34,238 - INFO - Ep 99996 | S6:APEX_PREDATOR | Rw: 46.26 | St: 35 | Fd: 18 (0.514/st) | Pk: 22 | Eps: 0.080 | L: 0.1176 | Q: 95.50/101.43 | Rx:0.00% | SnakeCollision | Pos:(35303,32640) Wall:11242 Enemy:1536
+2026-04-11 04:44:54,894 - INFO - Ep 99997 | S6:APEX_PREDATOR | Rw: 1541.70 | St: 519 | Fd: 153 (0.295/st) | Pk: 31 | Eps: 0.080 | L: 0.0421 | Q: 97.21/105.14 | Rx:6.17% | SnakeCollision | Pos:(35667,32054) Wall:10840 Enemy:1312
+2026-04-11 04:45:14,105 - INFO - Ep 99998 | S6:APEX_PREDATOR | Rw: 306.47 | St: 114 | Fd: 42 (0.368/st) | Pk: 26 | Eps: 0.080 | L: 0.1109 | Q: 97.57/103.85 | Rx:7.02% | SnakeCollision | Pos:(35448,31516) Wall:10920 Enemy:788
+2026-04-11 04:45:21,187 - INFO - Ep 99999 | S6:APEX_PREDATOR | Rw: -0.97 | St: 22 | Fd: 12 (0.545/st) | Pk: 16 | Eps: 0.080 | L: 0.1003 | Q: 95.96/103.10 | Rx:0.00% | SnakeCollision | Pos:(31876,29516) Wall:10888 Enemy:757
+2026-04-11 04:45:38,220 - INFO - Ep 100000 | S6:APEX_PREDATOR | Rw: 280.72 | St: 97 | Fd: 47 (0.485/st) | Pk: 25 | Eps: 0.080 | L: 0.2101 | Q: 96.84/102.39 | Rx:6.19% | SnakeCollision | Pos:(33251,29521) Wall:10887 Enemy:1206
+2026-04-11 04:45:38,221 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 292, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:46:04,949 - INFO - Ep 100001 | S6:APEX_PREDATOR | Rw: 344.65 | St: 173 | Fd: 52 (0.301/st) | Pk: 26 | Eps: 0.080 | L: 0.1190 | Q: 95.49/102.53 | Rx:7.51% | SnakeCollision | Pos:(35135,34345) Wall:10849 Enemy:983
+2026-04-11 04:46:51,575 - INFO - Ep 100002 | S6:APEX_PREDATOR | Rw: 763.03 | St: 281 | Fd: 94 (0.335/st) | Pk: 26 | Eps: 0.080 | L: 0.1816 | Q: 97.13/102.26 | Rx:14.59% | SnakeCollision | Pos:(32263,35632) Wall:10901 Enemy:942
+2026-04-11 04:47:07,710 - INFO - Ep 100003 | S6:APEX_PREDATOR | Rw: 276.14 | St: 91 | Fd: 38 (0.418/st) | Pk: 25 | Eps: 0.080 | L: 0.3891 | Q: 94.82/104.34 | Rx:24.18% | SnakeCollision | Pos:(35366,31954) Wall:11118 Enemy:420
+2026-04-11 04:47:54,875 - INFO - Ep 100004 | S6:APEX_PREDATOR | Rw: 750.71 | St: 283 | Fd: 83 (0.293/st) | Pk: 30 | Eps: 0.080 | L: 0.2670 | Q: 96.15/102.85 | Rx:16.25% | SnakeCollision | Pos:(31630,35384) Wall:11017 Enemy:1169
+2026-04-11 04:48:23,831 - INFO - Ep 100005 | S6:APEX_PREDATOR | Rw: 480.00 | St: 189 | Fd: 60 (0.317/st) | Pk: 27 | Eps: 0.080 | L: 0.1464 | Q: 96.68/105.19 | Rx:16.93% | SnakeCollision | Pos:(33455,35228) Wall:11169 Enemy:728
+2026-04-11 04:48:54,654 - INFO - Ep 100006 | S6:APEX_PREDATOR | Rw: 566.84 | St: 199 | Fd: 62 (0.312/st) | Pk: 28 | Eps: 0.080 | L: 0.3098 | Q: 96.69/102.31 | Rx:21.11% | SnakeCollision | Pos:(33183,31537) Wall:12802 Enemy:19
+2026-04-11 04:50:45,333 - INFO - Ep 100007 | S6:APEX_PREDATOR | Rw: 1703.46 | St: 665 | Fd: 202 (0.304/st) | Pk: 30 | Eps: 0.080 | L: 0.0740 | Q: 96.51/103.90 | Rx:17.44% | SnakeCollision | Pos:(31665,35950) Wall:10483 Enemy:1693
+2026-04-11 04:51:31,294 - INFO - Ep 100008 | S6:APEX_PREDATOR | Rw: 647.41 | St: 277 | Fd: 80 (0.289/st) | Pk: 28 | Eps: 0.080 | L: 0.1319 | Q: 96.35/104.69 | Rx:19.13% | SnakeCollision | Pos:(33771,29350) Wall:10572 Enemy:1546
+2026-04-11 04:51:43,381 - INFO - >> Target Network Updated
+2026-04-11 04:52:08,494 - INFO - Ep 100009 | S6:APEX_PREDATOR | Rw: 512.61 | St: 230 | Fd: 64 (0.278/st) | Pk: 27 | Eps: 0.080 | L: 0.1113 | Q: 97.37/104.08 | Rx:20.43% | SnakeCollision | Pos:(35827,33421) Wall:10606
+2026-04-11 04:53:22,187 - INFO - Ep 100010 | S6:APEX_PREDATOR | Rw: 2467.40 | St: 429 | Fd: 134 (0.312/st) | Pk: 83 | Eps: 0.080 | L: 0.3149 | Q: 95.00/123.41 | Rx:48.02% | SnakeCollision | Pos:(32400,29662) Wall:11104 Enemy:20
+2026-04-11 04:53:22,188 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 302, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:54:50,237 - INFO - Ep 100011 | S6:APEX_PREDATOR | Rw: 1513.93 | St: 486 | Fd: 123 (0.253/st) | Pk: 38 | Eps: 0.080 | L: 0.1836 | Q: 94.82/102.51 | Rx:15.84% | SnakeCollision | Pos:(37424,30817) Wall:8823
+2026-04-11 04:55:18,491 - INFO - Ep 100012 | S6:APEX_PREDATOR | Rw: 451.30 | St: 184 | Fd: 58 (0.315/st) | Pk: 27 | Eps: 0.080 | L: 0.3352 | Q: 93.58/102.71 | Rx:11.41% | SnakeCollision | Pos:(35280,32283) Wall:11254 Enemy:1137
+2026-04-11 04:55:53,516 - INFO - Ep 100013 | S6:APEX_PREDATOR | Rw: 553.19 | St: 219 | Fd: 76 (0.347/st) | Pk: 26 | Eps: 0.080 | L: 0.5153 | Q: 96.21/102.67 | Rx:16.89% | SnakeCollision | Pos:(32909,35564) Wall:10961 Enemy:873
+2026-04-11 04:56:12,039 - INFO - Ep 100014 | S6:APEX_PREDATOR | Rw: 294.16 | St: 110 | Fd: 44 (0.400/st) | Pk: 26 | Eps: 0.080 | L: 0.2623 | Q: 93.37/106.96 | Rx:44.55% | SnakeCollision | Pos:(35407,32701) Wall:11135 Enemy:535
+2026-04-11 04:56:24,751 - INFO - Ep 100015 | S6:APEX_PREDATOR | Rw: 98.55 | St: 66 | Fd: 25 (0.379/st) | Pk: 26 | Eps: 0.080 | L: 0.2955 | Q: 96.34/114.68 | Rx:6.06% | SnakeCollision | Pos:(35147,33874) Wall:11081 Enemy:1114
+2026-04-11 04:57:21,147 - INFO - Ep 100016 | S6:APEX_PREDATOR | Rw: 655.70 | St: 329 | Fd: 77 (0.234/st) | Pk: 28 | Eps: 0.080 | L: 0.0459 | Q: 94.25/102.37 | Rx:15.20% | SnakeCollision | Pos:(32357,29442) Wall:10882 Enemy:666
+2026-04-11 04:57:57,006 - INFO - Ep 100017 | S6:APEX_PREDATOR | Rw: 473.52 | St: 223 | Fd: 67 (0.300/st) | Pk: 27 | Eps: 0.080 | L: 0.5094 | Q: 97.38/103.65 | Rx:10.76% | SnakeCollision | Pos:(32279,29469) Wall:10903 Enemy:475
+2026-04-11 04:58:18,289 - INFO - Ep 100018 | S6:APEX_PREDATOR | Rw: 301.32 | St: 132 | Fd: 42 (0.318/st) | Pk: 31 | Eps: 0.080 | L: 0.1333 | Q: 95.77/103.34 | Rx:6.82% | SnakeCollision | Pos:(35124,34490) Wall:10773 Enemy:1400
+2026-04-11 04:59:11,782 - INFO - Ep 100019 | S6:APEX_PREDATOR | Rw: 689.80 | St: 318 | Fd: 85 (0.267/st) | Pk: 26 | Eps: 0.080 | L: 0.2513 | Q: 91.33/102.23 | Rx:6.92% | SnakeCollision | Pos:(35141,34249) Wall:10898 Enemy:696
+2026-04-11 04:59:23,841 - INFO - Ep 100020 | S6:APEX_PREDATOR | Rw: 142.86 | St: 61 | Fd: 29 (0.475/st) | Pk: 25 | Eps: 0.080 | L: 0.0873 | Q: 93.95/102.45 | Rx:18.03% | SnakeCollision | Pos:(32953,29438) Wall:10859 Enemy:544
+2026-04-11 04:59:23,841 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 312, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 04:59:47,862 - INFO - Ep 100021 | S6:APEX_PREDATOR | Rw: 407.78 | St: 154 | Fd: 56 (0.364/st) | Pk: 26 | Eps: 0.080 | L: 0.2473 | Q: 92.81/101.85 | Rx:1.30% | SnakeCollision | Pos:(35905,32336) Wall:10634 Enemy:729
+2026-04-11 05:00:14,135 - INFO - Ep 100022 | S6:APEX_PREDATOR | Rw: 560.75 | St: 167 | Fd: 69 (0.413/st) | Pk: 34 | Eps: 0.080 | L: 0.2667 | Q: 96.55/109.15 | Rx:24.55% | SnakeCollision | Pos:(35780,32703) Wall:10763 Enemy:1100
+2026-04-11 05:00:31,917 - INFO - Ep 100023 | S6:APEX_PREDATOR | Rw: 296.07 | St: 104 | Fd: 47 (0.452/st) | Pk: 26 | Eps: 0.080 | L: 0.3203 | Q: 94.89/102.29 | Rx:12.50% | SnakeCollision | Pos:(35432,33932) Wall:10800 Enemy:1029
+2026-04-11 05:00:55,350 - INFO - Ep 100024 | S6:APEX_PREDATOR | Rw: 343.22 | St: 150 | Fd: 49 (0.327/st) | Pk: 31 | Eps: 0.080 | L: 0.1318 | Q: 97.20/106.58 | Rx:2.67% | SnakeCollision | Pos:(35518,32725) Wall:11023 Enemy:566
+2026-04-11 05:01:24,749 - INFO - Ep 100025 | S6:APEX_PREDATOR | Rw: 545.68 | St: 189 | Fd: 56 (0.296/st) | Pk: 29 | Eps: 0.080 | L: 0.2787 | Q: 93.59/102.19 | Rx:39.68% | SnakeCollision | Pos:(34637,34687) Wall:11010
+2026-04-11 05:01:40,469 - INFO - Ep 100026 | S6:APEX_PREDATOR | Rw: 118.95 | St: 88 | Fd: 27 (0.307/st) | Pk: 25 | Eps: 0.080 | L: 0.2108 | Q: 96.67/107.97 | Rx:0.00% | SnakeCollision | Pos:(35213,33873) Wall:11023 Enemy:1347
+2026-04-11 05:02:26,097 - INFO - Ep 100027 | S6:APEX_PREDATOR | Rw: 652.73 | St: 276 | Fd: 72 (0.261/st) | Pk: 29 | Eps: 0.080 | L: 0.1879 | Q: 92.49/102.96 | Rx:5.80% | SnakeCollision | Pos:(35798,33027) Wall:10714 Enemy:980
+2026-04-11 05:03:44,652 - INFO - Ep 100028 | S6:APEX_PREDATOR | Rw: 656.07 | St: 443 | Fd: 85 (0.192/st) | Pk: 31 | Eps: 0.080 | L: 0.3738 | Q: 97.68/102.71 | Rx:6.77% | SnakeCollision | Pos:(33417,37813) Wall:8663
+2026-04-11 05:07:47,129 - INFO - Ep 100029 | S6:APEX_PREDATOR | Rw: 3747.32 | St: 1446 | Fd: 320 (0.221/st) | Pk: 36 | Eps: 0.080 | L: 0.1779 | Q: 96.80/107.96 | Rx:13.28% | SnakeCollision | Pos:(26727,31887) Wall:8136
+2026-04-11 05:08:16,650 - INFO - Ep 100030 | S6:APEX_PREDATOR | Rw: 419.45 | St: 192 | Fd: 59 (0.307/st) | Pk: 30 | Eps: 0.080 | L: 0.2454 | Q: 94.41/102.65 | Rx:0.00% | SnakeCollision | Pos:(33736,38099) Wall:8322
+2026-04-11 05:08:16,651 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 322, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:09:48,277 - INFO - Ep 100031 | S6:APEX_PREDATOR | Rw: 1196.99 | St: 508 | Fd: 111 (0.219/st) | Pk: 31 | Eps: 0.080 | L: 0.2385 | Q: 97.26/102.43 | Rx:7.28% | SnakeCollision | Pos:(35873,31274) Wall:10437
+2026-04-11 05:10:48,729 - INFO - Ep 100032 | S6:APEX_PREDATOR | Rw: 1040.52 | St: 396 | Fd: 118 (0.298/st) | Pk: 31 | Eps: 0.080 | L: 0.0443 | Q: 95.50/102.86 | Rx:12.37% | SnakeCollision | Pos:(34016,29078) Wall:10228 Enemy:1368
+2026-04-11 05:11:35,562 - INFO - Ep 100033 | S6:APEX_PREDATOR | Rw: 629.73 | St: 281 | Fd: 78 (0.278/st) | Pk: 30 | Eps: 0.080 | L: 0.2814 | Q: 97.64/104.94 | Rx:3.56% | SnakeCollision | Pos:(35193,35544) Wall:10003 Enemy:1198
+2026-04-11 05:12:35,449 - INFO - Ep 100034 | S6:APEX_PREDATOR | Rw: 1037.22 | St: 349 | Fd: 90 (0.258/st) | Pk: 38 | Eps: 0.080 | L: 0.2485 | Q: 96.78/105.42 | Rx:13.18% | SnakeCollision | Pos:(34787,31942) Wall:11678 Enemy:29
+2026-04-11 05:13:29,725 - INFO - Ep 100035 | S6:APEX_PREDATOR | Rw: 1162.15 | St: 317 | Fd: 85 (0.268/st) | Pk: 33 | Eps: 0.080 | L: 0.1764 | Q: 96.05/102.12 | Rx:17.67% | SnakeCollision | Pos:(27769,34492) Wall:8836 Enemy:647
+2026-04-11 05:14:08,817 - INFO - Ep 100036 | S6:APEX_PREDATOR | Rw: 561.94 | St: 241 | Fd: 67 (0.278/st) | Pk: 28 | Eps: 0.080 | L: 0.2428 | Q: 98.32/103.78 | Rx:9.13% | SnakeCollision | Pos:(36083,32932) Wall:10443
+2026-04-11 05:16:16,807 - INFO - Ep 100037 | S6:APEX_PREDATOR | Rw: 2381.45 | St: 765 | Fd: 171 (0.224/st) | Pk: 39 | Eps: 0.080 | L: 0.2737 | Q: 95.50/103.46 | Rx:19.22% | SnakeCollision | Pos:(35407,33636) Wall:10940 Enemy:946
+2026-04-11 05:16:47,368 - INFO - Ep 100038 | S6:APEX_PREDATOR | Rw: 727.81 | St: 193 | Fd: 65 (0.337/st) | Pk: 34 | Eps: 0.080 | L: 0.3267 | Q: 95.47/101.21 | Rx:46.11% | SnakeCollision | Pos:(31780,29422) Wall:10775 Enemy:505
+2026-04-11 05:17:23,776 - INFO - Ep 100039 | S6:APEX_PREDATOR | Rw: 527.74 | St: 230 | Fd: 63 (0.274/st) | Pk: 26 | Eps: 0.080 | L: 0.1596 | Q: 97.71/103.62 | Rx:14.78% | SnakeCollision | Pos:(30735,35043) Wall:10913 Enemy:866
+2026-04-11 05:17:35,544 - INFO - Ep 100040 | S6:APEX_PREDATOR | Rw: 144.37 | St: 60 | Fd: 30 (0.500/st) | Pk: 25 | Eps: 0.080 | L: 0.2283 | Q: 97.42/102.23 | Rx:0.00% | SnakeCollision | Pos:(33657,35554) Wall:10795
+2026-04-11 05:17:35,544 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 332, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:18:29,747 - INFO - Ep 100041 | S6:APEX_PREDATOR | Rw: 831.04 | St: 322 | Fd: 99 (0.307/st) | Pk: 28 | Eps: 0.080 | L: 0.1957 | Q: 96.50/102.21 | Rx:6.21% | SnakeCollision | Pos:(35287,30529) Wall:10594 Enemy:1029
+2026-04-11 05:19:05,903 - INFO - Ep 100042 | S6:APEX_PREDATOR | Rw: 530.29 | St: 228 | Fd: 68 (0.298/st) | Pk: 27 | Eps: 0.080 | L: 0.1633 | Q: 96.91/102.03 | Rx:0.00% | SnakeCollision | Pos:(34657,34635) Wall:11032 Enemy:1157
+2026-04-11 05:19:33,798 - INFO - >> Target Network Updated
+2026-04-11 05:20:28,204 - INFO - Ep 100043 | S6:APEX_PREDATOR | Rw: 1183.29 | St: 464 | Fd: 105 (0.226/st) | Pk: 32 | Eps: 0.080 | L: 0.2233 | Q: 94.02/101.84 | Rx:9.91% | SnakeCollision | Pos:(33220,35690) Wall:10786 Enemy:1057
+2026-04-11 05:21:26,518 - INFO - Ep 100044 | S6:APEX_PREDATOR | Rw: 1168.19 | St: 388 | Fd: 114 (0.294/st) | Pk: 30 | Eps: 0.080 | L: 0.0746 | Q: 97.09/103.57 | Rx:7.73% | SnakeCollision | Pos:(34900,30351) Wall:10778 Enemy:1006
+2026-04-11 05:22:11,200 - INFO - Ep 100045 | S6:APEX_PREDATOR | Rw: 531.71 | St: 275 | Fd: 67 (0.244/st) | Pk: 28 | Eps: 0.080 | L: 0.3380 | Q: 93.07/103.18 | Rx:25.45% | SnakeCollision | Pos:(31770,35570) Wall:10878 Enemy:798
+2026-04-11 05:23:10,710 - INFO - Ep 100046 | S6:APEX_PREDATOR | Rw: 885.29 | St: 359 | Fd: 82 (0.228/st) | Pk: 27 | Eps: 0.080 | L: 0.6386 | Q: 92.94/106.11 | Rx:7.80% | SnakeCollision | Pos:(35559,31576) Wall:10834 Enemy:1205
+2026-04-11 05:23:44,041 - INFO - Ep 100047 | S6:APEX_PREDATOR | Rw: 909.23 | St: 208 | Fd: 71 (0.341/st) | Pk: 37 | Eps: 0.080 | L: 0.1459 | Q: 96.34/103.40 | Rx:50.48% | SnakeCollision | Pos:(34357,30670) Wall:11389 Enemy:1339
+2026-04-11 05:24:04,699 - INFO - Ep 100048 | S6:APEX_PREDATOR | Rw: 364.87 | St: 126 | Fd: 47 (0.373/st) | Pk: 27 | Eps: 0.080 | L: 0.2535 | Q: 96.17/105.03 | Rx:9.52% | SnakeCollision | Pos:(35511,31415) Wall:10826 Enemy:1182
+2026-04-11 05:25:10,465 - INFO - Ep 100049 | S6:APEX_PREDATOR | Rw: 943.26 | St: 378 | Fd: 105 (0.278/st) | Pk: 29 | Eps: 0.080 | L: 0.1585 | Q: 96.49/103.80 | Rx:12.70% | SnakeCollision | Pos:(34977,30574) Wall:10867 Enemy:1617
+2026-04-11 05:25:18,103 - INFO - Ep 100050 | S6:APEX_PREDATOR | Rw: 15.30 | St: 27 | Fd: 14 (0.519/st) | Pk: 18 | Eps: 0.080 | L: 0.1949 | Q: 96.16/101.99 | Rx:0.00% | SnakeCollision | Pos:(35377,33491) Wall:11017 Enemy:1006
+2026-04-11 05:25:18,104 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 342, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:25:57,101 - INFO - Ep 100051 | S6:APEX_PREDATOR | Rw: 565.80 | St: 238 | Fd: 63 (0.265/st) | Pk: 29 | Eps: 0.080 | L: 0.0359 | Q: 96.38/103.04 | Rx:21.43% | SnakeCollision | Pos:(33058,29555) Wall:10959 Enemy:668
+2026-04-11 05:26:16,903 - INFO - Ep 100052 | S6:APEX_PREDATOR | Rw: 385.40 | St: 120 | Fd: 45 (0.375/st) | Pk: 26 | Eps: 0.080 | L: 0.1316 | Q: 95.83/102.30 | Rx:5.00% | SnakeCollision | Pos:(35134,31366) Wall:11154 Enemy:1101
+2026-04-11 05:26:28,139 - INFO - Ep 100053 | S6:APEX_PREDATOR | Rw: 140.50 | St: 54 | Fd: 27 (0.500/st) | Pk: 25 | Eps: 0.080 | L: 0.2346 | Q: 98.13/103.02 | Rx:16.67% | SnakeCollision | Pos:(32964,35179) Wall:11335 Enemy:1315
+2026-04-11 05:27:06,104 - INFO - Ep 100054 | S6:APEX_PREDATOR | Rw: 711.33 | St: 234 | Fd: 61 (0.261/st) | Pk: 34 | Eps: 0.080 | L: 0.4646 | Q: 95.23/103.21 | Rx:5.13% | SnakeCollision | Pos:(38348,29884) Wall:7615
+2026-04-11 05:28:07,001 - INFO - Ep 100055 | S6:APEX_PREDATOR | Rw: 1023.76 | St: 350 | Fd: 82 (0.234/st) | Pk: 34 | Eps: 0.080 | L: 0.3578 | Q: 94.73/102.21 | Rx:18.86% | SnakeCollision | Pos:(32975,29444) Wall:10861 Enemy:837
+2026-04-11 05:28:55,158 - INFO - Ep 100056 | S6:APEX_PREDATOR | Rw: 671.61 | St: 289 | Fd: 78 (0.270/st) | Pk: 29 | Eps: 0.080 | L: 0.1688 | Q: 95.95/102.39 | Rx:15.57% | SnakeCollision | Pos:(35379,32655) Wall:11165 Enemy:1265
+2026-04-11 05:29:34,562 - INFO - Ep 100057 | S6:APEX_PREDATOR | Rw: 620.79 | St: 244 | Fd: 66 (0.270/st) | Pk: 29 | Eps: 0.080 | L: 0.1687 | Q: 96.79/109.09 | Rx:5.74% | SnakeCollision | Pos:(35262,34121) Wall:10862 Enemy:812
+2026-04-11 05:29:57,649 - INFO - Ep 100058 | S6:APEX_PREDATOR | Rw: 373.47 | St: 146 | Fd: 57 (0.390/st) | Pk: 28 | Eps: 0.080 | L: 0.1786 | Q: 97.25/102.14 | Rx:9.59% | SnakeCollision | Pos:(34278,30222) Wall:11098 Enemy:969
+2026-04-11 05:30:18,745 - INFO - Ep 100059 | S6:APEX_PREDATOR | Rw: 644.78 | St: 128 | Fd: 58 (0.453/st) | Pk: 27 | Eps: 0.080 | L: 0.1019 | Q: 97.32/104.72 | Rx:73.44% | SnakeCollision | Pos:(32869,31794) Wall:13176 Enemy:7
+2026-04-11 05:30:36,043 - INFO - Ep 100060 | S6:APEX_PREDATOR | Rw: 479.84 | St: 101 | Fd: 42 (0.416/st) | Pk: 26 | Eps: 0.080 | L: 0.2487 | Q: 94.43/104.20 | Rx:57.43% | SnakeCollision | Pos:(33241,32292) Wall:13259 Enemy:21
+2026-04-11 05:30:36,044 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 352, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:33:22,903 - INFO - Ep 100061 | S6:APEX_PREDATOR | Rw: 3340.38 | St: 949 | Fd: 222 (0.234/st) | Pk: 40 | Eps: 0.080 | L: 0.2898 | Q: 97.25/105.91 | Rx:38.15% | SnakeCollision | Pos:(29703,31332) Wall:10900 Enemy:583
+2026-04-11 05:33:47,851 - INFO - Ep 100062 | S6:APEX_PREDATOR | Rw: 503.87 | St: 160 | Fd: 62 (0.388/st) | Pk: 26 | Eps: 0.080 | L: 0.0568 | Q: 94.95/101.16 | Rx:15.00% | SnakeCollision | Pos:(34400,34872) Wall:11027 Enemy:1250
+2026-04-11 05:33:55,441 - INFO - Ep 100063 | S6:APEX_PREDATOR | Rw: 13.63 | St: 26 | Fd: 14 (0.538/st) | Pk: 18 | Eps: 0.080 | L: 0.0855 | Q: 96.56/102.04 | Rx:0.00% | SnakeCollision | Pos:(34266,30069) Wall:10980 Enemy:1285
+2026-04-11 05:34:05,716 - INFO - Ep 100064 | S6:APEX_PREDATOR | Rw: 86.29 | St: 47 | Fd: 23 (0.489/st) | Pk: 25 | Eps: 0.080 | L: 0.2168 | Q: 95.27/102.24 | Rx:4.26% | SnakeCollision | Pos:(35054,34239) Wall:10976 Enemy:870
+2026-04-11 05:34:19,171 - INFO - Ep 100065 | S6:APEX_PREDATOR | Rw: 89.77 | St: 71 | Fd: 24 (0.338/st) | Pk: 25 | Eps: 0.080 | L: 0.2431 | Q: 96.77/101.98 | Rx:1.41% | SnakeCollision | Pos:(34061,29949) Wall:10988 Enemy:1353
+2026-04-11 05:34:28,840 - INFO - Ep 100066 | S6:APEX_PREDATOR | Rw: 71.50 | St: 42 | Fd: 21 (0.500/st) | Pk: 25 | Eps: 0.080 | L: 0.0344 | Q: 96.50/103.34 | Rx:0.00% | SnakeCollision | Pos:(35307,33817) Wall:10963 Enemy:1581
+2026-04-11 05:35:18,330 - INFO - Ep 100067 | S6:APEX_PREDATOR | Rw: 961.93 | St: 288 | Fd: 81 (0.281/st) | Pk: 34 | Eps: 0.080 | L: 0.0642 | Q: 97.26/103.72 | Rx:54.86% | SnakeCollision | Pos:(35500,31458) Wall:10851 Enemy:1540
+2026-04-11 05:35:28,629 - INFO - Ep 100068 | S6:APEX_PREDATOR | Rw: 94.95 | St: 47 | Fd: 24 (0.511/st) | Pk: 25 | Eps: 0.080 | L: 0.3850 | Q: 95.22/102.05 | Rx:8.51% | SnakeCollision | Pos:(35621,33268) Wall:10842 Enemy:769
+2026-04-11 05:36:10,564 - INFO - Ep 100069 | S6:APEX_PREDATOR | Rw: 523.54 | St: 256 | Fd: 73 (0.285/st) | Pk: 28 | Eps: 0.080 | L: 0.3685 | Q: 95.94/103.53 | Rx:5.47% | SnakeCollision | Pos:(35191,37294) Wall:8567
+2026-04-11 05:37:03,113 - INFO - Ep 100070 | S6:APEX_PREDATOR | Rw: 1026.61 | St: 355 | Fd: 98 (0.276/st) | Pk: 28 | Eps: 0.080 | L: 0.1222 | Q: 97.21/101.52 | Rx:13.80% | SnakeCollision | Pos:(35415,32911) Wall:11109 Enemy:1485
+2026-04-11 05:37:03,114 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 362, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:37:30,512 - INFO - Ep 100071 | S6:APEX_PREDATOR | Rw: 507.70 | St: 179 | Fd: 51 (0.285/st) | Pk: 30 | Eps: 0.080 | L: 0.1790 | Q: 97.04/101.68 | Rx:3.35% | SnakeCollision | Pos:(34680,34231) Wall:11283 Enemy:1434
+2026-04-11 05:37:39,821 - INFO - Ep 100072 | S6:APEX_PREDATOR | Rw: 71.22 | St: 39 | Fd: 21 (0.538/st) | Pk: 25 | Eps: 0.080 | L: 0.3913 | Q: 95.89/103.27 | Rx:0.00% | SnakeCollision | Pos:(35203,31535) Wall:11156
+2026-04-11 05:37:48,089 - INFO - Ep 100073 | S6:APEX_PREDATOR | Rw: 29.53 | St: 31 | Fd: 16 (0.516/st) | Pk: 20 | Eps: 0.080 | L: 0.2181 | Q: 95.81/104.82 | Rx:0.00% | SnakeCollision | Pos:(32073,29657) Wall:11065 Enemy:772
+2026-04-11 05:38:24,001 - INFO - Ep 100074 | S6:APEX_PREDATOR | Rw: 564.95 | St: 226 | Fd: 70 (0.310/st) | Pk: 25 | Eps: 0.080 | L: 0.2017 | Q: 95.79/101.46 | Rx:18.58% | SnakeCollision | Pos:(33987,31132) Wall:11978 Enemy:38
+2026-04-11 05:38:42,275 - INFO - Ep 100075 | S6:APEX_PREDATOR | Rw: 324.02 | St: 109 | Fd: 51 (0.468/st) | Pk: 25 | Eps: 0.080 | L: 0.1289 | Q: 97.69/104.19 | Rx:9.17% | SnakeCollision | Pos:(31385,35482) Wall:10842 Enemy:892
+2026-04-11 05:39:48,715 - INFO - Ep 100076 | S6:APEX_PREDATOR | Rw: 804.13 | St: 384 | Fd: 91 (0.237/st) | Pk: 26 | Eps: 0.080 | L: 0.1077 | Q: 95.86/102.75 | Rx:7.81% | SnakeCollision | Pos:(33056,35646) Wall:10860
+2026-04-11 05:40:20,836 - INFO - Ep 100077 | S6:APEX_PREDATOR | Rw: 585.43 | St: 205 | Fd: 83 (0.405/st) | Pk: 25 | Eps: 0.080 | L: 0.0933 | Q: 94.53/103.11 | Rx:9.76% | SnakeCollision | Pos:(35586,32380) Wall:10955
+2026-04-11 05:41:12,718 - INFO - Ep 100078 | S6:APEX_PREDATOR | Rw: 970.93 | St: 302 | Fd: 77 (0.255/st) | Pk: 28 | Eps: 0.080 | L: 0.1797 | Q: 96.73/103.05 | Rx:35.43% | SnakeCollision | Pos:(30768,34728) Wall:11182 Enemy:753
+2026-04-11 05:43:50,935 - INFO - Ep 100079 | S6:APEX_PREDATOR | Rw: 2311.20 | St: 843 | Fd: 173 (0.205/st) | Pk: 38 | Eps: 0.080 | L: 0.1672 | Q: 96.49/101.61 | Rx:22.06% | SnakeCollision | Pos:(32432,35709) Wall:10835 Enemy:1118
+2026-04-11 05:45:00,870 - INFO - Ep 100080 | S6:APEX_PREDATOR | Rw: 995.77 | St: 398 | Fd: 88 (0.221/st) | Pk: 34 | Eps: 0.080 | L: 0.0117 | Q: 96.30/101.23 | Rx:10.55% | SnakeCollision | Pos:(34548,35146) Wall:10721 Enemy:1249
+2026-04-11 05:45:00,871 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 372, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:45:40,164 - INFO - Ep 100081 | S6:APEX_PREDATOR | Rw: 628.86 | St: 242 | Fd: 65 (0.269/st) | Pk: 28 | Eps: 0.080 | L: 0.0699 | Q: 96.67/102.67 | Rx:10.33% | SnakeCollision | Pos:(35498,33673) Wall:10842 Enemy:1488
+2026-04-11 05:46:15,743 - INFO - Ep 100082 | S6:APEX_PREDATOR | Rw: 563.54 | St: 223 | Fd: 59 (0.265/st) | Pk: 29 | Eps: 0.080 | L: 0.1091 | Q: 96.43/106.63 | Rx:6.28% | SnakeCollision | Pos:(33915,35287) Wall:10938
+2026-04-11 05:47:04,879 - INFO - Ep 100083 | S6:APEX_PREDATOR | Rw: 669.29 | St: 293 | Fd: 74 (0.253/st) | Pk: 29 | Eps: 0.080 | L: 0.1420 | Q: 95.46/105.84 | Rx:7.51% | SnakeCollision | Pos:(35266,34261) Wall:10787 Enemy:796
+2026-04-11 05:47:38,600 - INFO - Ep 100084 | S6:APEX_PREDATOR | Rw: 592.48 | St: 224 | Fd: 78 (0.348/st) | Pk: 30 | Eps: 0.080 | L: 0.1917 | Q: 96.69/103.15 | Rx:11.61% | SnakeCollision | Pos:(32693,29538) Wall:10982 Enemy:879
+2026-04-11 05:47:56,631 - INFO - >> Target Network Updated
+2026-04-11 05:48:32,614 - INFO - Ep 100085 | S6:APEX_PREDATOR | Rw: 724.66 | St: 317 | Fd: 61 (0.192/st) | Pk: 31 | Eps: 0.080 | L: 0.5590 | Q: 94.24/104.29 | Rx:16.72% | SnakeCollision | Pos:(35470,31299) Wall:10820 Enemy:1424
+2026-04-11 05:48:50,785 - INFO - Ep 100086 | S6:APEX_PREDATOR | Rw: 232.70 | St: 108 | Fd: 37 (0.343/st) | Pk: 26 | Eps: 0.080 | L: 0.0812 | Q: 96.08/103.20 | Rx:2.78% | SnakeCollision | Pos:(34398,34998) Wall:10929
+2026-04-11 05:49:25,279 - INFO - Ep 100087 | S6:APEX_PREDATOR | Rw: 584.74 | St: 218 | Fd: 65 (0.298/st) | Pk: 28 | Eps: 0.080 | L: 0.3713 | Q: 94.32/107.82 | Rx:5.96% | SnakeCollision | Pos:(34167,35199) Wall:10893 Enemy:860
+2026-04-11 05:49:31,780 - INFO - Ep 100088 | S6:APEX_PREDATOR | Rw: -25.48 | St: 18 | Fd: 9 (0.500/st) | Pk: 14 | Eps: 0.080 | L: 0.1396 | Q: 94.82/132.77 | Rx:0.00% | SnakeCollision | Pos:(35021,30801) Wall:10969 Enemy:1192
+2026-04-11 05:50:17,476 - INFO - Ep 100089 | S6:APEX_PREDATOR | Rw: 967.05 | St: 278 | Fd: 77 (0.277/st) | Pk: 35 | Eps: 0.080 | L: 0.0663 | Q: 97.13/105.12 | Rx:12.59% | SnakeCollision | Pos:(33682,34967) Wall:11328 Enemy:45
+2026-04-11 05:50:30,373 - INFO - Ep 100090 | S6:APEX_PREDATOR | Rw: 167.95 | St: 67 | Fd: 32 (0.478/st) | Pk: 26 | Eps: 0.080 | L: 0.3366 | Q: 96.31/104.38 | Rx:13.43% | SnakeCollision | Pos:(35607,31954) Wall:10882 Enemy:603
+2026-04-11 05:50:30,373 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 382, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-11 05:52:15,339 - INFO - Ep 100091 | S6:APEX_PREDATOR | Rw: 1443.31 | St: 581 | Fd: 143 (0.246/st) | Pk: 35 | Eps: 0.080 | L: 0.1645 | Q: 95.83/100.54 | Rx:14.97% | SnakeCollision | Pos:(35644,32967) Wall:10874
+2026-04-11 05:52:24,593 - INFO - Ep 100092 | S6:APEX_PREDATOR | Rw: 79.28 | St: 37 | Fd: 21 (0.568/st) | Pk: 26 | Eps: 0.080 | L: 0.3429 | Q: 96.38/103.34 | Rx:0.00% | SnakeCollision | Pos:(34605,34701) Wall:11022
+2026-04-11 05:52:46,585 - INFO - Ep 100093 | S6:APEX_PREDATOR | Rw: 343.22 | St: 136 | Fd: 47 (0.346/st) | Pk: 26 | Eps: 0.080 | L: 0.0801 | Q: 97.18/101.37 | Rx:25.74% | SnakeCollision | Pos:(35303,33844) Wall:10954 Enemy:1318
+2026-04-11 05:53:06,592 - INFO - Ep 100094 | S6:APEX_PREDATOR | Rw: 285.89 | St: 123 | Fd: 42 (0.341/st) | Pk: 29 | Eps: 0.080 | L: 0.0980 | Q: 97.53/102.62 | Rx:0.81% | SnakeCollision | Pos:(35580,31661) Wall:10838
+2026-04-11 05:53:50,929 - INFO - Ep 100095 | S6:APEX_PREDATOR | Rw: 741.26 | St: 268 | Fd: 63 (0.235/st) | Pk: 30 | Eps: 0.080 | L: 0.2108 | Q: 95.09/101.96 | Rx:9.70% | SnakeCollision | Pos:(35316,34015) Wall:10866 Enemy:1059
+2026-04-11 05:54:11,711 - INFO - Ep 100096 | S6:APEX_PREDATOR | Rw: 359.43 | St: 127 | Fd: 57 (0.449/st) | Pk: 25 | Eps: 0.080 | L: 0.1588 | Q: 97.22/106.10 | Rx:15.75% | SnakeCollision | Pos:(30343,30416) Wall:10927 Enemy:879
+2026-04-11 05:54:26,338 - INFO - Ep 100097 | S6:APEX_PREDATOR | Rw: 258.02 | St: 84 | Fd: 42 (0.500/st) | Pk: 25 | Eps: 0.080 | L: 0.2522 | Q: 96.19/102.17 | Rx:13.10% | SnakeCollision | Pos:(34294,30348) Wall:11188 Enemy:792
+2026-04-11 05:54:32,298 - INFO - [Shutdown] KeyboardInterrupt. Saving checkpoint.
+2026-04-11 05:54:32,560 - INFO - [Shutdown] Training ended at episode 100097. UID: 20260410-efd3d26d
+2026-04-12 20:46:07,105 - INFO - Configuration:
+2026-04-12 20:46:07,106 - INFO -   Style: Standard (Curriculum)
+2026-04-12 20:46:07,106 - INFO -   Mode: curriculum
+2026-04-12 20:46:07,106 - INFO -   Agents: 1
+2026-04-12 20:46:07,106 - INFO -   Frame Stack: 4
+2026-04-12 20:46:07,106 - INFO -   Resolution: (160, 160)
+2026-04-12 20:46:07,106 - INFO -   Model: HybridDuelingDQN (LeakyReLU)
+2026-04-12 20:46:07,106 - INFO -   LR: 5e-05
+2026-04-12 20:46:07,106 - INFO -   PER: True
+2026-04-12 20:46:07,106 - INFO -   Backend: selenium
+2026-04-12 20:46:07,106 - INFO - Training Run UID: 20260412-28afd273
+2026-04-12 20:46:07,936 - INFO -   Parent UID: 20260410-efd3d26d
+2026-04-12 20:46:07,937 - INFO -   LR was 0.00004998. Force-reset to 5e-05
+2026-04-12 20:46:07,937 - INFO - Resumed from episode 100097
+2026-04-12 20:46:07,937 - INFO -   Stage: 6 (APEX_PREDATOR)
+2026-04-12 20:46:14,682 - INFO -   Curriculum Stage: 6 (APEX_PREDATOR)
+2026-04-12 20:46:14,682 - INFO -   Max Steps: 99999
+2026-04-12 20:50:47,519 - INFO - Ep 100098 | S6:APEX_PREDATOR | Rw: 7115.51 | St: 2044 | Fd: 497 (0.243/st) | Pk: 41 | Eps: 0.080 | L: 0.0219 | Q: 91.13/105.19 | Rx:23.39% | SnakeCollision | Pos:(24332,31657) Wall:5730 Enemy:5
+2026-04-12 20:54:06,863 - INFO - Ep 100099 | S6:APEX_PREDATOR | Rw: 6003.87 | St: 1363 | Fd: 348 (0.255/st) | Pk: 40 | Eps: 0.080 | L: 0.0720 | Q: 95.71/104.03 | Rx:35.14% | SnakeCollision | Pos:(37995,34340) Wall:8265 Enemy:11
+2026-04-12 20:54:47,122 - INFO - Ep 100100 | S6:APEX_PREDATOR | Rw: 1343.76 | St: 280 | Fd: 70 (0.250/st) | Pk: 41 | Eps: 0.080 | L: 0.0303 | Q: 94.91/104.29 | Rx:35.71% | SnakeCollision | Pos:(29247,33309) Wall:10608 Enemy:23
+2026-04-12 20:54:47,124 - INFO - Death Stats: {'Wall': 0, 'SnakeCollision': 3, 'InvalidFrame': 0, 'BrowserError': 0, 'MaxSteps': 0}
+2026-04-12 20:54:59,979 - INFO - [Shutdown] KeyboardInterrupt. Saving checkpoint.
+2026-04-12 20:55:00,199 - INFO - [Shutdown] Training ended at episode 100100. UID: 20260412-28afd273

@@ -1,26 +1,22 @@
 # Slither.io Bot - Training Progress Report v3
 
-**Generated:** 2026-04-10 18:27:34  
+**Generated:** 2026-04-13 14:25:19  
 ## Training Summary
 
 | Scope | Total Episodes | Best Food | Best Survival | Current Stage |
 |-------|----------------|-----------|---------------|---------------|
-| **Global (All UIDs)** | 108660 | 4532 | 99999 steps | - |
-| **Current Chain** | 967 | 1058 | 3000 steps | MASTERY_SURVIVAL |
+| **Global (All UIDs)** | 109340 | 4532 | 99999 steps | - |
+| **Current Chain** | 1369 | 1058 | 4054 steps | APEX_PREDATOR |
 
-## Verdict: LEARNING (Confidence: 95%)
+## Verdict: LEARNING (Confidence: 90%)
 
 **Goal Feasibility:** LIKELY (>60%)
 
-### Warnings
-- Reward in plateau (< 1% change over 200 eps)
-
 ### Positive Signals
-- Rewards improving: +775.2
-- Positive reward trend (slope=1.9965, R²=0.168)
-- Episodes getting longer (slope=0.656/ep)
-- Good episode length: avg=515 steps
-- Food collection improving (slope=0.2451/ep)
+- Rewards improving: +1348.1
+- Positive reward trend (slope=1.2581, R²=0.084)
+- Good episode length: avg=508 steps
+- Food collection improving (slope=0.0351/ep)
 - Epsilon low (0.080) - exploiting policy
 
 ## Curriculum Stage Breakdown
@@ -28,42 +24,44 @@
 | Stage | Name | Episodes | Avg Reward | Avg Steps | Avg Food | Avg PkLen | Food/Step | Wall% | Snake% | MaxSteps% |
 |-------|------|----------|------------|-----------|----------|-----------|-----------|-------|--------|----------|
 | S4 | MASS_MANAGEMENT | 744 | 357.2 | 417.0 | 133.9 | 41.6 | 0.4665 | 2.2% | 95.7% | 2.2% |
-| S5 | MASTERY_SURVIVAL | 223 | 2323.0 | 840.5 | 282.2 | 51.6 | 0.5271 | 0.9% | 93.7% | 5.4% |
+| S5 | MASTERY_SURVIVAL | 231 | 2256.4 | 825.7 | 276.6 | 50.9 | 0.5209 | 0.9% | 93.9% | 5.2% |
+| S6 | APEX_PREDATOR | 394 | 1682.2 | 492.9 | 125.8 | 33.2 | 0.3123 | 0.0% | 100.0% | 0.0% |
 
 ## Key Statistics
 
 | Metric | Mean | Std | Min | P25 | Median | P75 | P95 | Max |
 |--------|------|-----|-----|-----|--------|-----|-----|-----|
-| Reward | 810.51 | 1359.41 | -625.12 | 167.03 | 349.24 | 765.21 | 3573.25 | 9172.31 |
-| Steps | 514.67 | 575.32 | 2.00 | 146.00 | 320.00 | 641.50 | 1752.00 | 3000.00 |
-| Food | 168.07 | 178.50 | 1.00 | 56.50 | 108.00 | 203.00 | 535.00 | 1058.00 |
-| PeakLength | 43.91 | 13.47 | 5.00 | 31.00 | 45.00 | 56.00 | 62.00 | 85.00 |
-| Loss | 0.93 | 0.71 | 0.09 | 0.46 | 0.73 | 1.19 | 2.28 | 6.60 |
-| Food/Step | 0.48 | 0.67 | 0.21 | 0.31 | 0.34 | 0.43 | 0.84 | 9.00 |
+| Reward | 1058.99 | 1716.57 | -625.12 | 201.05 | 448.02 | 1091.79 | 4459.45 | 14261.38 |
+| Steps | 507.83 | 585.97 | 2.00 | 143.00 | 304.00 | 629.00 | 1658.40 | 4054.00 |
+| Food | 155.62 | 168.89 | 1.00 | 55.00 | 97.00 | 189.00 | 496.00 | 1058.00 |
+| PeakLength | 40.76 | 13.27 | 5.00 | 29.00 | 38.00 | 53.00 | 61.00 | 85.00 |
+| Loss | 0.73 | 0.68 | 0.01 | 0.26 | 0.56 | 0.97 | 2.07 | 6.60 |
+| Food/Step | 0.43 | 0.57 | 0.18 | 0.29 | 0.33 | 0.40 | 0.70 | 9.00 |
 
 ## Windowed Trend Analysis
 
 | Window | Mean Reward | Std | Slope | R² |
 |--------|-----------|-----|-------|----|
-| Last 50 | 2624.28 | 2405.03 | +29.1237 | 0.0305 |
-| Last 100 | 2350.37 | 2143.23 | +16.6374 | 0.0502 |
-| Last 200 | 2361.72 | 2155.39 | +0.1552 | 0.0000 |
-| Last 500 | 1177.12 | 1784.89 | +5.8275 | 0.2221 |
+| Last 50 | 851.48 | 1303.66 | +25.9308 | 0.0824 |
+| Last 100 | 807.81 | 1032.25 | +4.8905 | 0.0187 |
+| Last 200 | 716.59 | 828.83 | +1.7890 | 0.0155 |
+| Last 500 | 1796.32 | 2254.36 | -5.6313 | 0.1300 |
+| Last 1000 | 1296.38 | 1944.23 | +1.2688 | 0.0355 |
 
 ## Death Cause Analysis
 
 | Cause | Count | % | Avg Steps | Avg Reward |
 |-------|-------|---|-----------|------------|
-| Wall | 18 | 1.9% | 1063.6 | 876.3 |
-| SnakeCollision | 921 | 95.2% | 445.8 | 724.9 |
-| MaxSteps | 28 | 2.9% | 2428.6 | 3585.5 |
+| Wall | 18 | 1.3% | 1063.6 | 876.3 |
+| SnakeCollision | 1323 | 96.6% | 459.6 | 1008.0 |
+| MaxSteps | 28 | 2.0% | 2428.6 | 3585.5 |
 
 ## Goal Progress
 
 | Target | Best | Goal | Progress |
 |--------|------|------|----------|
 | Points | 1058 | 6,000 | 17.6% |
-| Survival | 3000 steps | 1,800 steps | 166.7% |
+| Survival | 4054 steps | 1,800 steps | 225.2% |
 
 ## Recommendations
 
