@@ -133,7 +133,7 @@ STYLES = {
                 "kill_opportunity_reward": 8.550420450984676,
                 "max_steps": 7198,
                 "promote_metric": None,
-                "enemy_approach_penalty": 0.816376279752167,
+                "enemy_approach_penalty": 0.7708191082224614,
                 "promote_window": 500,
                 "promote_conditions": {},
                 "promote_wall_death_max": 1.0
