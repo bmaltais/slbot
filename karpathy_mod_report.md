@@ -1,14 +1,14 @@
 # Karpathy Mod Experiment Report
-*Generated: 2026-04-23 10:24:01*
+*Generated: 2026-04-23 14:24:58*
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total experiments | 2977 |
-| Keep rate | 54.9% |
+| Total experiments | 2994 |
+| Keep rate | 54.6% |
 | Kept | 1635 |
-| Discarded | 1342 |
+| Discarded | 1359 |
 | Inconclusive | 0 |
 | Best improvement | +4.41% |
 | Worst regression | -8.72% |
@@ -19,9 +19,9 @@
 
 | Strategy | Count | Kept | Keep Rate | Avg Improvement | Best |
 |----------|------:|-----:|----------:|----------------:|-----:|
-| explore | 985 | 551 | 55.9% | +0.12% | +4.28% |
-| radical | 1025 | 563 | 54.9% | +0.13% | +4.28% |
-| tweak | 967 | 521 | 53.9% | +0.15% | +4.41% |
+| explore | 990 | 551 | 55.7% | +0.12% | +4.28% |
+| radical | 1033 | 563 | 54.5% | +0.13% | +4.28% |
+| tweak | 971 | 521 | 53.7% | +0.15% | +4.41% |
 
 ## Stage Performance
 
@@ -32,7 +32,7 @@
 | S3 | ENEMY_AVOID | 478 | 42 | 8.8% | +0.20% |
 | S4 | MASS_MANAGEMENT | 514 | 491 | 95.5% | +0.13% |
 | S5 | MASTERY_SURVIVAL | 522 | 39 | 7.5% | -0.01% |
-| S6 | APEX_PREDATOR | 413 | 45 | 10.9% | -0.15% |
+| S6 | APEX_PREDATOR | 430 | 45 | 10.5% | -0.16% |
 
 ## Top 5 Best Kept Experiments
 
