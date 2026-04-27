@@ -76,7 +76,7 @@ STYLES = {
                 "survival": 0.008960139865825922,
                 "survival_escalation": 5.562378300603925e-05,
                 "death_wall": -37.345252462476765,
-                "death_snake": -15.958259317025277,
+                "death_snake": -15.022990555896094,
                 "length_bonus": 0.054085741339848906,
                 "wall_proximity_penalty": 0.05177598004353546,
                 "enemy_alert_dist": 894,
