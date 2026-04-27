@@ -19,7 +19,7 @@ STYLES = {
                 "wall_proximity_penalty": 0.010958915822727441,
                 "boost_penalty": 0.21442822533506145,
                 "mass_loss_penalty": 0.18400489066117912,
-                "max_steps": 612,
+                "max_steps": 566,
                 "promote_metric": "compound",
                 "promote_conditions": {
                     "avg_food": 12,
