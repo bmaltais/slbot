@@ -18,7 +18,7 @@ STYLES = {
                 "death_snake": -6.645302235208401,
                 "wall_proximity_penalty": 0.00659300802782789,
                 "boost_penalty": 0.04300168681481817,
-                "mass_loss_penalty": 0.18400489066117912,
+                "mass_loss_penalty": 0.15622965642905318,
                 "max_steps": 612,
                 "promote_metric": "compound",
                 "promote_conditions": {
