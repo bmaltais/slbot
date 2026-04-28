@@ -1,13 +1,13 @@
 # Karpathy Mod Experiment Report
-*Generated: 2026-04-28 10:18:01*
+*Generated: 2026-04-28 14:19:00*
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total experiments | 3174 |
+| Total experiments | 3175 |
 | Keep rate | 53.3% |
-| Kept | 1692 |
+| Kept | 1693 |
 | Discarded | 1482 |
 | Inconclusive | 0 |
 | Best improvement | +4.41% |
@@ -20,7 +20,7 @@
 | Strategy | Count | Kept | Keep Rate | Avg Improvement | Best |
 |----------|------:|-----:|----------:|----------------:|-----:|
 | explore | 1048 | 570 | 54.4% | +0.12% | +4.28% |
-| radical | 1094 | 584 | 53.4% | +0.12% | +4.28% |
+| radical | 1095 | 585 | 53.4% | +0.12% | +4.28% |
 | tweak | 1028 | 538 | 52.3% | +0.14% | +4.41% |
 | crossover | 4 | 0 | 0.0% | -0.17% | -0.01% |
 
@@ -29,7 +29,7 @@
 | Stage | Name | Count | Kept | Keep Rate | Avg Improvement |
 |------:|------|------:|-----:|----------:|----------------:|
 | S1 | FOOD_VECTOR | 575 | 555 | 96.5% | +0.18% |
-| S2 | WALL_AVOID | 516 | 502 | 97.3% | +0.41% |
+| S2 | WALL_AVOID | 517 | 503 | 97.3% | +0.41% |
 | S3 | ENEMY_AVOID | 516 | 42 | 8.1% | +0.18% |
 | S4 | MASS_MANAGEMENT | 532 | 509 | 95.7% | +0.13% |
 | S5 | MASTERY_SURVIVAL | 540 | 39 | 7.2% | -0.01% |
