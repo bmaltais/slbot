@@ -8,6 +8,7 @@ and performs statistical comparison between baseline and experiment.
 import csv
 import os
 import math
+from collections import deque
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
@@ -40,12 +41,14 @@ class ExperimentMetrics:
         regardless of its raw scale.
         """
         if weights is None:
+            # Growth metrics outweigh raw survival: a snake that eats and grows
+            # is better than one that circles safely forever.
             weights = {
-                'avg_steps': 1.0,
-                'avg_peak_length': 0.5,
-                'avg_food': 0.3,
-                'snake_death_rate': -0.5,  # lower is better
-                'wall_death_rate': -0.2,   # lower is better
+                'avg_peak_length': 1.0,   # primary: how big did it get?
+                'avg_food': 0.7,          # secondary: how much did it eat?
+                'avg_steps': 0.5,         # survival still matters, but not dominant
+                'snake_death_rate': -0.5, # lower is better
+                'wall_death_rate': -0.2,  # lower is better
                 'avg_reward': 0.2,
             }
 
@@ -95,8 +98,6 @@ def read_csv_tail(csv_path: str, n_episodes: int, stage_filter: Optional[int] = 
     rows = []
     with open(csv_path, 'r') as f:
         reader = csv.DictReader(f)
-        # Buffer last N matching rows
-        from collections import deque
         buffer = deque(maxlen=n_episodes)
         for row in reader:
             if stage_filter is not None:
@@ -212,12 +213,16 @@ def compare_experiments(baseline: ExperimentMetrics,
     steps_improved = experiment.avg_steps > baseline.avg_steps * (1 + min_improvement * 0.2)
     score_improved = improvement > min_improvement
 
-    # Check for regression in critical metrics
-    death_rate_regression = (experiment.snake_death_rate > baseline.snake_death_rate * 1.10
+    # Check for regression in critical metrics.
+    # Allow larger death-rate regression when score improvement is substantial,
+    # so aggressive-but-effective mutations are not blocked by the catch-22
+    # (better food → more risk → higher death rate → blocked forever).
+    death_rate_threshold = 1.20 if improvement > min_improvement * 5 else 1.12
+    death_rate_regression = (experiment.snake_death_rate > baseline.snake_death_rate * death_rate_threshold
                              and baseline.snake_death_rate > 0.1)
 
-    # Wall death regression check
-    wall_death_regression = (experiment.wall_death_rate > baseline.wall_death_rate * 1.15
+    # Wall death regression check — also slightly relaxed
+    wall_death_regression = (experiment.wall_death_rate > baseline.wall_death_rate * 1.20
                              and baseline.wall_death_rate > 0.05)
 
     if score_improved and (steps_improved or improvement > min_improvement * 3) and not death_rate_regression and not wall_death_regression:
@@ -255,23 +260,6 @@ def count_csv_rows(csv_path: str) -> int:
     with open(csv_path, 'r') as f:
         return sum(1 for _ in f) - 1  # subtract header
 
-
-def wait_for_episodes(csv_path: str, target_count: int,
-                      poll_interval: float = 10.0,
-                      timeout: float = 3600.0) -> int:
-    """
-    Block until CSV has at least target_count rows.
-    Returns actual row count.
-    """
-    import time
-    start = time.time()
-    while True:
-        current = count_csv_rows(csv_path)
-        if current >= target_count:
-            return current
-        if time.time() - start > timeout:
-            return current
-        time.sleep(poll_interval)
 
 
 def _float(val, default=0.0) -> float:

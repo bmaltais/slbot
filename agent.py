@@ -387,9 +387,11 @@ class DDQNAgent:
         weights_batch = torch.tensor(is_weights, dtype=torch.float32).to(self.device)
         gamma_batch = torch.tensor(batch_gamma, dtype=torch.float32).to(self.device)
 
-        # Reward scaling (scale=1.0 preserves signal, clamp symmetric to prevent Q-explosion)
+        # Reward scaling (scale=1.0 preserves signal; clamp wide enough for S5/S6 long episodes)
+        # Q-values in S5+ can legitimately reach ~200 (survival escalation + food over 4000 steps)
+        # so the old ±100 clamp was killing gradients in best episodes. grad_clip handles divergence.
         reward_scale = max(self.config.opt.reward_scale, 1.0)
-        norm_rewards = torch.clamp(reward_batch / reward_scale, -100.0, 100.0)
+        norm_rewards = torch.clamp(reward_batch / reward_scale, -500.0, 500.0)
 
         if self.use_hybrid:
             # Unpack tuples: (matrix_u8, sectors_f32)
@@ -403,11 +405,10 @@ class DDQNAgent:
             with torch.no_grad():
                 next_actions = self.policy_net(n_matrices, n_sectors).max(1)[1].unsqueeze(1)
                 next_q_values = self.target_net(n_matrices, n_sectors).gather(1, next_actions).squeeze(1)
-                # Clamp target Q-values to prevent divergence
-                next_q_values = torch.clamp(next_q_values, -100.0, 100.0)
+                next_q_values = torch.clamp(next_q_values, -500.0, 500.0)
                 # Use per-transition gamma from PER (consistent with n-step return computation)
                 gamma_n = gamma_batch ** self.n_step
-                expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -100.0, 100.0)
+                expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
         else:
             # Legacy: plain uint8 arrays
             state_batch = torch.tensor(np.array(batch_state), dtype=torch.float32).to(self.device) / 255.0
@@ -418,9 +419,9 @@ class DDQNAgent:
             with torch.no_grad():
                 next_actions = self.policy_net(next_batch).max(1)[1].unsqueeze(1)
                 next_q_values = self.target_net(next_batch).gather(1, next_actions).squeeze(1)
-                next_q_values = torch.clamp(next_q_values, -100.0, 100.0)
+                next_q_values = torch.clamp(next_q_values, -500.0, 500.0)
                 gamma_n = gamma_batch ** self.n_step
-                expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -100.0, 100.0)
+                expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
 
         # TD Error for PER
         td_errors_raw = (q_values.squeeze(1) - expected_q_values).detach()

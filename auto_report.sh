@@ -24,7 +24,7 @@ log()     { echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $1"; }
 error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 success() { echo -e "${GREEN}[OK]${NC} $1"; }
 
-INTERVAL=3600
+INTERVAL=$((3600*4))
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
@@ -47,11 +47,14 @@ while true; do
     # Step 1: Run analyzer
     log "Running analyzer..."
     python3 "$SCRIPT_DIR/training_progress_analyzer.py" --latest 2>&1 | tail -3
+    python3 "$SCRIPT_DIR/karpathy_mod_analyzer.py" 2>&1 | tail -3
 
     # Step 2: Stage files using git -C (never cd away)
     FILES=(
         training_stats.csv
+        karpathy_mod_results.tsv
         progress_report.md
+        karpathy_mod_report.md
         logs/train.log
         logs/app.log
     )

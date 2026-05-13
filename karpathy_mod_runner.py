@@ -242,6 +242,7 @@ class KarpathyRunner:
         self.round_num = 0
         self.total_kept = 0
         self.total_discarded = 0
+        self.consecutive_discards = 0
 
         # Load state if exists
         self._load_state()
@@ -268,6 +269,7 @@ class KarpathyRunner:
                 self.round_num = state.get('round_num', 0)
                 self.total_kept = state.get('total_kept', 0)
                 self.total_discarded = state.get('total_discarded', 0)
+                self.consecutive_discards = state.get('consecutive_discards', 0)
 
     def _save_state(self):
         """Save persistent state."""
@@ -275,6 +277,7 @@ class KarpathyRunner:
             'round_num': self.round_num,
             'total_kept': self.total_kept,
             'total_discarded': self.total_discarded,
+            'consecutive_discards': self.consecutive_discards,
             'last_update': datetime.now().isoformat(),
         }
         with open(STATE_FILE, 'w') as f:
@@ -357,9 +360,16 @@ class KarpathyRunner:
               f"steps={baseline.avg_steps:.0f}, food={baseline.avg_food:.1f}")
 
         # 4. Generate mutations
+        # After 80 consecutive discards, force plateau-escape mutations to break out
+        # of the local optimum — larger jumps, crossovers, targeted group resets.
+        plateau_escape = self.consecutive_discards >= 80
+        if plateau_escape:
+            print(f"\n  [!] PLATEAU ESCAPE MODE (consecutive discards: {self.consecutive_discards})")
+
         print(f"\n  [3/5] Generating {self.parallel} mutation(s) for S{round_stage}...")
         mutations = self.mutator.generate_batch(
-            curriculum, count=self.parallel, target_stage=round_stage
+            curriculum, count=self.parallel, target_stage=round_stage,
+            strategy_override='plateau_escape' if plateau_escape else None,
         )
         for i, m in enumerate(mutations):
             print(f"    [{i}] {m['description']}")
@@ -430,15 +440,16 @@ class KarpathyRunner:
         best = self._pick_best(results, baseline)
 
         if best:
-            # Apply best mutation to main repo
             print(f"\n  >>> KEEPING experiment {best['worker'].experiment_id}")
             print(f"      {best['mutation']['description']}")
-            self._apply_to_main(best['mutation'], STYLES)
+            self._apply_to_main(best)
             self.total_kept += 1
+            self.consecutive_discards = 0
             self._log_result(best, 'keep')
         else:
             print("\n  >>> No improvement found. Discarding all.")
             self.total_discarded += len(workers)
+            self.consecutive_discards += len(workers)
             for r in results:
                 self._log_result(r, 'discard')
 
@@ -522,9 +533,15 @@ class KarpathyRunner:
         candidates = [r for r in results if r['comparison']['decision'] == 'keep']
 
         if not candidates:
-            # Also consider 'inconclusive' if improvement is positive
-            candidates = [r for r in results
-                          if r['comparison']['improvement_pct'] > 0.01]
+            # Accept 'inconclusive' only when score improves AND no death-rate regression.
+            # The old code silently accepted reckless mutations that killed the snake more
+            # but scored slightly better — avoided here by checking comparison details.
+            candidates = [
+                r for r in results
+                if r['comparison']['improvement_pct'] > 0.01
+                and 'WARN: snake death' not in r['comparison'].get('details', '')
+                and 'WARN: wall death' not in r['comparison'].get('details', '')
+            ]
 
         if not candidates:
             return None
@@ -533,20 +550,43 @@ class KarpathyRunner:
         candidates.sort(key=lambda r: r['comparison']['improvement_pct'], reverse=True)
         return candidates[0]
 
-    def _apply_to_main(self, mutation: Dict, current_styles: Dict):
-        """Apply winning mutation to the main styles.py and git commit."""
-        mutated = apply_mutation_to_styles(current_styles, mutation)
+    def _apply_to_main(self, result: Dict):
+        """Apply winning mutation to the main styles.py, merge CSV, and git commit."""
+        worker = result['worker']
+        mutation_dict = result['mutation']
+
+        from importlib import reload
+        import styles as styles_module
+        reload(styles_module)
+        from styles import STYLES
+
+        mutated = apply_mutation_to_styles(STYLES, mutation_dict)
         code = styles_dict_to_python(mutated)
 
         with open(STYLES_FILE, 'w') as f:
             f.write(code)
 
-        # Git commit
-        desc = mutation['description'][:200]
+        if os.path.exists(worker.csv_path):
+            try:
+                with open(worker.csv_path, 'r', newline='') as f:
+                    reader = csv.reader(f)
+                    all_rows = list(reader)
+
+                new_rows = all_rows[worker.start_episode + 1:]
+
+                if new_rows:
+                    with open(CSV_FILE, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerows(new_rows)
+                    print(f"  [+] Merged {len(new_rows)} training rows into {os.path.basename(CSV_FILE)}")
+            except Exception as e:
+                print(f"  [!] Failed to merge CSV: {e}")
+
+        desc = mutation_dict['description'][:200]
         commit_msg = (
             f"karpathy: {desc}\n\n"
-            f"Round {self.round_num}, experiment {mutation['experiment_id']}\n"
-            f"Strategy: {mutation['strategy']}\n"
+            f"Round {self.round_num}, experiment {worker.experiment_id}\n"
+            f"Strategy: {mutation_dict['strategy']}\n"
         )
         try:
             subprocess.run(['git', 'add', 'styles.py'],

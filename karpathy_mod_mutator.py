@@ -120,6 +120,8 @@ class Mutator:
     """
 
     STRATEGIES = ['tweak', 'tweak', 'tweak', 'explore', 'explore', 'radical']
+    # Plateau-escape strategies used when consecutive discards > threshold
+    ESCAPE_STRATEGIES = ['radical', 'radical', 'crossover', 'targeted']
 
     # Parameter groups for targeted mutations
     PARAM_GROUPS = {
@@ -158,6 +160,8 @@ class Mutator:
 
         if strategy is None:
             strategy = random.choice(self.STRATEGIES)
+        elif strategy == 'plateau_escape':
+            strategy = random.choice(self.ESCAPE_STRATEGIES)
 
         # Pick target stage
         if target_stage > 0 and target_stage in stages:
@@ -172,7 +176,7 @@ class Mutator:
         elif strategy == 'explore':
             mutated, changes = mutate_stage_config(original, num_mutations=3, intensity=1.0)
         elif strategy == 'radical':
-            mutated, changes = mutate_stage_config(original, num_mutations=5, intensity=1.5)
+            mutated, changes = mutate_stage_config(original, num_mutations=5, intensity=2.0)
         elif strategy == 'targeted':
             mutated, changes = self._targeted_mutation(original, intensity=1.0)
         elif strategy == 'crossover':
@@ -197,22 +201,24 @@ class Mutator:
     def generate_batch(self,
                        styles_dict: Dict,
                        count: int = 4,
-                       target_stage: int = 0) -> List[Dict]:
+                       target_stage: int = 0,
+                       strategy_override: Optional[str] = None) -> List[Dict]:
         """Generate multiple independent mutations for parallel experiments."""
         mutations = []
         strategies_used = set()
 
         for i in range(count):
-            # Diversify strategies across the batch
-            if len(strategies_used) < len(set(self.STRATEGIES)):
+            if strategy_override:
+                strategy = strategy_override
+            elif len(strategies_used) < len(set(self.STRATEGIES)):
                 remaining = [s for s in set(self.STRATEGIES) if s not in strategies_used]
                 strategy = random.choice(remaining)
+                strategies_used.add(strategy)
             else:
                 strategy = random.choice(self.STRATEGIES)
 
             mutation = self.generate_mutation(styles_dict, target_stage, strategy)
             mutations.append(mutation)
-            strategies_used.add(strategy)
 
         return mutations
 
