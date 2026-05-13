@@ -1,14 +1,14 @@
 # Karpathy Mod Experiment Report
-*Generated: 2026-04-28 14:19:00*
+*Generated: 2026-05-13 05:19:13*
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total experiments | 3175 |
+| Total experiments | 3178 |
 | Keep rate | 53.3% |
-| Kept | 1693 |
-| Discarded | 1482 |
+| Kept | 1694 |
+| Discarded | 1484 |
 | Inconclusive | 0 |
 | Best improvement | +4.41% |
 | Worst regression | -8.72% |
@@ -19,9 +19,9 @@
 
 | Strategy | Count | Kept | Keep Rate | Avg Improvement | Best |
 |----------|------:|-----:|----------:|----------------:|-----:|
-| explore | 1048 | 570 | 54.4% | +0.12% | +4.28% |
+| explore | 1049 | 570 | 54.3% | +0.12% | +4.28% |
 | radical | 1095 | 585 | 53.4% | +0.12% | +4.28% |
-| tweak | 1028 | 538 | 52.3% | +0.14% | +4.41% |
+| tweak | 1030 | 539 | 52.3% | +0.14% | +4.41% |
 | crossover | 4 | 0 | 0.0% | -0.17% | -0.01% |
 
 ## Stage Performance
@@ -31,9 +31,9 @@
 | S1 | FOOD_VECTOR | 575 | 555 | 96.5% | +0.18% |
 | S2 | WALL_AVOID | 517 | 503 | 97.3% | +0.41% |
 | S3 | ENEMY_AVOID | 516 | 42 | 8.1% | +0.18% |
-| S4 | MASS_MANAGEMENT | 532 | 509 | 95.7% | +0.13% |
+| S4 | MASS_MANAGEMENT | 533 | 510 | 95.7% | +0.13% |
 | S5 | MASTERY_SURVIVAL | 540 | 39 | 7.2% | -0.01% |
-| S6 | APEX_PREDATOR | 495 | 45 | 9.1% | -0.16% |
+| S6 | APEX_PREDATOR | 497 | 45 | 9.1% | -0.16% |
 
 ## Top 5 Best Kept Experiments
 
