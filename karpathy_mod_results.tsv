@@ -3179,3 +3179,4 @@ timestamp	round	experiment_id	strategy	stage	decision	improvement_pct	baseline_s
 2026-05-12T17:46:06.079878	10819	5545e811	tweak	4	keep	0.0231	1.7	1.7	456	127	37	0.783	[tweak] S4/MASS_MANAGEMENT: death_wall: -28.6199 -> -32.0096
 2026-05-13T08:22:39.102057	10820	154b0815	explore	6	discard	-0.0739	1.7	1.6	455	126	37	0.808	[explore] S6/APEX_PREDATOR: enemy_alert_dist: 1214 -> 1516; enemy_approach_penalty: 0.4547 -> 0.5596; contest_food_reward: 0.0932 -> 0.1385
 2026-05-13T20:30:08.295098	10821	26207ee0	explore	3	discard	-0.1770	1.7	1.4	452	126	38	0.717	[explore] S3/ENEMY_AVOID: enemy_alert_dist: 2395 -> 2898; gamma: 0.9700 -> 0.9573; food_shaping: 0.0900 -> 0.1191
+2026-05-14T09:00:24.017439	10822	7574a3d5	tweak	2	discard	0.0064	1.9	1.9	338	96	34	0.566	[tweak] S2/WALL_AVOID: food_shaping: 0.0009 -> 0.0009
