@@ -200,3 +200,36 @@ def echo_worker(remote, parent_remote, worker_id, headless, nickname, matrix_siz
             remote.send(spawning_obs(matrix_size))
         else:
             raise ValueError(f"Unknown command: {cmd}")
+
+
+def delayed_echo_worker(remote, parent_remote, worker_id, headless, nickname, matrix_size,
+                        frame_skip, view_plus, base_url, backend, ws_server_url,
+                        suppress_stdout, stage_config=None, autoreset=False):
+    """echo_worker that sleeps on `step` so tests can assert parent/worker overlap."""
+    import time
+    import numpy as np
+
+    parent_remote.close()
+    remote.send(READY_MSG)
+    while True:
+        cmd, data = remote.recv()
+        if cmd == 'close':
+            break
+        if cmd == 'step':
+            t0 = time.perf_counter()
+            time.sleep(0.12)
+            obs, reward, done, info = spawning_step_result(matrix_size)
+            info = dict(info)
+            info['worker_step_s'] = time.perf_counter() - t0
+            remote.send((obs, reward, done, info))
+        elif cmd == 'set_stage':
+            remote.send('ok')
+        elif cmd == 'reset':
+            remote.send({
+                'matrix': np.zeros((3, matrix_size, matrix_size), dtype=np.float32),
+                'sectors': np.zeros(99, dtype=np.float32),
+            })
+        elif cmd == 'reset_one':
+            remote.send(spawning_obs(matrix_size))
+        else:
+            raise ValueError(f"Unknown command: {cmd}")
