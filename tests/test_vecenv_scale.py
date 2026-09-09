@@ -136,6 +136,19 @@ class TestSubprocVecEnvScale(unittest.TestCase):
         finally:
             env.close()
 
+    PARENT_WORK_S = 0.08
+
+    def _assert_step_overlapped(self, elapsed, info):
+        """Serial send+parent+recv is ~worker_step_s + PARENT_WORK_S; overlap stays near worker_step_s."""
+        worker_s = info.get('worker_step_s')
+        self.assertIsNotNone(worker_s, "delayed_echo_worker must report worker_step_s")
+        self.assertLess(
+            elapsed,
+            worker_s + self.PARENT_WORK_S * 0.5,
+            f"no overlap: elapsed={elapsed:.3f}s worker={worker_s:.3f}s",
+        )
+        self.assertGreaterEqual(elapsed, worker_s * 0.5)
+
     def test_step_async_overlaps_parent_work(self):
         """Parent work between send and recv must not add to worker step time."""
         env = self.SubprocVecEnv(
@@ -147,12 +160,10 @@ class TestSubprocVecEnvScale(unittest.TestCase):
         try:
             t0 = time.perf_counter()
             env.step_async([0])
-            time.sleep(0.08)  # stand-in for optimize_model()
+            time.sleep(self.PARENT_WORK_S)  # stand-in for optimize_model()
             _, _, _, infos = env.step_wait()
             elapsed = time.perf_counter() - t0
-            # Worker sleeps 0.12s. Serial send+sleep+recv would be >= 0.20s.
-            self.assertLess(elapsed, 0.18, f"step_async did not overlap parent work ({elapsed:.3f}s)")
-            self.assertGreaterEqual(elapsed, 0.12)
+            self._assert_step_overlapped(elapsed, infos[0])
             self.assertTrue(infos[0].get('spawning'))
         finally:
             env.close()
@@ -183,6 +194,16 @@ class TestSubprocVecEnvScale(unittest.TestCase):
         finally:
             env.close()
 
+    def test_step_async_rejects_mismatched_action_count(self):
+        env = self._make_env(1)
+        try:
+            with self.assertRaises(ValueError):
+                env.step_async([0, 1])
+            env.step_async([0])
+            env.step_wait()
+        finally:
+            env.close()
+
     def test_vecframestack_step_async_overlaps_parent_work(self):
         from trainer import VecFrameStack
         raw = self.SubprocVecEnv(
@@ -195,10 +216,10 @@ class TestSubprocVecEnvScale(unittest.TestCase):
         try:
             t0 = time.perf_counter()
             env.step_async([0])
-            time.sleep(0.08)
+            time.sleep(self.PARENT_WORK_S)
             obs_list, _, _, infos = env.step_wait()
             elapsed = time.perf_counter() - t0
-            self.assertLess(elapsed, 0.18, f"VecFrameStack overlap failed ({elapsed:.3f}s)")
+            self._assert_step_overlapped(elapsed, infos[0])
             self.assertEqual(obs_list[0]['matrix'].shape[0], 12)
             self.assertTrue(infos[0].get('spawning'))
         finally:
@@ -228,10 +249,13 @@ class TestSubprocVecEnvScale(unittest.TestCase):
                 }
                 return [obs], [0.0], [False], [info]
 
-        stack = VecFrameStack(FakeVenv(), k=4)
+        venv = FakeVenv()
+        stack = VecFrameStack(venv, k=4)
         stack._fill_frames(0, np.zeros((3, 4, 4), dtype=np.float32))
         stack.step_async([0])
         obs_list, rews, dones, infos = stack.step_wait()
+        self.assertTrue(venv.async_called)
+        self.assertTrue(venv.assert_async)
         self.assertEqual(obs_list[0]['matrix'].shape, (12, 4, 4))
         self.assertEqual(rews[0], 0.0)
         self.assertFalse(dones[0])

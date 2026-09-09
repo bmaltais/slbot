@@ -1455,13 +1455,18 @@ class SubprocVecEnv:
             raise RuntimeError("step_wait() pending; cannot step_async again")
         self._flush_pending_stage()
         with self._workers_lock:
-            self._step_slots = list(zip(self.remotes, self._boot_ready))
+            slots = list(zip(self.remotes, self._boot_ready))
+        if len(actions) != len(slots):
+            raise ValueError(
+                f"step_async expected {len(slots)} actions, got {len(actions)}"
+            )
+        self._step_slots = slots
         for i, ((remote, ready), action) in enumerate(zip(self._step_slots, actions)):
             if not ready:
                 continue
             try:
                 remote.send(('step', action))
-            except (EOFError, BrokenPipeError, ConnectionResetError):
+            except (EOFError, BrokenPipeError, ConnectionResetError, OSError):
                 pass  # will be caught on recv
         self._step_waiting = True
 
@@ -1478,7 +1483,7 @@ class SubprocVecEnv:
                     continue
                 try:
                     results.append(remote.recv())
-                except (EOFError, BrokenPipeError, ConnectionResetError):
+                except (EOFError, BrokenPipeError, ConnectionResetError, OSError):
                     logger.warning(f"[SubprocVecEnv] Worker {i} crashed (EOFError). Respawning...")
                     self._schedule_respawn(i)
                     results.append(self._browser_error_result())

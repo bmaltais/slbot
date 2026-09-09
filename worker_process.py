@@ -206,6 +206,7 @@ def delayed_echo_worker(remote, parent_remote, worker_id, headless, nickname, ma
                         frame_skip, view_plus, base_url, backend, ws_server_url,
                         suppress_stdout, stage_config=None, autoreset=False):
     """echo_worker that sleeps on `step` so tests can assert parent/worker overlap."""
+    import time
     import numpy as np
 
     parent_remote.close()
@@ -215,8 +216,12 @@ def delayed_echo_worker(remote, parent_remote, worker_id, headless, nickname, ma
         if cmd == 'close':
             break
         if cmd == 'step':
+            t0 = time.perf_counter()
             time.sleep(0.12)
-            remote.send(spawning_step_result(matrix_size))
+            obs, reward, done, info = spawning_step_result(matrix_size)
+            info = dict(info)
+            info['worker_step_s'] = time.perf_counter() - t0
+            remote.send((obs, reward, done, info))
         elif cmd == 'set_stage':
             remote.send('ok')
         elif cmd == 'reset':
