@@ -2,8 +2,12 @@ import numpy as np
 import math
 import sys
 import os
+import re
 import time
 import json
+import copy
+import queue
+import threading
 import matplotlib.pyplot as plt
 # Ensure matplotlib uses a non-interactive backend for headless environments
 plt.switch_backend('Agg')
@@ -27,6 +31,118 @@ def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
         return SlitherBrowser(headless=headless, nickname=nickname,
                               base_url=base_url)
 from matplotlib.path import Path as MplPath
+
+
+def _safe_filename_token(value, fallback='unknown', max_len=40):
+    """Restrict a value so it is safe as a single path component."""
+    text = re.sub(r'[^A-Za-z0-9._-]+', '_', str(value or ''))
+    text = text.strip('._-')[:max_len]
+    return text or fallback
+
+
+class _DeathPacketWriter:
+    """Write death PNG/JSON on a dedicated thread so env.step never blocks on matplotlib."""
+
+    _MAX_QUEUE = 8
+
+    def __init__(self):
+        self._q = queue.Queue(maxsize=self._MAX_QUEUE)
+        self._stop = threading.Event()
+        self._t = threading.Thread(target=self._run, daemon=True, name="death-packet-writer")
+        self._t.start()
+
+    def submit(self, matrix, reward, cause, final_data, boundary_type):
+        item = (
+            np.array(matrix, copy=True),
+            float(reward),
+            str(cause),
+            copy.deepcopy(final_data) if final_data else {},
+            boundary_type,
+            int(time.time()),
+            time.strftime("%Y%m%d_%H%M%S"),
+        )
+        try:
+            self._q.put_nowait(item)
+        except queue.Full:
+            pass
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                item = self._q.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            try:
+                self._write(*item)
+            except Exception as e:
+                print(f"Failed to save death packet: {e}")
+
+    def _write(self, matrix, reward, cause, final_data, boundary_type, timestamp, date_str):
+        debug_dir = os.path.join(os.path.dirname(__file__), 'events')
+        os.makedirs(debug_dir, exist_ok=True)
+        cause_token = _safe_filename_token(cause)
+
+        img_filename = f"event_{date_str}_{cause_token}.png"
+        img_path = os.path.join(debug_dir, img_filename)
+
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+        titles = ["Food", "Enemies/Wall", "Self"]
+        for i in range(3):
+            axes[i].imshow(matrix[i], cmap='gray', origin='upper')
+            axes[i].set_title(titles[i])
+            axes[i].axis('off')
+
+        snake = final_data.get('self', {})
+        pos_str = f"({snake.get('x', 0):.0f}, {snake.get('y', 0):.0f})"
+        wall_d = final_data.get('dist_to_wall', -1)
+
+        plt.suptitle(f"Cause: {cause} | Reward: {reward:.2f}\nPos: {pos_str} | Wall Dist: {wall_d:.0f}")
+        plt.tight_layout()
+        plt.savefig(img_path)
+        plt.close(fig)
+
+        json_filename = f"event_{date_str}_{cause_token}.json"
+        json_path = os.path.join(debug_dir, json_filename)
+        packet = {
+            "timestamp": timestamp,
+            "date": date_str,
+            "cause": cause,
+            "reward": reward,
+            "snake": {
+                "x": snake.get('x'),
+                "y": snake.get('y'),
+                "len": snake.get('len'),
+                "ang": snake.get('ang')
+            },
+            "env": {
+                "dist_to_wall": wall_d,
+                "map_radius": final_data.get('map_radius'),
+                "view_radius": final_data.get('view_radius'),
+                "boundary_type": boundary_type
+            },
+            "debug": final_data.get('debug', {})
+        }
+        with open(json_path, 'w') as f:
+            json.dump(packet, f, indent=2)
+        print(f"Saved Death Packet: {json_filename}")
+
+    def close(self):
+        self._stop.set()
+        try:
+            self._q.put(None, timeout=0.5)
+        except queue.Full:
+            try:
+                self._q.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._q.put_nowait(None)
+            except queue.Full:
+                pass
+        self._t.join(timeout=2)
+
 
 class SlitherEnv:
     def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url=""):
@@ -114,6 +230,7 @@ class SlitherEnv:
         self.last_valid_data = None
         self.invalid_frame_count = 0
         self.max_invalid_frames = 15
+        self._death_writer = None
 
     def _has_valid_coordinates(self, data):
         """Checks if the frame contains plausible coordinates (ignores dead status)."""
@@ -294,64 +411,13 @@ class SlitherEnv:
 
     def save_death_packet(self, matrix, reward, cause, final_data):
         """
-        Saves a comprehensive death event packet (JSON + Image).
-        Replaces legacy save_debug_image.
+        Queue a death event packet (JSON + Image). Matplotlib runs off the step path
+        so a death cannot stall the lock-step vecenv.
         """
         try:
-            timestamp = int(time.time())
-            date_str = time.strftime("%Y%m%d_%H%M%S")
-            debug_dir = os.path.join(os.path.dirname(__file__), 'events')
-            os.makedirs(debug_dir, exist_ok=True)
-
-            # 1. Save Image
-            img_filename = f"event_{date_str}_{cause}.png"
-            img_path = os.path.join(debug_dir, img_filename)
-
-            fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-            titles = ["Food", "Enemies/Wall", "Self"]
-            for i in range(3):
-                axes[i].imshow(matrix[i], cmap='gray', origin='upper')
-                axes[i].set_title(titles[i])
-                axes[i].axis('off')
-
-            snake = final_data.get('self', {})
-            pos_str = f"({snake.get('x',0):.0f}, {snake.get('y',0):.0f})"
-            wall_d = final_data.get('dist_to_wall', -1)
-
-            plt.suptitle(f"Cause: {cause} | Reward: {reward:.2f}\nPos: {pos_str} | Wall Dist: {wall_d:.0f}")
-            plt.tight_layout()
-            plt.savefig(img_path)
-            plt.close(fig)
-
-            # 2. Save JSON
-            json_filename = f"event_{date_str}_{cause}.json"
-            json_path = os.path.join(debug_dir, json_filename)
-
-            packet = {
-                "timestamp": timestamp,
-                "date": date_str,
-                "cause": cause,
-                "reward": reward,
-                "snake": {
-                    "x": snake.get('x'),
-                    "y": snake.get('y'),
-                    "len": snake.get('len'),
-                    "ang": snake.get('ang')
-                },
-                "env": {
-                    "dist_to_wall": wall_d,
-                    "map_radius": final_data.get('map_radius'),
-                    "view_radius": final_data.get('view_radius'),
-                    "boundary_type": self.boundary_type
-                },
-                "debug": final_data.get('debug', {})
-            }
-
-            with open(json_path, 'w') as f:
-                json.dump(packet, f, indent=2)
-
-            print(f"Saved Death Packet: {json_filename}")
-
+            if self._death_writer is None:
+                self._death_writer = _DeathPacketWriter()
+            self._death_writer.submit(matrix, reward, cause, final_data, self.boundary_type)
         except Exception as e:
             print(f"Failed to save death packet: {e}")
 
@@ -1348,4 +1414,7 @@ class SlitherEnv:
         return matrix
 
     def close(self):
+        if self._death_writer is not None:
+            self._death_writer.close()
+            self._death_writer = None
         self.browser.close()

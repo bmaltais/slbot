@@ -38,6 +38,7 @@ from slither_env import SlitherEnv
 from config import Config
 from agent import DDQNAgent
 from styles import STYLES
+from worker_session import WorkerSession
 
 # Setup logging
 os.makedirs("logs", exist_ok=True)
@@ -1098,39 +1099,49 @@ class VecFrameStack:
         obs_list = self.venv.reset()
         stacked_obs = []
         for i, o in enumerate(obs_list):
-            mat = o['matrix']
-            self.frames[i].clear()
-            for _ in range(self.k):
-                self.frames[i].append(mat)
+            self._fill_frames(i, o['matrix'])
             stacked_obs.append(self._stack_obs(i, o['sectors']))
         return stacked_obs
+
+    def _fill_frames(self, i, mat):
+        self.frames[i].clear()
+        for _ in range(self.k):
+            self.frames[i].append(mat)
 
     def step(self, actions):
         obs_list, rews, dones, infos = self.venv.step(actions)
         stacked_obs = []
 
         for i in range(self.num_agents):
+            info = infos[i]
+            if info.get('spawning'):
+                # Reset still running — keep last frames, don't pollute the stack.
+                if not self.frames[i]:
+                    self._fill_frames(i, obs_list[i]['matrix'])
+                stacked_obs.append(self._stack_obs(i, obs_list[i]['sectors']))
+                continue
+
+            if info.get('spawned'):
+                self._fill_frames(i, obs_list[i]['matrix'])
+                stacked_obs.append(self._stack_obs(i, obs_list[i]['sectors']))
+                continue
+
             if dones[i]:
-                # 1. Handle terminal observation stacking
-                term_obs = infos[i]['terminal_observation']
+                # Terminal stack only. New-episode frames arrive later via `spawned`.
+                term_obs = info.get('terminal_observation', obs_list[i])
                 term_mat = term_obs['matrix']
                 term_sectors = term_obs['sectors']
                 term_stack_deque = self.frames[i].copy()
                 term_stack_deque.append(term_mat)
                 term_stacked_matrix = np.concatenate(list(term_stack_deque), axis=0)
-                infos[i]['terminal_observation'] = {
+                info['terminal_observation'] = {
                     'matrix': term_stacked_matrix,
                     'sectors': term_sectors,
                 }
+                stacked_obs.append(self._stack_obs(i, obs_list[i]['sectors']))
+                continue
 
-                # 2. Handle new episode start
-                new_mat = obs_list[i]['matrix']
-                self.frames[i].clear()
-                for _ in range(self.k):
-                    self.frames[i].append(new_mat)
-            else:
-                self.frames[i].append(obs_list[i]['matrix'])
-
+            self.frames[i].append(obs_list[i]['matrix'])
             stacked_obs.append(self._stack_obs(i, obs_list[i]['sectors']))
 
         return stacked_obs, rews, dones, infos
@@ -1141,10 +1152,12 @@ class VecFrameStack:
 
     def reset_one(self, i):
         obs = self.venv.reset_one(i)
-        mat = obs['matrix']
-        self.frames[i].clear()
-        for _ in range(self.k):
-            self.frames[i].append(mat)
+        # Placeholder from an in-flight respawn — keep prior frames until `spawned`.
+        if obs.get('spawning'):
+            if not self.frames[i]:
+                self._fill_frames(i, obs['matrix'])
+            return self._stack_obs(i, obs['sectors'])
+        self._fill_frames(i, obs['matrix'])
         return self._stack_obs(i, obs['sectors'])
 
     def close(self):
@@ -1155,10 +1168,9 @@ class VecFrameStack:
         obs = self.venv.add_agent()
         mat = obs['matrix']
         new_deque = deque(maxlen=self.k)
-        for _ in range(self.k):
-            new_deque.append(mat)
         self.frames.append(new_deque)
         self.num_agents += 1
+        self._fill_frames(self.num_agents - 1, mat)
         return self._stack_obs(self.num_agents - 1, obs['sectors'])
 
     def remove_agent(self):
@@ -1198,30 +1210,14 @@ def worker(remote, parent_remote, worker_id, headless, nickname_prefix, matrix_s
             backend=backend,
             ws_server_url=ws_server_url,
         )
+        session = WorkerSession(env, matrix_size)
 
         while True:
             cmd, data = remote.recv()
-            if cmd == 'step':
-                action = data
-                next_state, reward, done, info = env.step(action)
-                if done:
-                    info['terminal_observation'] = next_state
-                    reset_state = env.reset()
-                    next_state = reset_state
-                remote.send((next_state, reward, done, info))
-
-            elif cmd == 'reset':
-                state = env.reset()
-                remote.send(state)
-            elif cmd == 'reset_one':
-                state = env.reset()
-                remote.send(state)
-            elif cmd == 'set_stage':
-                env.set_curriculum_stage(data)
-                remote.send('ok')
-            elif cmd == 'close':
-                env.close()
+            if cmd == 'close':
+                session.close()
                 break
+            remote.send(session.handle(cmd, data))
     except Exception as e:
         import traceback
         crash_msg = f"Worker {worker_id} crashed: {e}\n{traceback.format_exc()}"
@@ -1608,6 +1604,7 @@ def train(args):
     agent_ep_start = [time.time()] * cfg.env.num_agents
     agent_total_eps = [0] * cfg.env.num_agents
     agent_last_cause = ["—"] * cfg.env.num_agents
+    agent_spawning = [False] * cfg.env.num_agents
 
     # Initial Reset
     states = env.reset()
@@ -1933,23 +1930,34 @@ def train(args):
                     param_group['lr'] = target_lr * lr_scale
 
             # Select actions — steps_done increments once per batch (decoupled from num_agents)
-            actions = [agent.select_action(s, agent_id=i) for i, s in enumerate(states)]
-            agent.steps_done += 1
-
-            # Track action distribution per agent
-            for i, a in enumerate(actions):
+            # Spawning agents are reconnecting; send a dummy action and skip tracking.
+            actions = []
+            for i, s in enumerate(states):
+                if agent_spawning[i] or i in _agents_draining:
+                    actions.append(0)
+                    continue
+                a = agent.select_action(s, agent_id=i)
+                actions.append(a)
                 if a == 0: episode_actions[i][0] += 1        # straight
                 elif a in (1, 2, 3, 4): episode_actions[i][1] += 1  # micro + gentle
                 elif a in (5, 6): episode_actions[i][2] += 1  # medium
                 elif a in (7, 8): episode_actions[i][3] += 1  # sharp
                 elif a in (9, 10): episode_actions[i][4] += 1  # uturn
                 elif a in (11, 12, 13): episode_actions[i][5] += 1  # boost variants
+            agent.steps_done += 1
 
             # Step (with latency tracking for auto-scale)
             step_start = time.time()
             next_states, rewards, dones, infos = env.step(actions)
             if monitor:
-                monitor.record_step(time.time() - step_start)
+                # Don't let death/respawn latency look like "system too slow" (or
+                # all-spawning ~1ms steps look like idle capacity to scale up).
+                n_inactive = sum(
+                    1 for i in range(env.num_agents)
+                    if dones[i] or infos[i].get('spawning') or infos[i].get('spawned')
+                )
+                if n_inactive < env.num_agents:
+                    monitor.record_step(time.time() - step_start)
 
             loss = None
 
@@ -1960,6 +1968,14 @@ def train(args):
             for i in range(env.num_agents):
                 # Skip agents that already finished during graceful shutdown
                 if i in _agents_draining:
+                    continue
+
+                if infos[i].get('spawning'):
+                    agent_spawning[i] = True
+                    continue
+
+                if infos[i].get('spawned'):
+                    agent_spawning[i] = False
                     continue
 
                 episode_rewards[i] += rewards[i]
@@ -1988,6 +2004,7 @@ def train(args):
                         cause=infos[i].get('cause', 'SnakeCollision'),
                         force_done_flag=force_done and not dones[i]
                     )
+                    agent_spawning[i] = True
 
                     # Graceful shutdown: don't start new episodes, mark agent as drained
                     if _shutdown_requested:
@@ -2042,6 +2059,7 @@ def train(args):
                         agent_ep_start.append(time.time())
                         agent_total_eps.append(0)
                         agent_last_cause.append("—")
+                        agent_spawning.append(False)
                         states.append(new_state)
                         logger.info(f"[AUTO-SCALE] Added agent #{env.num_agents} "
                                     f"(CPU:{metrics['cpu_percent']:.0f}% "
@@ -2065,6 +2083,7 @@ def train(args):
                     agent_ep_start.pop()
                     agent_total_eps.pop()
                     agent_last_cause.pop()
+                    agent_spawning.pop()
                     states.pop()
                     logger.info(f"[AUTO-SCALE] Removed agent -> {env.num_agents} "
                                 f"(CPU:{metrics['cpu_percent']:.0f}% "
