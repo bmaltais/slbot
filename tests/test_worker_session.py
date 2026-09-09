@@ -110,6 +110,7 @@ class TestWorkerSession(unittest.TestCase):
         self.assertLess(elapsed, 0.05)
         self.assertTrue(self.env.reset_started.wait(timeout=1))
         self.assertEqual(self.env.reset_count, 0)
+        self.assertTrue(obs.get('spawning'))
         np.testing.assert_array_equal(obs['matrix'], np.zeros((3, 8, 8), dtype=np.float32))
 
         self.env.reset_release.set()
@@ -121,6 +122,47 @@ class TestWorkerSession(unittest.TestCase):
         else:
             self.fail("async reset never completed")
         self.assertEqual(self.env.reset_count, 1)
+
+    def test_reset_async_while_busy_returns_last_obs_not_zeros(self):
+        self.session.step(1)  # live frame of ones
+        obs = self.session.reset_async()
+        self.assertTrue(obs.get('spawning'))
+        np.testing.assert_array_equal(obs['matrix'], self.env.alive_obs['matrix'])
+        self.assertTrue(self.env.reset_started.wait(timeout=1))
+
+        again = self.session.reset_async()
+        self.assertTrue(again.get('spawning'))
+        np.testing.assert_array_equal(again['matrix'], self.env.alive_obs['matrix'])
+
+    def test_join_reset_keeps_thread_on_timeout(self):
+        self.session.reset_async()
+        self.assertTrue(self.env.reset_started.wait(timeout=1))
+        finished = self.session._join_reset(timeout=0.05)
+        self.assertFalse(finished)
+        self.assertTrue(self.session._reset_thread.is_alive())
+
+        steps_before = self.env.step_count
+        _, _, _, info = self.session.step(0)
+        self.assertTrue(info.get('spawning'))
+        self.assertEqual(self.env.step_count, steps_before)
+
+    def test_set_stage_waits_for_reset_lock(self):
+        self.session.reset_async()
+        self.assertTrue(self.env.reset_started.wait(timeout=1))
+        done = threading.Event()
+
+        def apply_stage():
+            self.session.handle('set_stage', {'food_reward': 9})
+            done.set()
+
+        t = threading.Thread(target=apply_stage)
+        t.start()
+        time.sleep(0.05)
+        self.assertFalse(done.is_set())
+        self.env.reset_release.set()
+        self.assertTrue(done.wait(timeout=2))
+        t.join(timeout=1)
+        self.assertEqual(self.env.stage, {'food_reward': 9})
 
     def test_reset_sync_waits_for_observation(self):
         self.env.reset_release.set()
@@ -158,6 +200,41 @@ class TestDeathPacketNonBlocking(unittest.TestCase):
             released.set()
             writer.close()
 
+    def test_unsafe_cause_is_sanitized_for_filenames(self):
+        import slither_env
+
+        self.assertEqual(slither_env._safe_filename_token('Wall'), 'Wall')
+        token = slither_env._safe_filename_token('../etc/passwd')
+        self.assertNotIn('..', token)
+        self.assertNotIn('/', token)
+        self.assertNotIn('\\', token)
+        self.assertTrue(token)
+
+    def test_close_stops_writer_when_queue_is_full(self):
+        import slither_env
+
+        writer = slither_env._DeathPacketWriter()
+        in_write = threading.Event()
+        allow_write = threading.Event()
+
+        def slow_write(*_args):
+            in_write.set()
+            allow_write.wait(timeout=2)
+
+        writer._write = slow_write
+        try:
+            writer.submit(np.zeros((3, 2, 2), dtype=np.float32), 0.0, 'Wall', {}, 'circle')
+            self.assertTrue(in_write.wait(timeout=1))
+            for _ in range(writer._MAX_QUEUE):
+                writer.submit(np.zeros((3, 2, 2), dtype=np.float32), 0.0, 'Wall', {}, 'circle')
+            allow_write.set()
+            writer.close()
+            writer._t.join(timeout=2)
+            self.assertFalse(writer._t.is_alive())
+        finally:
+            allow_write.set()
+            writer.close()
+
 
 class TestVecFrameStackSpawn(unittest.TestCase):
     def setUp(self):
@@ -170,6 +247,9 @@ class TestVecFrameStackSpawn(unittest.TestCase):
 
             def step(self, actions):
                 return self.payload
+
+            def reset_one(self, i):
+                return self.reset_obs
 
         self.venv = FakeVenv()
         self.stack = VecFrameStack(self.venv, k=4)
@@ -202,6 +282,17 @@ class TestVecFrameStackSpawn(unittest.TestCase):
         self.stack.step([0])
         for frame in self.stack.frames[0]:
             np.testing.assert_array_equal(frame, spawned_mat)
+
+    def test_reset_one_spawning_preserves_live_frames(self):
+        zeros = np.zeros((3, 4, 4), dtype=np.float32)
+        self.venv.reset_obs = {
+            'matrix': zeros,
+            'sectors': np.zeros(99, dtype=np.float32),
+            'spawning': True,
+        }
+        self.stack.reset_one(0)
+        for frame in self.stack.frames[0]:
+            np.testing.assert_array_equal(frame, self.live_mat)
 
 
 if __name__ == '__main__':

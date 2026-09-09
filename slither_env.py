@@ -2,6 +2,7 @@ import numpy as np
 import math
 import sys
 import os
+import re
 import time
 import json
 import copy
@@ -32,6 +33,13 @@ def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
 from matplotlib.path import Path as MplPath
 
 
+def _safe_filename_token(value, fallback='unknown', max_len=40):
+    """Restrict a value so it is safe as a single path component."""
+    text = re.sub(r'[^A-Za-z0-9._-]+', '_', str(value or ''))
+    text = text.strip('._-')[:max_len]
+    return text or fallback
+
+
 class _DeathPacketWriter:
     """Write death PNG/JSON on a dedicated thread so env.step never blocks on matplotlib."""
 
@@ -39,6 +47,7 @@ class _DeathPacketWriter:
 
     def __init__(self):
         self._q = queue.Queue(maxsize=self._MAX_QUEUE)
+        self._stop = threading.Event()
         self._t = threading.Thread(target=self._run, daemon=True, name="death-packet-writer")
         self._t.start()
 
@@ -58,8 +67,11 @@ class _DeathPacketWriter:
             pass
 
     def _run(self):
-        while True:
-            item = self._q.get()
+        while not self._stop.is_set():
+            try:
+                item = self._q.get(timeout=0.2)
+            except queue.Empty:
+                continue
             if item is None:
                 break
             try:
@@ -70,8 +82,9 @@ class _DeathPacketWriter:
     def _write(self, matrix, reward, cause, final_data, boundary_type, timestamp, date_str):
         debug_dir = os.path.join(os.path.dirname(__file__), 'events')
         os.makedirs(debug_dir, exist_ok=True)
+        cause_token = _safe_filename_token(cause)
 
-        img_filename = f"event_{date_str}_{cause}.png"
+        img_filename = f"event_{date_str}_{cause_token}.png"
         img_path = os.path.join(debug_dir, img_filename)
 
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
@@ -90,7 +103,7 @@ class _DeathPacketWriter:
         plt.savefig(img_path)
         plt.close(fig)
 
-        json_filename = f"event_{date_str}_{cause}.json"
+        json_filename = f"event_{date_str}_{cause_token}.json"
         json_path = os.path.join(debug_dir, json_filename)
         packet = {
             "timestamp": timestamp,
@@ -116,10 +129,18 @@ class _DeathPacketWriter:
         print(f"Saved Death Packet: {json_filename}")
 
     def close(self):
+        self._stop.set()
         try:
-            self._q.put_nowait(None)
+            self._q.put(None, timeout=0.5)
         except queue.Full:
-            pass
+            try:
+                self._q.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._q.put_nowait(None)
+            except queue.Full:
+                pass
         self._t.join(timeout=2)
 
 

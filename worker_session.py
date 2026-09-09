@@ -25,6 +25,7 @@ class WorkerSession:
         self._reset_thread = None
         self._reset_obs = None
         self._reset_error = None
+        self._last_obs = None
         self._env_lock = threading.Lock()
 
     def _dummy_obs(self):
@@ -32,6 +33,24 @@ class WorkerSession:
             'matrix': np.zeros((3, self.matrix_size, self.matrix_size), dtype=np.float32),
             'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
         }
+
+    def _copy_obs(self, obs):
+        return {
+            'matrix': np.array(obs['matrix'], copy=True),
+            'sectors': np.array(obs['sectors'], copy=True),
+        }
+
+    def _remember_obs(self, obs):
+        if obs is None:
+            return
+        self._last_obs = self._copy_obs(obs)
+
+    def _placeholder_obs(self):
+        """Non-destructive stand-in while a reset is running (keeps last frames)."""
+        src = self._last_obs if self._last_obs is not None else self._dummy_obs()
+        out = self._copy_obs(src)
+        out['spawning'] = True
+        return out
 
     def _idle_info(self, **extra):
         info = {
@@ -60,12 +79,29 @@ class WorkerSession:
         self._reset_thread.start()
 
     def _join_reset(self, timeout=30):
+        """Wait for an in-flight reset. Returns True only if it has fully finished."""
         if self._reset_thread is None:
-            return
+            return True
         self._reset_thread.join(timeout=timeout)
+        if self._reset_thread.is_alive():
+            return False
         self._reset_thread = None
         self._reset_obs = None
         self._reset_error = None
+        return True
+
+    def _take_finished_reset(self):
+        """Collect a reset thread that has already exited. Raises on reset failure."""
+        self._reset_thread.join(timeout=1)
+        self._reset_thread = None
+        if self._reset_error is not None:
+            err = self._reset_error
+            self._reset_error = None
+            raise err
+        obs = self._reset_obs if self._reset_obs is not None else self._dummy_obs()
+        self._reset_obs = None
+        self._remember_obs(obs)
+        return obs
 
     def handle(self, cmd, data):
         if cmd == 'step':
@@ -75,26 +111,21 @@ class WorkerSession:
         if cmd == 'reset_one':
             return self.reset_async()
         if cmd == 'set_stage':
-            self.env.set_curriculum_stage(data)
+            with self._env_lock:
+                self.env.set_curriculum_stage(data)
             return 'ok'
         raise ValueError(f"Unknown worker command: {cmd}")
 
     def step(self, action):
         if self._reset_thread is not None:
             if self._reset_thread.is_alive():
-                return (self._dummy_obs(), 0.0, False, self._idle_info(spawning=True))
-            self._reset_thread.join(timeout=1)
-            self._reset_thread = None
-            if self._reset_error is not None:
-                err = self._reset_error
-                self._reset_error = None
-                raise err
-            obs = self._reset_obs if self._reset_obs is not None else self._dummy_obs()
-            self._reset_obs = None
+                return (self._placeholder_obs(), 0.0, False, self._idle_info(spawning=True))
+            obs = self._take_finished_reset()
             return (obs, 0.0, False, self._idle_info(spawned=True))
 
         with self._env_lock:
             next_state, reward, done, info = self.env.step(action)
+        self._remember_obs(next_state)
         if done:
             info['terminal_observation'] = next_state
             self._start_reset()
@@ -102,28 +133,22 @@ class WorkerSession:
 
     def reset_sync(self):
         """Startup / full reset — wait for a real observation."""
-        self._join_reset()
+        if not self._join_reset():
+            raise TimeoutError("background reset did not finish")
         with self._env_lock:
-            return self.env.reset()
+            obs = self.env.reset()
+        self._remember_obs(obs)
+        return obs
 
     def reset_async(self):
         """Force-respawn without blocking the vecenv barrier (max-steps)."""
         if self._reset_thread is not None and self._reset_thread.is_alive():
-            return self._dummy_obs()
+            return self._placeholder_obs()
         if self._reset_thread is not None:
-            # Reset already finished between commands — return it.
-            self._reset_thread.join(timeout=1)
-            self._reset_thread = None
-            if self._reset_error is not None:
-                err = self._reset_error
-                self._reset_error = None
-                raise err
-            obs = self._reset_obs if self._reset_obs is not None else self._dummy_obs()
-            self._reset_obs = None
-            return obs
+            return self._take_finished_reset()
         self._start_reset()
-        return self._dummy_obs()
+        return self._placeholder_obs()
 
     def close(self):
-        self._join_reset()
+        self._join_reset(timeout=60)
         self.env.close()

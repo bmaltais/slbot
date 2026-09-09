@@ -1152,6 +1152,11 @@ class VecFrameStack:
 
     def reset_one(self, i):
         obs = self.venv.reset_one(i)
+        # Placeholder from an in-flight respawn — keep prior frames until `spawned`.
+        if obs.get('spawning'):
+            if not self.frames[i]:
+                self._fill_frames(i, obs['matrix'])
+            return self._stack_obs(i, obs['sectors'])
         self._fill_frames(i, obs['matrix'])
         return self._stack_obs(i, obs['sectors'])
 
