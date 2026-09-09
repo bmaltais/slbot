@@ -1136,8 +1136,15 @@ class VecFrameStack:
         for _ in range(self.k):
             self.frames[i].append(mat)
 
-    def step(self, actions):
-        obs_list, rews, dones, infos = self.venv.step(actions)
+    def step_async(self, actions):
+        """Send actions without waiting so the parent can train during env.step."""
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        """Collect worker results and stack frames. Must follow `step_async`."""
+        return self._stack_step_result(*self.venv.step_wait())
+
+    def _stack_step_result(self, obs_list, rews, dones, infos):
         stacked_obs = []
 
         for i in range(self.num_agents):
@@ -1173,6 +1180,12 @@ class VecFrameStack:
             stacked_obs.append(self._stack_obs(i, obs_list[i]['sectors']))
 
         return stacked_obs, rews, dones, infos
+
+    def step(self, actions):
+        if hasattr(self.venv, 'step_async'):
+            self.step_async(actions)
+            return self.step_wait()
+        return self._stack_step_result(*self.venv.step(actions))
 
     def reset_agent(self, i):
         """Force reset specific agent."""
@@ -1243,6 +1256,8 @@ class SubprocVecEnv:
         self._pending_stage = [None] * num_agents
         self._respawning = [False] * num_agents
         self._workers_lock = threading.Lock()
+        self._step_waiting = False
+        self._step_slots = None
 
         for i in range(num_agents):
             is_headless = not (view_first and i == 0)
@@ -1434,31 +1449,48 @@ class SubprocVecEnv:
             self._schedule_respawn(index)
             return self._make_dummy_obs()
 
-    def step(self, actions):
+    def step_async(self, actions):
+        """Send step commands. Pair with `step_wait`. Do not add/remove agents in between."""
+        if self._step_waiting:
+            raise RuntimeError("step_wait() pending; cannot step_async again")
         self._flush_pending_stage()
         with self._workers_lock:
-            slots = list(zip(self.remotes, self._boot_ready))
-        for i, ((remote, ready), action) in enumerate(zip(slots, actions)):
+            self._step_slots = list(zip(self.remotes, self._boot_ready))
+        for i, ((remote, ready), action) in enumerate(zip(self._step_slots, actions)):
             if not ready:
                 continue
             try:
                 remote.send(('step', action))
             except (EOFError, BrokenPipeError, ConnectionResetError):
                 pass  # will be caught on recv
+        self._step_waiting = True
 
-        results = []
-        for i, (remote, ready) in enumerate(slots):
-            if not ready:
-                results.append(spawning_step_result(self._matrix_size))
-                continue
-            try:
-                results.append(remote.recv())
-            except (EOFError, BrokenPipeError, ConnectionResetError):
-                logger.warning(f"[SubprocVecEnv] Worker {i} crashed (EOFError). Respawning...")
-                self._schedule_respawn(i)
-                results.append(self._browser_error_result())
-        states, rewards, dones, infos = zip(*results)
-        return states, rewards, dones, infos
+    def step_wait(self):
+        """Recv step results sent by `step_async`."""
+        if not self._step_waiting:
+            raise RuntimeError("step_async() was not called")
+        slots = self._step_slots
+        try:
+            results = []
+            for i, (remote, ready) in enumerate(slots):
+                if not ready:
+                    results.append(spawning_step_result(self._matrix_size))
+                    continue
+                try:
+                    results.append(remote.recv())
+                except (EOFError, BrokenPipeError, ConnectionResetError):
+                    logger.warning(f"[SubprocVecEnv] Worker {i} crashed (EOFError). Respawning...")
+                    self._schedule_respawn(i)
+                    results.append(self._browser_error_result())
+            states, rewards, dones, infos = zip(*results)
+            return states, rewards, dones, infos
+        finally:
+            self._step_waiting = False
+            self._step_slots = None
+
+    def step(self, actions):
+        self.step_async(actions)
+        return self.step_wait()
 
     def close(self):
         with self._workers_lock:
@@ -2074,9 +2106,17 @@ def train(args):
                 elif a in (11, 12, 13): episode_actions[i][5] += 1  # boost variants
             agent.steps_done += 1
 
-            # Step (with latency tracking for auto-scale)
+            # Step: send actions, then train while workers sleep/fetch/rasterize.
+            # optimize_model uses the buffer from the previous tick (standard DQN).
             step_start = time.time()
-            next_states, rewards, dones, infos = env.step(actions)
+            env.step_async(actions)
+            try:
+                metrics = agent.optimize_model()
+                if metrics is not None:
+                    last_metrics = metrics
+                    train._last_loss = metrics['loss']
+            finally:
+                next_states, rewards, dones, infos = env.step_wait()
             if monitor:
                 # Don't let death/respawn latency look like "system too slow" (or
                 # all-spawning ~1ms steps look like idle capacity to scale up).
@@ -2221,12 +2261,6 @@ def train(args):
                     if dashboard:
                         dashboard.num_agents = env.num_agents
                         dashboard.log_event(f"Scale DOWN -> {env.num_agents} agents")
-
-            # Train
-            metrics = agent.optimize_model()
-            if metrics is not None:
-                last_metrics = metrics
-                train._last_loss = metrics['loss']
 
             # Target Update
             if total_steps % cfg.opt.target_update_freq == 0:

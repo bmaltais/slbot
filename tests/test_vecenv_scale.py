@@ -11,7 +11,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from worker_process import READY_MSG, echo_worker, run_worker_loop
+from worker_process import READY_MSG, delayed_echo_worker, echo_worker, run_worker_loop
 from worker_session import WorkerSession
 
 from test_worker_session import FakeEnv
@@ -135,6 +135,106 @@ class TestSubprocVecEnvScale(unittest.TestCase):
             self.assertEqual(env.num_agents, 1)
         finally:
             env.close()
+
+    def test_step_async_overlaps_parent_work(self):
+        """Parent work between send and recv must not add to worker step time."""
+        env = self.SubprocVecEnv(
+            num_agents=1,
+            matrix_size=8,
+            frame_skip=1,
+            worker_fn=delayed_echo_worker,
+        )
+        try:
+            t0 = time.perf_counter()
+            env.step_async([0])
+            time.sleep(0.08)  # stand-in for optimize_model()
+            _, _, _, infos = env.step_wait()
+            elapsed = time.perf_counter() - t0
+            # Worker sleeps 0.12s. Serial send+sleep+recv would be >= 0.20s.
+            self.assertLess(elapsed, 0.18, f"step_async did not overlap parent work ({elapsed:.3f}s)")
+            self.assertGreaterEqual(elapsed, 0.12)
+            self.assertTrue(infos[0].get('spawning'))
+        finally:
+            env.close()
+
+    def test_step_still_send_then_wait(self):
+        env = self._make_env(1)
+        try:
+            _, _, _, infos = env.step([0])
+            self.assertTrue(infos[0].get('spawning'))
+        finally:
+            env.close()
+
+    def test_step_async_twice_raises(self):
+        env = self._make_env(1)
+        try:
+            env.step_async([0])
+            with self.assertRaises(RuntimeError):
+                env.step_async([0])
+            env.step_wait()
+        finally:
+            env.close()
+
+    def test_step_wait_without_async_raises(self):
+        env = self._make_env(1)
+        try:
+            with self.assertRaises(RuntimeError):
+                env.step_wait()
+        finally:
+            env.close()
+
+    def test_vecframestack_step_async_overlaps_parent_work(self):
+        from trainer import VecFrameStack
+        raw = self.SubprocVecEnv(
+            num_agents=1,
+            matrix_size=8,
+            frame_skip=1,
+            worker_fn=delayed_echo_worker,
+        )
+        env = VecFrameStack(raw, k=4)
+        try:
+            t0 = time.perf_counter()
+            env.step_async([0])
+            time.sleep(0.08)
+            obs_list, _, _, infos = env.step_wait()
+            elapsed = time.perf_counter() - t0
+            self.assertLess(elapsed, 0.18, f"VecFrameStack overlap failed ({elapsed:.3f}s)")
+            self.assertEqual(obs_list[0]['matrix'].shape[0], 12)
+            self.assertTrue(infos[0].get('spawning'))
+        finally:
+            env.close()
+
+    def test_vecframestack_step_async_wait_stacks_frames(self):
+        from trainer import VecFrameStack
+
+        class FakeVenv:
+            def __init__(self):
+                self.num_agents = 1
+                self.async_called = False
+                self.mat = np.ones((3, 4, 4), dtype=np.float32)
+
+            def step_async(self, actions):
+                self.async_called = True
+
+            def step_wait(self):
+                self.assert_async = self.async_called
+                obs = {'matrix': self.mat, 'sectors': np.zeros(99, dtype=np.float32)}
+                info = {
+                    'food_eaten': 0,
+                    'pos': (0, 0),
+                    'wall_dist': -1,
+                    'enemy_dist': -1,
+                    'length': 0,
+                }
+                return [obs], [0.0], [False], [info]
+
+        stack = VecFrameStack(FakeVenv(), k=4)
+        stack._fill_frames(0, np.zeros((3, 4, 4), dtype=np.float32))
+        stack.step_async([0])
+        obs_list, rews, dones, infos = stack.step_wait()
+        self.assertEqual(obs_list[0]['matrix'].shape, (12, 4, 4))
+        self.assertEqual(rews[0], 0.0)
+        self.assertFalse(dones[0])
 
     def test_vecframestack_add_agent_marks_spawning(self):
         from trainer import VecFrameStack
