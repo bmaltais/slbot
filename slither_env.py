@@ -6,6 +6,7 @@ import re
 import time
 import json
 import copy
+import itertools
 import queue
 import threading
 import matplotlib.pyplot as plt
@@ -48,18 +49,21 @@ class _DeathPacketWriter:
     def __init__(self):
         self._q = queue.Queue(maxsize=self._MAX_QUEUE)
         self._stop = threading.Event()
+        self._seq = itertools.count()
         self._t = threading.Thread(target=self._run, daemon=True, name="death-packet-writer")
         self._t.start()
 
     def submit(self, matrix, reward, cause, final_data, boundary_type):
+        now = time.time()
         item = (
             np.array(matrix, copy=True),
             float(reward),
             str(cause),
             copy.deepcopy(final_data) if final_data else {},
             boundary_type,
-            int(time.time()),
-            time.strftime("%Y%m%d_%H%M%S"),
+            int(now),
+            time.strftime("%Y%m%d_%H%M%S", time.localtime(now)),
+            f"{int((now % 1) * 1000):03d}_{next(self._seq)}",
         )
         try:
             self._q.put_nowait(item)
@@ -79,12 +83,12 @@ class _DeathPacketWriter:
             except Exception as e:
                 print(f"Failed to save death packet: {e}")
 
-    def _write(self, matrix, reward, cause, final_data, boundary_type, timestamp, date_str):
+    def _write(self, matrix, reward, cause, final_data, boundary_type, timestamp, date_str, uniq):
         debug_dir = os.path.join(os.path.dirname(__file__), 'events')
         os.makedirs(debug_dir, exist_ok=True)
         cause_token = _safe_filename_token(cause)
 
-        img_filename = f"event_{date_str}_{cause_token}.png"
+        img_filename = f"event_{date_str}_{uniq}_{cause_token}.png"
         img_path = os.path.join(debug_dir, img_filename)
 
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
@@ -103,7 +107,7 @@ class _DeathPacketWriter:
         plt.savefig(img_path)
         plt.close(fig)
 
-        json_filename = f"event_{date_str}_{cause_token}.json"
+        json_filename = f"event_{date_str}_{uniq}_{cause_token}.json"
         json_path = os.path.join(debug_dir, json_filename)
         packet = {
             "timestamp": timestamp,

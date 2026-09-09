@@ -27,6 +27,7 @@ class FakeEnv:
         self.alive_obs = _obs(1.0)
         self.dead_obs = _obs(0.0)
         self.closed = False
+        self.fail_reset = False
 
     def step(self, action):
         self.step_count += 1
@@ -38,6 +39,8 @@ class FakeEnv:
         self.reset_started.set()
         if not self.reset_release.wait(timeout=2):
             raise TimeoutError("reset was not released")
+        if self.fail_reset:
+            raise RuntimeError("reset exploded")
         self.reset_count += 1
         return self.alive_obs
 
@@ -146,22 +149,25 @@ class TestWorkerSession(unittest.TestCase):
         self.assertTrue(info.get('spawning'))
         self.assertEqual(self.env.step_count, steps_before)
 
-    def test_set_stage_waits_for_reset_lock(self):
+    def test_set_stage_does_not_block_during_reset(self):
         self.session.reset_async()
         self.assertTrue(self.env.reset_started.wait(timeout=1))
-        done = threading.Event()
 
-        def apply_stage():
-            self.session.handle('set_stage', {'food_reward': 9})
-            done.set()
+        t0 = time.perf_counter()
+        ack = self.session.handle('set_stage', {'food_reward': 9})
+        self.assertLess(time.perf_counter() - t0, 0.05)
+        self.assertEqual(ack, 'ok')
+        self.assertFalse(hasattr(self.env, 'stage'))
 
-        t = threading.Thread(target=apply_stage)
-        t.start()
-        time.sleep(0.05)
-        self.assertFalse(done.is_set())
         self.env.reset_release.set()
-        self.assertTrue(done.wait(timeout=2))
-        t.join(timeout=1)
+        spawned = False
+        for _ in range(50):
+            _, _, _, info = self.session.step(0)
+            if info.get('spawned'):
+                spawned = True
+                break
+            time.sleep(0.01)
+        self.assertTrue(spawned)
         self.assertEqual(self.env.stage, {'food_reward': 9})
 
     def test_reset_sync_waits_for_observation(self):
@@ -169,6 +175,17 @@ class TestWorkerSession(unittest.TestCase):
         obs = self.session.reset_sync()
         self.assertEqual(self.env.reset_count, 1)
         np.testing.assert_array_equal(obs['matrix'], self.env.alive_obs['matrix'])
+
+    def test_join_reset_preserves_background_error(self):
+        self.env.fail_reset = True
+        self.session.reset_async()
+        self.assertTrue(self.env.reset_started.wait(timeout=1))
+        self.env.reset_release.set()
+        self.assertTrue(self.session._join_reset(timeout=1))
+        self.assertIsInstance(self.session._reset_error, RuntimeError)
+        with self.assertRaises(RuntimeError) as ctx:
+            self.session.reset_sync()
+        self.assertIn("reset exploded", str(ctx.exception))
 
 
 class TestDeathPacketNonBlocking(unittest.TestCase):
@@ -198,6 +215,36 @@ class TestDeathPacketNonBlocking(unittest.TestCase):
             self.assertTrue(started.wait(timeout=1))
         finally:
             released.set()
+            writer.close()
+
+    def test_death_packet_filenames_are_unique_in_same_second(self):
+        import slither_env
+
+        writer = slither_env._DeathPacketWriter()
+        captured = []
+
+        def capture(*args):
+            captured.append(args)
+
+        writer._write = capture
+        try:
+            for _ in range(2):
+                writer.submit(
+                    np.zeros((3, 2, 2), dtype=np.float32),
+                    0.0,
+                    'Wall',
+                    {},
+                    'circle',
+                )
+            deadline = time.time() + 2
+            while len(captured) < 2 and time.time() < deadline:
+                time.sleep(0.01)
+            self.assertEqual(len(captured), 2)
+            uniq_a, uniq_b = captured[0][-1], captured[1][-1]
+            self.assertNotEqual(uniq_a, uniq_b)
+            self.assertTrue(uniq_a)
+            self.assertTrue(uniq_b)
+        finally:
             writer.close()
 
     def test_unsafe_cause_is_sanitized_for_filenames(self):
