@@ -1,0 +1,45 @@
+[project]
+name = "slbot"
+version = "4.0.0"
+description = "Autonomous slither.io bot using deep reinforcement learning"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "pillow",
+    "plotext",
+    "psutil",
+    "rich",
+    "selenium",
+    "torch",
+    "websocket-client",
+]
+
+[project.optional-dependencies]
+ai = [
+    "anthropic",
+    "google-generativeai",
+    "openai",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv]
+package = false
+
+# CUDA 13.0 wheels on Linux/Windows (works with this machine's CUDA 13.3 driver).
+# macOS falls back to PyPI (CPU / MPS).
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
