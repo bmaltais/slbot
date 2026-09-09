@@ -68,7 +68,8 @@ def run_worker_loop(remote, matrix_size, boot_fn, autoreset=False, initial_stage
             with lock:
                 session = sess
         except Exception as e:
-            boot_error = e
+            with lock:
+                boot_error = e
 
     boot_thread = threading.Thread(target=boot, daemon=True, name="env-boot")
     boot_thread.start()

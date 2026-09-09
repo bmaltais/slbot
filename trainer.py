@@ -1242,6 +1242,7 @@ class SubprocVecEnv:
         self._boot_ready = [False] * num_agents
         self._pending_stage = [None] * num_agents
         self._respawning = [False] * num_agents
+        self._workers_lock = threading.Lock()
 
         for i in range(num_agents):
             is_headless = not (view_first and i == 0)
@@ -1298,20 +1299,19 @@ class SubprocVecEnv:
             msg = remote.recv()
             if msg != READY_MSG:
                 logger.warning(f"[SubprocVecEnv] Worker {index} handshake {msg!r}, expected {READY_MSG!r}")
-            if index < len(self.remotes) and self.remotes[index] is remote:
-                self._boot_ready[index] = True
-                if index < len(self._respawning):
+            with self._workers_lock:
+                if index < len(self.remotes) and self.remotes[index] is remote:
+                    self._boot_ready[index] = True
                     self._respawning[index] = False
         except (EOFError, BrokenPipeError, ConnectionResetError, OSError) as e:
             logger.error(f"[SubprocVecEnv] Worker {index} died before ready: {e}")
 
     def _schedule_respawn(self, index):
-        if index >= self.num_agents:
-            return
-        if self._respawning[index]:
-            return
-        self._respawning[index] = True
-        self._boot_ready[index] = False
+        with self._workers_lock:
+            if index >= self.num_agents or self._respawning[index]:
+                return
+            self._respawning[index] = True
+            self._boot_ready[index] = False
         threading.Thread(
             target=self._respawn_worker, args=(index,),
             daemon=True, name=f"respawn-{index}",
@@ -1320,16 +1320,19 @@ class SubprocVecEnv:
     def _respawn_worker(self, index, max_retries=3):
         """Respawn a crashed worker off the training thread."""
         for attempt in range(max_retries):
-            if index >= self.num_agents:
-                return
+            with self._workers_lock:
+                if index >= self.num_agents:
+                    return
+                old_p = self.ps[index]
+                old_remote = self.remotes[index]
             logger.warning(f"[SubprocVecEnv] Respawning worker {index} (attempt {attempt+1}/{max_retries})...")
             try:
-                self.ps[index].terminate()
-                self.ps[index].join(timeout=3)
+                old_p.terminate()
+                old_p.join(timeout=3)
             except Exception:
                 pass
             try:
-                self.remotes[index].close()
+                old_remote.close()
             except Exception:
                 pass
 
@@ -1341,82 +1344,102 @@ class SubprocVecEnv:
             p.daemon = True
             p.start()
             work_remote.close()
-            if index >= self.num_agents:
-                try:
-                    p.terminate()
-                except Exception:
-                    pass
-                return
-            self.remotes[index] = remote
-            self.ps[index] = p
-            self._boot_ready[index] = False
+            with self._workers_lock:
+                still_here = (
+                    index < self.num_agents
+                    and self.ps[index] is old_p
+                    and self.remotes[index] is old_remote
+                )
+                if not still_here:
+                    try:
+                        p.terminate()
+                    except Exception:
+                        pass
+                    return
+                self.remotes[index] = remote
+                self.ps[index] = p
+                self._boot_ready[index] = False
 
             try:
                 msg = remote.recv()
                 if msg != READY_MSG:
                     logger.warning(f"[SubprocVecEnv] Worker {index} handshake {msg!r}, expected {READY_MSG!r}")
-                if index < len(self.remotes) and self.remotes[index] is remote:
-                    self._boot_ready[index] = True
-                    self._respawning[index] = False
-                    if self._current_stage_config is not None:
-                        self._pending_stage[index] = self._current_stage_config
-                    logger.info(f"[SubprocVecEnv] Worker {index} respawned (command loop ready).")
+                with self._workers_lock:
+                    if index < len(self.remotes) and self.remotes[index] is remote:
+                        self._boot_ready[index] = True
+                        self._respawning[index] = False
+                        if self._current_stage_config is not None:
+                            self._pending_stage[index] = self._current_stage_config
+                        logger.info(f"[SubprocVecEnv] Worker {index} respawned (command loop ready).")
                 return
             except (EOFError, BrokenPipeError, ConnectionResetError) as e:
                 logger.warning(f"[SubprocVecEnv] Respawn attempt {attempt+1} failed: {e}")
                 time.sleep(2)
 
         logger.error(f"[SubprocVecEnv] Worker {index} failed after {max_retries} retries.")
-        if index < len(self._respawning):
-            self._respawning[index] = False
+        with self._workers_lock:
+            if index < len(self._respawning):
+                self._respawning[index] = False
 
     def _flush_pending_stage(self):
         """Apply queued curriculum updates to workers that were still booting."""
-        pending_idx = []
-        for i, remote in enumerate(self.remotes):
-            if not self._boot_ready[i] or self._pending_stage[i] is None:
-                continue
+        with self._workers_lock:
+            pending = [
+                (i, remote, self._pending_stage[i])
+                for i, remote in enumerate(self.remotes)
+                if self._boot_ready[i] and self._pending_stage[i] is not None
+            ]
+        sent = []
+        for i, remote, cfg in pending:
             try:
-                remote.send(('set_stage', self._pending_stage[i]))
-                pending_idx.append(i)
+                remote.send(('set_stage', cfg))
+                sent.append((i, remote))
             except (EOFError, BrokenPipeError, ConnectionResetError):
-                self._pending_stage[i] = None
                 self._schedule_respawn(i)
-        for i in pending_idx:
+        for i, remote in sent:
             try:
-                self.remotes[i].recv()
-                self._pending_stage[i] = None
+                remote.recv()
+                with self._workers_lock:
+                    if i < len(self.remotes) and self.remotes[i] is remote:
+                        self._pending_stage[i] = None
             except (EOFError, BrokenPipeError, ConnectionResetError):
-                self._pending_stage[i] = None
                 self._schedule_respawn(i)
 
     def reset(self):
-        for i, remote in enumerate(self.remotes):
-            if not self._boot_ready[i]:
+        self._flush_pending_stage()
+        with self._workers_lock:
+            slots = list(zip(self.remotes, self._boot_ready))
+        for remote, ready in slots:
+            if not ready:
                 continue
             remote.send(('reset', None))
         results = []
-        for i, remote in enumerate(self.remotes):
-            if not self._boot_ready[i]:
+        for remote, ready in slots:
+            if not ready:
                 results.append(self._make_dummy_obs())
                 continue
             results.append(remote.recv())
         return results
 
     def reset_one(self, index):
-        if not self._boot_ready[index]:
-            return self._make_dummy_obs()
+        self._flush_pending_stage()
+        with self._workers_lock:
+            if index >= self.num_agents or not self._boot_ready[index]:
+                return self._make_dummy_obs()
+            remote = self.remotes[index]
         try:
-            self.remotes[index].send(('reset_one', None))
-            return self.remotes[index].recv()
+            remote.send(('reset_one', None))
+            return remote.recv()
         except (EOFError, BrokenPipeError, ConnectionResetError):
             self._schedule_respawn(index)
             return self._make_dummy_obs()
 
     def step(self, actions):
         self._flush_pending_stage()
-        for i, (remote, action) in enumerate(zip(self.remotes, actions)):
-            if not self._boot_ready[i]:
+        with self._workers_lock:
+            slots = list(zip(self.remotes, self._boot_ready))
+        for i, ((remote, ready), action) in enumerate(zip(slots, actions)):
+            if not ready:
                 continue
             try:
                 remote.send(('step', action))
@@ -1424,8 +1447,8 @@ class SubprocVecEnv:
                 pass  # will be caught on recv
 
         results = []
-        for i, remote in enumerate(self.remotes):
-            if not self._boot_ready[i]:
+        for i, (remote, ready) in enumerate(slots):
+            if not ready:
                 results.append(spawning_step_result(self._matrix_size))
                 continue
             try:
@@ -1438,12 +1461,15 @@ class SubprocVecEnv:
         return states, rewards, dones, infos
 
     def close(self):
-        for i, remote in enumerate(self.remotes):
+        with self._workers_lock:
+            remotes = list(self.remotes)
+            procs = list(self.ps)
+        for remote in remotes:
             try:
                 remote.send(('close', None))
             except (EOFError, BrokenPipeError, ConnectionResetError):
                 pass
-        for p in self.ps:
+        for p in procs:
             try:
                 p.join(timeout=5)
             except Exception:
@@ -1452,13 +1478,17 @@ class SubprocVecEnv:
     def set_stage(self, stage_config):
         """Send curriculum stage config to all workers."""
         self._current_stage_config = stage_config
-        for i, remote in enumerate(self.remotes):
-            if not self._boot_ready[i]:
-                self._pending_stage[i] = stage_config
+        with self._workers_lock:
+            slots = list(zip(self.remotes, self._boot_ready))
+            for i, (_, ready) in enumerate(slots):
+                if not ready:
+                    self._pending_stage[i] = stage_config
+        for i, (remote, ready) in enumerate(slots):
+            if not ready:
                 continue
             remote.send(('set_stage', stage_config))
-        for i, remote in enumerate(self.remotes):
-            if not self._boot_ready[i]:
+        for i, (remote, ready) in enumerate(slots):
+            if not ready:
                 continue
             remote.recv()  # Wait for ack
 
@@ -1467,8 +1497,9 @@ class SubprocVecEnv:
 
         Returns a spawning placeholder immediately so live agents keep stepping.
         """
-        i = self.num_agents
         remote, work_remote = mp.Pipe()
+        with self._workers_lock:
+            i = self.num_agents
         p = mp.Process(
             target=self._worker_fn,
             args=self._worker_args(work_remote, remote, i, True, False, autoreset=True),
@@ -1476,12 +1507,13 @@ class SubprocVecEnv:
         p.daemon = True
         p.start()
         work_remote.close()
-        self.remotes.append(remote)
-        self.ps.append(p)
-        self._boot_ready.append(False)
-        self._pending_stage.append(None)
-        self._respawning.append(False)
-        self.num_agents += 1
+        with self._workers_lock:
+            self.remotes.append(remote)
+            self.ps.append(p)
+            self._boot_ready.append(False)
+            self._pending_stage.append(None)
+            self._respawning.append(False)
+            self.num_agents += 1
         threading.Thread(
             target=self._watch_ready, args=(i, remote),
             daemon=True, name=f"watch-ready-{i}",
@@ -1490,15 +1522,16 @@ class SubprocVecEnv:
 
     def remove_agent(self):
         """Shut down the last worker without blocking the training thread."""
-        if self.num_agents <= 1:
-            return False
-        idx = self.num_agents - 1
-        remote = self.remotes.pop()
-        p = self.ps.pop()
-        ready = self._boot_ready.pop()
-        self._pending_stage.pop()
-        self._respawning.pop()
-        self.num_agents -= 1
+        with self._workers_lock:
+            if self.num_agents <= 1:
+                return False
+            idx = self.num_agents - 1
+            remote = self.remotes.pop()
+            p = self.ps.pop()
+            ready = self._boot_ready.pop()
+            self._pending_stage.pop()
+            self._respawning.pop()
+            self.num_agents -= 1
 
         def _reap():
             try:

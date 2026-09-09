@@ -103,16 +103,25 @@ class WorkerSession:
         self._reset_thread.start()
 
     def _join_reset(self, timeout=30):
-        """Wait for an in-flight reset. Returns True only if it has fully finished."""
+        """Wait for an in-flight reset. Returns True only if it has fully finished.
+
+        Does not consume `_reset_obs` / `_reset_error` — callers must raise or
+        discard those so a failed background reset is not silently dropped.
+        """
         if self._reset_thread is None:
             return True
         self._reset_thread.join(timeout=timeout)
         if self._reset_thread.is_alive():
             return False
         self._reset_thread = None
-        self._reset_obs = None
-        self._reset_error = None
         return True
+
+    def _consume_reset_error(self):
+        err = self._reset_error
+        self._reset_error = None
+        self._reset_obs = None
+        if err is not None:
+            raise err
 
     def _take_finished_reset(self):
         """Collect a reset thread that has already exited. Raises on reset failure."""
@@ -173,6 +182,7 @@ class WorkerSession:
         """Startup / full reset — wait for a real observation."""
         if not self._join_reset():
             raise TimeoutError("background reset did not finish")
+        self._consume_reset_error()
         self._apply_pending_stage()
         with self._env_lock:
             obs = self.env.reset()
