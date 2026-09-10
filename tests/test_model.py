@@ -1,6 +1,12 @@
+import os
+import sys
+
 import torch
 import torch.nn as nn
-from gen2.model import DuelingDQN
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from model import DuelingDQN
 
 def test_dueling_dqn_initialization():
     """Test that DuelingDQN initializes with different parameters."""

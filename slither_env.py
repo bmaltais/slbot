@@ -1421,6 +1421,17 @@ class SlitherEnv:
 
     def close(self):
         if self._death_writer is not None:
-            self._death_writer.close()
+            try:
+                self._death_writer.close()
+            except Exception:
+                pass
             self._death_writer = None
-        self.browser.close()
+        browser = getattr(self, 'browser', None)
+        try:
+            close_fn = getattr(browser, 'close', None) if browser is not None else None
+            if close_fn is not None:
+                close_fn()
+        except Exception:
+            pass
+        finally:
+            self.browser = None

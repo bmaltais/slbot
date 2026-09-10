@@ -2,22 +2,21 @@ import sys
 import os
 import unittest
 import numpy as np
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-# Add gen2 to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Mock Browser Engine BEFORE importing SlitherEnv
-sys.modules['browser_engine'] = MagicMock()
 
 from slither_env import SlitherEnv
 from coord_transform import world_to_grid
 
+
 class TestSlitherEnv(unittest.TestCase):
     def setUp(self):
+        self.patcher = patch('slither_env._create_browser', return_value=MagicMock())
+        self.patcher.start()
+        self.addCleanup(self.patcher.stop)
         self.env = SlitherEnv(headless=True, nickname="TestBot", matrix_size=84, view_plus=False)
         self.env.browser = MagicMock()
-        # Mock get_game_data to avoid browser calls
         self.env.browser.get_game_data = MagicMock(return_value={})
 
     def test_radial_rendering(self):
