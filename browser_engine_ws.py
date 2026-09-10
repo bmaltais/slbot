@@ -17,6 +17,7 @@ import time
 import logging
 
 from ws_engine import SlitherWSClient, discover_server
+from food_sense import MAX_FOODS as FOOD_SENSE_MAX_FOODS
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class SlitherBrowser:
     All public methods match the Selenium version's signature and return format.
     """
 
-    MAX_FOODS = 300
+    MAX_FOODS = FOOD_SENSE_MAX_FOODS
     MAX_ENEMIES = 50
     MAX_BODY_PTS = 150
 

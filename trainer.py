@@ -62,11 +62,32 @@ if not logger.hasHandlers():
     logger.addHandler(f_handler_app)
     logger.addHandler(f_handler_train)
 
+# Rolling env-step rate shown on the Agents Board.
+SPS_WINDOW_S = 10.0
+
+
+def rolling_steps_per_sec(step_times, now, window=SPS_WINDOW_S, started_at=None):
+    """Average env steps/s over the last `window` seconds.
+
+    `step_times` is a deque of unix timestamps, pruned in place. Spawn/idle
+    gaps count: the divisor is wall-clock time (the full window, or time
+    since `started_at` if shorter), not the span of remaining samples.
+    """
+    cutoff = now - window
+    while step_times and step_times[0] < cutoff:
+        step_times.popleft()
+    elapsed = window if started_at is None else min(window, now - started_at)
+    if elapsed <= 0:
+        return 0.0
+    return len(step_times) / elapsed
+
 
 class TrainingDashboard:
     """Rich TUI dashboard for real-time training visualization."""
 
     SPARKLINE_CHARS = " ▁▂▃▄▅▆▇█"
+    # Side-by-side Agents+Events needs ~2x the agent table (~114 cols).
+    NARROW_WIDTH = 180
 
     def __init__(self):
         self.console = Console()
@@ -224,7 +245,7 @@ class TrainingDashboard:
 
     def update_agent_board(self, agents_data):
         """Update live agent board. agents_data: list of dicts per agent.
-        Each dict: {name, reward, food, steps, ep_time, total_eps, last_cause}
+        Each dict: {name, reward, food, steps, sps, ep_time, total_eps, last_cause}
         """
         self.agents_board = agents_data
 
@@ -269,6 +290,15 @@ class TrainingDashboard:
         secs = int(time.time() - self.start_time)
         h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
         return f"{h:02d}:{m:02d}:{s:02d}"
+
+    def _term_width(self):
+        try:
+            return int(self.console.size.width)
+        except Exception:
+            try:
+                return os.get_terminal_size().columns
+            except OSError:
+                return 120
 
     def _build_layout(self):
         global _shutdown_requested
@@ -574,10 +604,20 @@ class TrainingDashboard:
         layout["footer"].update(Panel(footer_text, style="dim"))
 
         # ── BOTTOM BAR: Agents Board + Events ──
-        layout["bottom_bar"].split_row(
-            Layout(name="agents_board", ratio=1),
-            Layout(name="events", ratio=1),
-        )
+        # Narrow terminals: stack Events under the Agents Board so both
+        # can use the full width instead of truncating columns/lines.
+        if self._term_width() < self.NARROW_WIDTH:
+            n_agents = max(len(agents_board), 1)
+            agents_h = max(6, min(n_agents + 4, 14))
+            layout["bottom_bar"].split_column(
+                Layout(name="agents_board", size=agents_h),
+                Layout(name="events"),
+            )
+        else:
+            layout["bottom_bar"].split_row(
+                Layout(name="agents_board", ratio=1),
+                Layout(name="events", ratio=1),
+            )
 
         # Agents Board
         agent_table = Table(box=None, padding=(0, 1), expand=True)
@@ -587,6 +627,7 @@ class TrainingDashboard:
         agent_table.add_column("Food", justify="right", width=5)
         agent_table.add_column("Size", justify="right", width=5)
         agent_table.add_column("Steps", justify="right", width=6)
+        agent_table.add_column("St/s", justify="right", width=6)
         agent_table.add_column("Time", justify="right", width=7)
         agent_table.add_column("Eps", justify="right", width=5)
         agent_table.add_column("Last Death", width=11)
@@ -605,6 +646,15 @@ class TrainingDashboard:
                 cause_style = "red" if cause == "Wall" else "yellow" if cause == "Snake" else "dim"
                 size_val = a.get('length', 0)
                 size_style = "bold green" if size_val >= 100 else "green" if size_val >= 30 else "dim"
+                sps_val = a.get('sps', 0.0)
+                if sps_val <= 0:
+                    sps_style = "dim"
+                elif sps_val < 2:
+                    sps_style = "red"
+                elif sps_val < 5:
+                    sps_style = "yellow"
+                else:
+                    sps_style = "green"
                 server = a.get('server', '')
                 # Show short form: just IP or last segment
                 short_srv = server.split('/')[-1] if '/' in server else server
@@ -615,13 +665,14 @@ class TrainingDashboard:
                     str(a.get('food', 0)),
                     f"[{size_style}]{size_val}[/]",
                     str(a.get('steps', 0)),
+                    f"[{sps_style}]{sps_val:.1f}[/]",
                     time_str,
                     str(a.get('total_eps', 0)),
                     f"[{cause_style}]{cause}[/]",
                     short_srv,
                 )
         else:
-            agent_table.add_row("—", "Waiting...", "", "", "", "", "", "", "", "")
+            agent_table.add_row("—", "Waiting...", "", "", "", "", "", "", "", "", "")
 
         layout["agents_board"].update(Panel(agent_table, title="[bold]Agents Board", border_style="cyan"))
 
@@ -1784,6 +1835,8 @@ def train(args):
     agent_total_eps = [0] * cfg.env.num_agents
     agent_last_cause = ["—"] * cfg.env.num_agents
     agent_spawning = [False] * cfg.env.num_agents
+    agent_step_times = [deque() for _ in range(cfg.env.num_agents)]
+    agent_sps_started = [time.time()] * cfg.env.num_agents
     cdp_play_ticks = 0
     cdp_active_ticks = 0
     cdp_fallback_max = 0
@@ -2196,6 +2249,7 @@ def train(args):
 
                 episode_rewards[i] += rewards[i]
                 episode_steps[i] += 1
+                agent_step_times[i].append(time.time())
                 episode_food[i] += infos[i].get('food_eaten', 0)
                 agent_length[i] = infos[i].get('length', agent_length[i])
                 if agent_length[i] > episode_peak_length[i]:
@@ -2244,6 +2298,10 @@ def train(args):
                         'food': episode_food[i],
                         'length': agent_length[i],
                         'steps': episode_steps[i],
+                        'sps': rolling_steps_per_sec(
+                            agent_step_times[i], now,
+                            started_at=agent_sps_started[i],
+                        ),
                         'ep_time': now - agent_ep_start[i],
                         'total_eps': agent_total_eps[i],
                         'last_cause': 'spawning' if agent_spawning[i] else agent_last_cause[i],
@@ -2276,6 +2334,8 @@ def train(args):
                         agent_total_eps.append(0)
                         agent_last_cause.append("—")
                         agent_spawning.append(True)
+                        agent_step_times.append(deque())
+                        agent_sps_started.append(time.time())
                         states.append(new_state)
                         logger.info(f"[AUTO-SCALE] Added agent #{env.num_agents} "
                                     f"(CPU:{metrics['cpu_percent']:.0f}% "
@@ -2308,6 +2368,8 @@ def train(args):
                     agent_total_eps.pop()
                     agent_last_cause.pop()
                     agent_spawning.pop()
+                    agent_step_times.pop()
+                    agent_sps_started.pop()
                     states.pop()
                     logger.info(f"[AUTO-SCALE] Removed agent -> {env.num_agents} "
                                 f"(CPU:{metrics['cpu_percent']:.0f}% "

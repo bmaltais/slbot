@@ -13,6 +13,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 
 from cdp_intercept import steering_js
+from food_sense import MAX_FOODS as FOOD_SENSE_MAX_FOODS
+from food_sense import FOOD_SENSE_RANGE, js_collect_foods
 
 def log(msg):
     print(msg, flush=True)
@@ -25,7 +27,7 @@ class SlitherBrowser:
     """
     
     # Limits for performance
-    MAX_FOODS = 300      # Max food items to process (Increased for better sensing)
+    MAX_FOODS = FOOD_SENSE_MAX_FOODS
     MAX_ENEMIES = 50     # Max enemy snakes to process (Increased to fix invisible snakes)
     MAX_BODY_PTS = 150   # Max body points per enemy (increased for better visibility)
     
@@ -378,7 +380,8 @@ class SlitherBrowser:
         sending ~8KB of JS each time. Also injects sendActionAndGetState()
         for combined action+read in one round-trip.
         """
-        js = """
+        js = (
+        """
         window._botGetState = function() {
             var MAX_FOODS = %d;
             var MAX_ENEMIES = %d;
@@ -432,26 +435,7 @@ class SlitherBrowser:
                 else if (window.ws && window.ws.url) server_id = window.ws.url;
             } catch(e) {}
 
-            var visible_foods = [];
-            if (window.foods && window.foods.length) {
-                var myX = my_snake.x, myY = my_snake.y;
-                var viewRadSq = viewRadius * viewRadius * 1.2;
-                var foodList = [];
-                for (var i = 0; i < window.foods.length && foodList.length < MAX_FOODS * 2; i++) {
-                    var f = window.foods[i];
-                    if (f) {
-                        var fx = (typeof f.xx === 'number') ? f.xx : (typeof f.x === 'number') ? f.x : (typeof f.rx === 'number') ? f.rx : null;
-                        var fy = (typeof f.yy === 'number') ? f.yy : (typeof f.y === 'number') ? f.y : (typeof f.ry === 'number') ? f.ry : null;
-                        if (fx === null || fy === null) continue;
-                        var dx = fx - myX, dy = fy - myY;
-                        var dist = dx*dx + dy*dy;
-                        if (dist < viewRadSq) foodList.push([fx, fy, f.sz || 1, dist]);
-                    }
-                }
-                foodList.sort(function(a, b) { return a[3] - b[3]; });
-                for (var i = 0; i < Math.min(foodList.length, MAX_FOODS); i++)
-                    visible_foods.push([foodList[i][0], foodList[i][1], foodList[i][2]]);
-            }
+""" + js_collect_foods() + """
 
             var visible_enemies = [];
             var totalSlithers = window.slithers ? window.slithers.length : 0;
@@ -561,7 +545,8 @@ class SlitherBrowser:
         };
 
         console.log("SlitherBot: Fast getState injected.");
-        """ % (self.MAX_FOODS, self.MAX_ENEMIES, self.MAX_BODY_PTS)
+        """
+        ) % (self.MAX_FOODS, self.MAX_ENEMIES, self.MAX_BODY_PTS)
         try:
             self.driver.execute_script(js)
             self._fast_getstate_injected = True
@@ -727,41 +712,8 @@ class SlitherBrowser:
                 pts: my_pts
             }};
 
-            // Foods (limited for performance) - only within view radius
-            var visible_foods = [];
-            if (window.foods && window.foods.length) {{
-                var myX = my_snake.x;
-                var myY = my_snake.y;
-                var viewRadSq = viewRadius * viewRadius * 1.2; // slight buffer
-                
-                // Get closest foods first
-                var foodList = [];
-                for (var i = 0; i < window.foods.length && foodList.length < MAX_FOODS * 2; i++) {{
-                    var f = window.foods[i];
-                    if (f) {{
-                        var fx = (typeof f.xx === 'number') ? f.xx :
-                                 (typeof f.x === 'number') ? f.x :
-                                 (typeof f.rx === 'number') ? f.rx : null;
-                        var fy = (typeof f.yy === 'number') ? f.yy :
-                                 (typeof f.y === 'number') ? f.y :
-                                 (typeof f.ry === 'number') ? f.ry : null;
-                        if (fx === null || fy === null) continue;
-                        var dx = fx - myX;
-                        var dy = fy - myY;
-                        var dist = dx*dx + dy*dy;
-                        // Only include foods within view
-                        if (dist < viewRadSq) {{
-                            foodList.push([fx, fy, f.sz || 1, dist]);
-                        }}
-                    }}
-                }}
-                
-                // Sort by distance and take closest
-                foodList.sort(function(a, b) {{ return a[3] - b[3]; }});
-                for (var i = 0; i < Math.min(foodList.length, MAX_FOODS); i++) {{
-                    visible_foods.push([foodList[i][0], foodList[i][1], foodList[i][2]]);
-                }}
-            }}
+            // Foods: sense out to 2000 units (not just the camera crop)
+""" + js_collect_foods() + f"""
 
             // Enemies - check if ANY part (head or body) is within view
             var visible_enemies = [];
@@ -1315,15 +1267,16 @@ class SlitherBrowser:
                 // 2. Draw Food (Green)
                 ctx.fillStyle = '#00ff00';
                 if (window.foods) {
-                    var viewRadSq = viewRadius * viewRadius * 1.2;
+                    var senseRange = Math.max(viewRadius * 1.2, """ + str(FOOD_SENSE_RANGE) + """);
+                    var senseRangeSq = senseRange * senseRange;
                     for (var i = 0; i < window.foods.length; i++) {
                         var f = window.foods[i];
                         if (!f || !f.rx) continue;
                         
-                        // Visibility check
+                        // Visibility check — match agent food sense range
                         var dx = f.rx - myX;
                         var dy = f.ry - myY;
-                        if (dx*dx + dy*dy > viewRadSq) continue;
+                        if (dx*dx + dy*dy > senseRangeSq) continue;
                         
                         var p = toGrid(f.rx, f.ry);
                         if (p.x >= 0 && p.x < gridSize && p.y >= 0 && p.y < gridSize) {

@@ -16,6 +16,17 @@ plt.switch_backend('Agg')
 # Add parent directory to path to import browser_engine
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from coord_transform import world_to_grid
+from food_sense import (
+    FOOD_CHANNEL_LOG_CAP,
+    FOOD_SENSE_RANGE,
+    FOOD_SECTOR_LOG_CAP,
+    best_food_target,
+    cluster_eat_bonus,
+    eaten_food_mass,
+    food_draw_radius_px,
+    food_size,
+    squash_mass,
+)
 
 ACTION_DIM = 14
 
@@ -218,6 +229,7 @@ class SlitherEnv:
         self.boost_penalty = 0.0
         self.mass_loss_penalty = 0.0
         self.contest_food_reward = 0.0
+        self.cluster_eat_reward = 0.0
         self.enemy_zone_control_reward = 0.0
         self.kill_opportunity_reward = 0.0
         self.prev_enemy_dist = None
@@ -293,6 +305,7 @@ class SlitherEnv:
         self.starvation_grace_steps = stage_config.get('starvation_grace_steps', 50)
         self.starvation_max_penalty = stage_config.get('starvation_max_penalty', 0.5)
         self.contest_food_reward = stage_config.get('contest_food_reward', 0.0)
+        self.cluster_eat_reward = stage_config.get('cluster_eat_reward', 0.0)
         self.enemy_zone_control_reward = stage_config.get('enemy_zone_control_reward', 0.0)
         self.kill_opportunity_reward = stage_config.get('kill_opportunity_reward', 0.0)
 
@@ -300,6 +313,7 @@ class SlitherEnv:
               f"wall={self.death_wall_penalty} snake={self.death_snake_penalty} "
               f"enemy_approach={self.enemy_approach_penalty} boost_pen={self.boost_penalty} "
               f"starv_pen={self.starvation_penalty} contest={self.contest_food_reward} "
+              f"cluster_eat={self.cluster_eat_reward} "
               f"zone={self.enemy_zone_control_reward} kill={self.kill_opportunity_reward}")
 
     def _update_from_game_data(self, data):
@@ -378,8 +392,11 @@ class SlitherEnv:
         """Returns True if position is within threshold of wall."""
         return self.last_dist_to_wall < threshold
 
-    def _draw_circle(self, matrix, channel, cx, cy, r, value):
-        """Draws a filled circle on the matrix."""
+    def _draw_circle(self, matrix, channel, cx, cy, r, value, blend='set'):
+        """Draws a filled circle on the matrix.
+
+        blend='set' overwrites, 'max' keeps the brighter cell, 'add' accumulates.
+        """
         r_int = int(math.ceil(r))
         x_min = max(0, int(cx - r_int))
         x_max = min(self.matrix_size, int(cx + r_int + 1))
@@ -387,13 +404,21 @@ class SlitherEnv:
         y_max = min(self.matrix_size, int(cy + r_int + 1))
 
         r_sq = r * r
+        use_max = blend == 'max'
+        use_add = blend == 'add'
 
         for y in range(y_min, y_max):
             for x in range(x_min, x_max):
                 dx = x - cx
                 dy = y - cy
                 if dx*dx + dy*dy <= r_sq:
-                    matrix[channel, y, x] = value
+                    if use_max:
+                        if value > matrix[channel, y, x]:
+                            matrix[channel, y, x] = value
+                    elif use_add:
+                        matrix[channel, y, x] += value
+                    else:
+                        matrix[channel, y, x] = value
 
     def _draw_thick_line(self, matrix, channel, x0, y0, x1, y1, width, value):
         """Draws a thick line by interpolating circles along the segment."""
@@ -814,13 +839,10 @@ class SlitherEnv:
         # Save pre-action data for death detection
         pre_action_data = data
 
-        # Calculate distance to nearest food BEFORE action
+        # Distance to densest food cluster BEFORE action (not nearest crumb)
         foods = data.get('foods', [])
-        if foods:
-            food_dists = [math.hypot(f[0] - mx, f[1] - my) for f in foods if len(f) >= 2]
-            current_food_dist = min(food_dists) if food_dists else None
-        else:
-            current_food_dist = None
+        pre_food_target = best_food_target(foods, mx, my)
+        current_food_dist = pre_food_target[2] if pre_food_target else None
 
         # Execute action — relative to current heading (ang)
         target_ang = current_ang + angle_change
@@ -946,17 +968,14 @@ class SlitherEnv:
         reward += survival_reward
         
         # 2. Food reward (parametrized by curriculum stage)
+        # Length is quantized body-points — a pile and a crumb can tick the
+        # same +1. Cluster mass below pays extra for actually eating a pile.
         food_eaten = 0
         if new_len > self.prev_length:
             food_eaten = new_len - self.prev_length
             reward += food_eaten * self.food_reward
-            self.steps_since_food = 0  # reset starvation counter
-        else:
-            self.steps_since_food += 1
-            # Mass loss penalty: feel the pain of losing length (e.g. from boosting)
-            mass_lost = self.prev_length - new_len
-            if mass_lost > 0 and self.mass_loss_penalty > 0:
-                reward -= mass_lost * self.mass_loss_penalty
+        elif new_len < self.prev_length and self.mass_loss_penalty > 0:
+            reward -= (self.prev_length - new_len) * self.mass_loss_penalty
         
         # 3. Length bonus (Stage 3: reward for being a big snake)
         if self.length_bonus > 0 and new_len > 0:
@@ -964,11 +983,8 @@ class SlitherEnv:
         
         # 4. SHAPING REWARD: Reward for moving TOWARDS food
         new_foods = data.get('foods', [])
-        if new_foods:
-            new_food_dists = [math.hypot(f[0] - new_x, f[1] - new_y) for f in new_foods if len(f) >= 2]
-            new_food_dist = min(new_food_dists) if new_food_dists else None
-        else:
-            new_food_dist = None
+        post_food_target = best_food_target(new_foods, new_x, new_y)
+        new_food_dist = post_food_target[2] if post_food_target else None
         nearby_food_mass = 0.0
         for f in new_foods:
             if len(f) < 2:
@@ -976,6 +992,18 @@ class SlitherEnv:
             fdist = math.hypot(f[0] - new_x, f[1] - new_y)
             if fdist <= 1200:
                 nearby_food_mass += f[2] if len(f) > 2 else 1.0
+
+        sc = float(new_snake.get('sc', 1.0) or 1.0)
+        eat_radius = max(50.0, sc * 29.0)
+        eaten_mass, _eaten_n = eaten_food_mass(
+            foods, new_foods, pre_x, pre_y, new_x, new_y, eat_radius=eat_radius,
+        )
+        if self.cluster_eat_reward > 0 and eaten_mass > 0:
+            reward += cluster_eat_bonus(eaten_mass, self.cluster_eat_reward)
+        if eaten_mass > 0 or food_eaten > 0:
+            self.steps_since_food = 0
+        else:
+            self.steps_since_food += 1
             
         if current_food_dist is not None and new_food_dist is not None:
             dist_delta = current_food_dist - new_food_dist
@@ -1050,6 +1078,7 @@ class SlitherEnv:
             wall_dist=new_dist_to_wall,
             enemy_dist=min_enemy_dist if min_enemy_dist != float('inf') else -1,
             nearby_food_mass=nearby_food_mass,
+            eaten_mass=eaten_mass,
             server_id=data.get('server_id', ''),
             latency_ms=latency_ms,
         )
@@ -1072,7 +1101,7 @@ class SlitherEnv:
         24 sectors × 15° covering 360°. Sector 0 = straight ahead.
 
         Layout (99 floats):
-          [0..23]  food_score[i]      — closest food per sector, 1 - dist/scope
+          [0..23]  food_score[i]      — log-compressed food mass in sector
           [24..47] obstacle_score[i]  — closest enemy/wall per sector
           [48..71] obstacle_type[i]   — -1=none, 0=body/wall, 1=head
           [72..95] enemy_approach[i]  — +1=heading toward me, -1=away, 0=none
@@ -1081,7 +1110,7 @@ class SlitherEnv:
           [98]     speed_norm         — speed / 20
         """
         NUM_SECTORS = 24
-        SCOPE = 2000.0
+        SCOPE = FOOD_SENSE_RANGE
         SECTOR_ANGLE = 2 * math.pi / NUM_SECTORS  # 15° in radians
 
         sectors = np.zeros(99, dtype=np.float32)
@@ -1126,23 +1155,21 @@ class SlitherEnv:
         def score_distance(d):
             return max(0.0, 1.0 - d / SCOPE)
 
-        # --- Food scores (weighted by size — death remains are worth more) ---
+        # --- Food scores (sum mass in sector, then log-squash so piles beat crumbs) ---
         foods = data.get('foods', [])
         for f in foods:
             if len(f) < 2:
                 continue
             fx, fy = f[0], f[1]
-            f_sz = f[2] if len(f) > 2 else 1.0  # food size (death remains: 10-20, normal: 1)
+            f_sz = food_size(f)
             dx, dy = fx - mx, fy - my_
             angle, dist = to_ego_angle_dist(dx, dy)
             if dist > SCOPE:
                 continue
             si = sector_index(angle)
-            # Weight by food size: big food (death remains) scores higher
-            size_weight = min(f_sz / 2.0, 3.0)  # normal=0.5, remains≈3.0 → capped at 3.0
-            sc = score_distance(dist) * size_weight
-            if sc > sectors[si]:
-                sectors[si] = sc
+            sectors[si] += score_distance(dist) * f_sz
+        for si in range(NUM_SECTORS):
+            sectors[si] = squash_mass(float(sectors[si]), FOOD_SECTOR_LOG_CAP)
 
         # --- Obstacle scores (enemies) ---
         enemies = data.get('enemies', [])
@@ -1305,73 +1332,53 @@ class SlitherEnv:
             print("="*50 + "\n")
             self._map_vars_printed = True
 
-        # 1. Food (Channel 0)
+        # 1. Food (Channel 0) — splat mass so large pellets are bigger AND brighter
         foods = data.get('foods', [])
-        nearest_food = None
-        min_dist_sq = float('inf')
-
+        cx_grid = self.matrix_size / 2.0
+        cy_grid = self.matrix_size / 2.0
         for f in foods:
-            if len(f) < 2: continue
+            if len(f) < 2:
+                continue
             fx, fy = f[0], f[1]
+            sz = food_size(f)
+            rx, ry = _ego_raw(fx - mx, fy - my)
+            hx = cx_grid + rx * self.scale
+            hy = cy_grid + ry * self.scale
+            r = food_draw_radius_px(sz, self.scale)
+            if hx < -r or hy < -r or hx >= self.matrix_size + r or hy >= self.matrix_size + r:
+                continue
+            self._draw_circle(matrix, 0, hx, hy, r, sz, blend='add')
 
-            # Track nearest food
-            dist_sq = (fx - mx)**2 + (fy - my)**2
-            if dist_sq < min_dist_sq:
-                min_dist_sq = dist_sq
-                nearest_food = (fx, fy)
+        food_ch = matrix[0]
+        if food_ch.max() > 0:
+            np.log1p(food_ch, out=food_ch)
+            food_ch /= math.log1p(FOOD_CHANNEL_LOG_CAP)
+            np.clip(food_ch, 0.0, 1.0, out=food_ch)
 
-            gx, gy = _ego(fx - mx, fy - my)
-            if 0 <= gx < self.matrix_size and 0 <= gy < self.matrix_size:
-                matrix[0, gy, gx] = 1.0
-
-        # Highlighting Nearest Food (Compass/Focus)
-        if nearest_food:
-            nfx, nfy = nearest_food
-            # Calculate egocentric grid coordinates even if off-screen
+        # Compass toward the densest cluster when it is off the 1000-unit crop
+        cluster = best_food_target(foods, mx, my)
+        if cluster:
+            nfx, nfy = cluster[0], cluster[1]
             rx, ry = _ego_raw(nfx - mx, nfy - my)
             dx = rx * self.scale
             dy = ry * self.scale
             cx = self.matrix_size / 2
             cy = self.matrix_size / 2
-
             nmx_x = int(cx + dx)
             nmx_y = int(cy + dy)
-
-            # Check if on screen
-            if 0 <= nmx_x < self.matrix_size and 0 <= nmx_y < self.matrix_size:
-                # On screen: Draw bigger (radius 2.0) to highlight
-                self._draw_circle(matrix, 0, nmx_x, nmx_y, 2.0, 1.0)
-            else:
-                # Off screen: Draw compass marker on edge
-                # Normalize vector
+            on_screen = 0 <= nmx_x < self.matrix_size and 0 <= nmx_y < self.matrix_size
+            if not on_screen:
                 mag = math.hypot(dx, dy)
                 if mag > 0:
                     ndx = dx / mag
                     ndy = dy / mag
-
-                    # Project to edge (box projection)
-                    # We want to find t such that (cx + t*ndx, cy + t*ndy) is on edge
-                    # Edge is x=0, x=W, y=0, y=H
-
-                    # Max dist to edge from center is size/2
-                    half_size = self.matrix_size / 2 - 2 # -2 padding to keep marker fully inside
-
-                    # Calculate t for X and Y boundaries
-                    tx = float('inf')
-                    ty = float('inf')
-
-                    if abs(ndx) > 1e-6:
-                        tx = half_size / abs(ndx)
-                    if abs(ndy) > 1e-6:
-                        ty = half_size / abs(ndy)
-
+                    half_size = self.matrix_size / 2 - 2
+                    tx = half_size / abs(ndx) if abs(ndx) > 1e-6 else float('inf')
+                    ty = half_size / abs(ndy) if abs(ndy) > 1e-6 else float('inf')
                     t = min(tx, ty)
-
                     ex = cx + t * ndx
                     ey = cy + t * ndy
-
-                    # Draw marker (radius 1.5)
-                    self._draw_circle(matrix, 0, ex, ey, 1.5, 0.8)
+                    self._draw_circle(matrix, 0, ex, ey, 1.5, 0.8, blend='max')
 
         # 2. Enemies (Channel 1)
         enemies = data.get('enemies', [])

@@ -28,6 +28,9 @@ except ImportError:
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional
 
+from food_sense import MAX_FOODS as FOOD_SENSE_MAX_FOODS
+from food_sense import PREY_DEFAULT_SIZE, select_visible_foods
+
 from ws_protocol import (
     PacketReader, TWO_PI,
     decode_angle, decode_angle_16, decode_speed, decode_fam, decode_relative_pos,
@@ -39,7 +42,8 @@ from ws_protocol import (
     PACKET_FOOD_ADD, PACKET_FOOD_ADD_B, PACKET_FOOD_ADD_F,
     PACKET_FOOD_EAT, PACKET_FAM_UPDATE, PACKET_TAIL_REMOVE,
     PACKET_DEATH, PACKET_SECTOR_ON, PACKET_SECTOR_OFF,
-    PACKET_MINIMAP, PACKET_LEADERBOARD, PACKET_SNAKE_REMOVE_DEAD,
+    PACKET_MINIMAP, PACKET_LEADERBOARD,
+    PACKET_PREY_ADD, PACKET_PREY_UPDATE,
     ROTATION_PACKETS, MOVEMENT_PACKETS, FOOD_ADD_PACKETS,
 )
 
@@ -87,11 +91,21 @@ class Food:
 
 
 @dataclass
+class Prey:
+    """Moving high-value food orb."""
+    id: int
+    x: float
+    y: float
+    size: float = PREY_DEFAULT_SIZE
+
+
+@dataclass
 class GameState:
     """Full game state maintained from WebSocket packets."""
     my_id: int = -1
     snakes: Dict[int, Snake] = field(default_factory=dict)
     foods: Dict[int, Food] = field(default_factory=dict)
+    preys: Dict[int, Prey] = field(default_factory=dict)
 
     # Map config (from packet 'a')
     grd: float = 21600.0       # Grid/map radius
@@ -131,7 +145,7 @@ class SlitherWSClient:
     """Native WebSocket client for slither.io."""
 
     # Limits matching browser_engine
-    MAX_FOODS = 300
+    MAX_FOODS = FOOD_SENSE_MAX_FOODS
     MAX_ENEMIES = 50
     MAX_BODY_PTS = 150
 
@@ -388,8 +402,10 @@ class SlitherWSClient:
                 self._handle_tail_remove(pkt)
             elif ptype == PACKET_DEATH:
                 self._handle_death(pkt)
-            elif ptype == PACKET_SNAKE_REMOVE_DEAD:
-                self._handle_snake_remove(pkt)
+            elif ptype == PACKET_PREY_UPDATE:
+                self._handle_prey_update(pkt)
+            elif ptype == PACKET_PREY_ADD:
+                self._handle_prey_add(pkt)
             elif ptype == PACKET_LEADERBOARD:
                 self._handle_leaderboard(pkt)
             elif ptype in (PACKET_SECTOR_ON, PACKET_SECTOR_OFF):
@@ -859,13 +875,47 @@ class SlitherWSClient:
         if snake:
             snake.alive = False
 
-    def _handle_snake_remove(self, pkt: bytes):
-        """Handle packet 'j' — remove snake entirely."""
+    def _handle_prey_add(self, pkt: bytes):
+        """Handle packet 'y' — add / eat / remove a flying prey orb.
+
+        pkt is [type][payload] (timestamp already stripped).
+          remaining 2: remove (id)
+          remaining 4: eaten (id, eater)
+          remaining 19: add (id, color, x/5, y/5, sz/5, dir, wang, ang, speed)
+        """
         r = PacketReader(pkt, 1)
         if r.remaining < 2:
             return
-        snake_id = r.read_uint16()
-        self.state.snakes.pop(snake_id, None)
+        prey_id = r.read_uint16()
+        if r.remaining <= 2:
+            self.state.preys.pop(prey_id, None)
+            return
+        if r.remaining < 17:
+            self.state.preys.pop(prey_id, None)
+            return
+        r.skip(1)  # color
+        x = r.read_int24() / 5.0
+        y = r.read_int24() / 5.0
+        sz = r.read_uint8() / 5.0 if r.remaining >= 1 else PREY_DEFAULT_SIZE
+        self.state.preys[prey_id] = Prey(
+            id=prey_id, x=float(x), y=float(y), size=max(1.0, sz),
+        )
+
+    def _handle_prey_update(self, pkt: bytes):
+        """Handle packet 'j' — prey position update (x = uint16*3+1)."""
+        r = PacketReader(pkt, 1)
+        if r.remaining < 6:
+            return
+        prey_id = r.read_uint16()
+        x = r.read_uint16() * 3 + 1
+        y = r.read_uint16() * 3 + 1
+        prey = self.state.preys.get(prey_id)
+        if prey is None:
+            prey = Prey(id=prey_id, x=float(x), y=float(y))
+            self.state.preys[prey_id] = prey
+        else:
+            prey.x = float(x)
+            prey.y = float(y)
 
     def _handle_leaderboard(self, pkt: bytes):
         """
@@ -950,18 +1000,14 @@ class SlitherWSClient:
             'pts': my_pts,
         }
 
-        # Foods — filter by view radius, sort by distance, limit
-        view_rad_sq = view_radius * view_radius * 1.2
-        food_list = []
-        for food in self.state.foods.values():
-            dx = food.x - mx
-            dy = food.y - my
-            dist_sq = dx * dx + dy * dy
-            if dist_sq < view_rad_sq:
-                food_list.append((food.x, food.y, food.size, dist_sq))
-
-        food_list.sort(key=lambda f: f[3])
-        visible_foods = [[f[0], f[1], f[2]] for f in food_list[:self.MAX_FOODS]]
+        # Foods + flying prey orbs — sense out to 2000 units (not just the camera)
+        food_items = [(food.x, food.y, food.size) for food in self.state.foods.values()]
+        food_items.extend(
+            (prey.x, prey.y, prey.size) for prey in self.state.preys.values()
+        )
+        visible_foods = select_visible_foods(
+            food_items, mx, my, max_foods=self.MAX_FOODS,
+        )
 
         # Enemies — filter by view radius, sort, limit
         search_rad_sq = view_radius * view_radius * 25  # 5x radius (matching browser)

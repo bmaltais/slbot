@@ -224,7 +224,10 @@ PACKET_MINIMAP = ord('u')       # Minimap data
 PACKET_LEADERBOARD = ord('l')   # Leaderboard
 PACKET_PREINIT = ord('6')       # Pre-init JS challenge
 PACKET_PONG = ord('p')          # Pong response from server
-PACKET_SNAKE_REMOVE_DEAD = ord('j')  # Remove dead snake completely
+PACKET_PREY_UPDATE = ord('j')    # Flying prey position/angle
+PACKET_PREY_ADD = ord('y')       # Add / eat / remove prey
+# Historical alias: 'j' is prey-update, not snake-remove (snakes use short 's')
+PACKET_SNAKE_REMOVE_DEAD = PACKET_PREY_UPDATE
 
 # Rotation packet set for quick lookup
 ROTATION_PACKETS = {

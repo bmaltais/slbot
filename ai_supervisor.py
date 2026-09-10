@@ -62,6 +62,7 @@ TUNABLE_PARAMS = {
     # Boost: negative = reward for boosting (S6 attack mode)
     "boost_penalty":           (-1.0,  2.0,   float, "reward"),
     "length_bonus":            (0.0,   0.5,   float, "reward"),
+    "cluster_eat_reward":      (0.0,   8.0,   float, "reward"),
     "starvation_penalty":      (0.0,   0.05,  float, "reward"),
     "starvation_grace_steps":  (20,    200,   int,   "reward"),
     # Agent
@@ -450,6 +451,7 @@ class AISupervisor:
                 "enemy_approach_penalty": "enemy_approach_penalty",
                 "boost_penalty": "boost_penalty",
                 "length_bonus": "length_bonus",
+                "cluster_eat_reward": "cluster_eat_reward",
                 "starvation_penalty": "starvation_penalty",
                 "starvation_grace_steps": "starvation_grace_steps",
                 "gamma": "gamma",
