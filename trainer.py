@@ -1086,10 +1086,10 @@ class ResourceMonitor:
 
         # Backend-aware thresholds
         if backend == "websocket":
-            # Down threshold matches selenium until CDP respawn is cheap;
-            # death/reconnect ticks must not be in avg_step_ms (see tick_is_active).
+            # avg_step_ms is the parent wall-clock tick (env overlap + DQN update),
+            # not the 45ms CDP env-only number. 50ms never let a 2nd agent start.
             step_down_threshold = 500   # ms
-            step_up_threshold = 50      # ms
+            step_up_threshold = 200     # ms (same as selenium)
             ram_down_threshold = 200    # MB (WS uses ~5MB/agent vs ~500MB)
             ram_up_threshold = 500
         else:
@@ -2288,6 +2288,13 @@ def train(args):
                         logger.warning(f"[AUTO-SCALE] Failed to add agent: {e}")
                         if dashboard:
                             dashboard.log_event(f"Scale UP FAILED: {e}")
+                elif rec == 0:
+                    logger.info(
+                        f"[AUTO-SCALE] hold n={env.num_agents} "
+                        f"(CPU:{metrics['cpu_percent']:.0f}% "
+                        f"RAM:{metrics['ram_free_mb']:.0f}MB "
+                        f"Step:{metrics['avg_step_ms']:.0f}ms)"
+                    )
                 elif rec < 0 and env.num_agents > 1:
                     env.remove_agent()
                     episode_rewards.pop()

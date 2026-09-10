@@ -279,6 +279,18 @@ class TestWebsocketAutoscale(unittest.TestCase):
         }
         self.assertEqual(monitor.recommend(1, metrics, backend="websocket"), 1)
 
+    def test_websocket_scales_up_at_selenium_tick_budget(self):
+        """Parent tick includes DQN update; 80ms must still allow agent 2."""
+        monitor = ResourceMonitor(check_interval=0, cooldown_up=0, cooldown_down=0)
+        monitor.last_check = 0
+        metrics = {
+            'cpu_percent': 40,
+            'ram_free_mb': 8000,
+            'ram_percent': 20,
+            'avg_step_ms': 80,
+        }
+        self.assertEqual(monitor.recommend(1, metrics, backend="websocket"), 1)
+
     def test_does_not_scale_up_on_zero_ms_spawning_ticks(self):
         monitor = ResourceMonitor(check_interval=0, cooldown_up=0, cooldown_down=0)
         monitor.last_check = 0

@@ -229,7 +229,7 @@ class CDPInterceptor:
         finally:
             try:
                 if self._cdp_ws:
-                    self._cdp_ws.settimeout(0.1)
+                    self._cdp_ws.settimeout(0.02)
             except Exception:
                 pass
 
@@ -247,7 +247,7 @@ class CDPInterceptor:
 
     def _listen_loop(self):
         """Background thread: listen for CDP events."""
-        self._cdp_ws.settimeout(0.1)
+        self._cdp_ws.settimeout(0.02)
         while self._running:
             try:
                 with self._io_lock:
