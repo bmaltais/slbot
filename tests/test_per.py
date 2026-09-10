@@ -132,6 +132,31 @@ def test_legacy_transitions_without_sectors():
     assert batch['s_sec'] is None and batch['n_sec'] is None
 
 
+def test_sample_before_push_raises_clear_error():
+    buf = PrioritizedReplayBuffer(capacity=4)
+    with pytest.raises(ValueError, match="empty"):
+        buf.sample(2)
+
+
+def test_sample_never_returns_stale_rows_when_only_stale_remain():
+    buf = PrioritizedReplayBuffer(capacity=4, frame_capacity=8, alpha=1.0)
+    for i in range(8):
+        buf.push_frame(_frame(i))
+    buf.push([0, 1, 2, 3], _sec(0), 1, 1.0, [1, 2, 3, 4], _sec(1), False, 0.9)
+    for i in range(8, 16):  # evict every referenced frame
+        buf.push_frame(_frame(i))
+    with pytest.raises(RuntimeError):
+        buf.sample(2)
+
+
+def test_staging_cache_is_bounded_across_batch_sizes():
+    buf = PrioritizedReplayBuffer(capacity=16)
+    _fill(buf, 20, 16)
+    for n in (2, 4, 8, 4, 2):
+        buf.sample(n)
+    assert set(buf.frames._staging) == {'s', 'n'}
+
+
 def test_rejects_non_uint8_frames():
     buf = PrioritizedReplayBuffer(capacity=4)
     with pytest.raises(TypeError):

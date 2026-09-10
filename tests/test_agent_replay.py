@@ -162,6 +162,11 @@ def test_optimize_model_runs_on_dedup_buffer(agent):
     assert np.isfinite(metrics['loss'])
 
 
+def test_quantize_clamps_out_of_range_values():
+    q = DDQNAgent._quantize(np.array([-0.5, 0.0, 0.5, 1.0, 1.7], dtype=np.float32))
+    np.testing.assert_array_equal(q, np.array([0, 0, 127, 255, 255], dtype=np.uint8))
+
+
 def test_remember_full_stacks_still_works(agent):
     st = _Stacker()
     s = st.reset(_frame(1))

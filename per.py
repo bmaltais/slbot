@@ -99,7 +99,7 @@ class FrameStore:
         if pin_memory is None:
             pin_memory = torch.cuda.is_available()
         self._pin_memory = bool(pin_memory)
-        self._staging = {}  # (key, n_frames) -> staging tensor
+        self._staging = {}  # key -> staging tensor (one per key)
 
     def push(self, frame):
         """Store one frame. Returns its sequence number."""
@@ -112,11 +112,13 @@ class FrameStore:
         return self.frame_count - self.capacity
 
     def _out(self, key, n_frames):
-        out = self._staging.get((key, n_frames))
-        if out is None:
+        # One staging tensor per key, replaced when the batch size changes,
+        # so the cache cannot grow with varying batch sizes.
+        out = self._staging.get(key)
+        if out is None or out.shape[0] != n_frames:
             out = torch.empty((n_frames,) + self.frame_shape, dtype=torch.uint8,
                               pin_memory=self._pin_memory)
-            self._staging[(key, n_frames)] = out
+            self._staging[key] = out
         return out
 
     def gather_stacks(self, seqs, key):
@@ -259,7 +261,7 @@ class PrioritizedReplayBuffer:
             slots[i] = slot
         return idxs, slots, priorities
 
-    def sample(self, batch_size, max_retries=8):
+    def sample(self, batch_size, max_passes=64):
         """Returns (batch, tree_idxs, is_weights).
 
         batch is a dict: s_mat / n_mat (B, frame_stack*C, H, W) uint8 CPU
@@ -268,15 +270,21 @@ class PrioritizedReplayBuffer:
         reward / done / gamma float32 numpy.
 
         Transitions whose frames were overwritten in the frame ring get
-        priority 0 and are re-drawn; this only happens if episodes are so
-        short that frames outpace transitions by more than FRAME_HEADROOM.
+        priority 0 and the batch is re-drawn; this only happens if episodes
+        are so short that frames outpace transitions by more than
+        FRAME_HEADROOM. A batch is never returned with stale rows: every pass
+        zeroes at least one stale priority, so the loop terminates, and it
+        raises if the buffer runs out of valid transitions or max_passes.
         """
+        if self.frames is None or self.store is None or len(self) == 0:
+            raise ValueError("replay buffer is empty; push frames and transitions before sample()")
+
         # Calculate current beta
         beta = min(1.0, self.beta_start + self.frame * (1.0 - self.beta_start) / self.beta_frames)
         self.frame += batch_size # Advance frame count
 
         oldest = self.frames.oldest_valid_seq()
-        for _ in range(max_retries):
+        for _ in range(max_passes):
             idxs, slots, priorities = self._walk(batch_size)
             stale = self.store.min_seq[slots] < oldest
             if not stale.any():
@@ -286,6 +294,10 @@ class PrioritizedReplayBuffer:
             self.stale_dropped += int(stale.sum())
             if self.tree.total() <= 0:
                 raise RuntimeError("replay buffer has no valid transitions left")
+        else:
+            raise RuntimeError(
+                f"could not draw a batch without stale transitions in {max_passes} passes"
+            )
 
         sampling_probabilities = priorities / self.tree.total()
         is_weight = np.power(self.tree.total() * sampling_probabilities, -beta)

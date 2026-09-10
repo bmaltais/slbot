@@ -317,7 +317,9 @@ class DDQNAgent:
 
     @staticmethod
     def _quantize(frame):
-        return (frame * 255).astype(np.uint8)
+        """[0, 1] float frame -> uint8. Clipped so an out-of-range value can
+        never wrap around during the cast."""
+        return np.clip(frame * 255.0, 0.0, 255.0).astype(np.uint8)
 
     def _store_stack(self, matrix):
         """Store every frame of a stack. Identical consecutive frames (the
