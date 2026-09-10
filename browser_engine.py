@@ -12,6 +12,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 
+from cdp_intercept import steering_js
+
 def log(msg):
     print(msg, flush=True)
 
@@ -1097,7 +1099,6 @@ class SlitherBrowser:
 
             # Set xm/ym directly — game computes wang = atan2(ym, xm)
             # Distance 500 from origin (0,0 = screen center in game coords)
-            from cdp_intercept import steering_js
             self.driver.execute_script(steering_js(angle, boost))
         except Exception as e:
             pass

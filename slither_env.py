@@ -1427,12 +1427,11 @@ class SlitherEnv:
                 pass
             self._death_writer = None
         browser = getattr(self, 'browser', None)
-        if browser is None:
-            return
-        close_fn = getattr(browser, 'close', None)
-        if close_fn is None:
-            return
         try:
-            close_fn()
+            close_fn = getattr(browser, 'close', None) if browser is not None else None
+            if close_fn is not None:
+                close_fn()
         except Exception:
             pass
+        finally:
+            self.browser = None

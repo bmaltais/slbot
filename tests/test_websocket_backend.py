@@ -83,6 +83,7 @@ class TestSlitherBrowserClose(unittest.TestCase):
         env._death_writer = None
         env.browser = object()  # no close()
         env.close()
+        self.assertIsNone(env.browser)
 
     def test_env_close_tolerates_browser_close_raising(self):
         class Boom:
@@ -93,6 +94,16 @@ class TestSlitherBrowserClose(unittest.TestCase):
         env._death_writer = None
         env.browser = Boom()
         env.close()
+        self.assertIsNone(env.browser)
+
+    def test_env_close_clears_browser_after_success(self):
+        env = object.__new__(SlitherEnv)
+        env._death_writer = None
+        browser = MagicMock()
+        env.browser = browser
+        env.close()
+        browser.close.assert_called_once()
+        self.assertIsNone(env.browser)
 
     def test_worker_close_survives_env_close_error(self):
         class BoomEnv(FakeEnv):
@@ -182,6 +193,12 @@ class TestWebsocketAutoscale(unittest.TestCase):
         ))
         self.assertFalse(ResourceMonitor.tick_is_active(
             [False, False], [{'spawned': True}, live],
+        ))
+        self.assertTrue(ResourceMonitor.tick_is_active(
+            [False, False], [live, None],
+        ))
+        self.assertFalse(ResourceMonitor.tick_is_active(
+            [False, True], [live, None],
         ))
 
     def test_websocket_does_not_scale_down_on_212ms_death_tick(self):

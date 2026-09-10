@@ -1058,8 +1058,8 @@ class ResourceMonitor:
     def tick_is_active(dones, infos):
         """True when every agent is playing (no death/respawn latency in the tick)."""
         return not any(
-            dones[i] or infos[i].get('spawning') or infos[i].get('spawned')
-            for i in range(len(dones))
+            done or (info or {}).get('spawning') or (info or {}).get('spawned')
+            for done, info in zip(dones, infos)
         )
 
     def should_check(self):
