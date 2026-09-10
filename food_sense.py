@@ -11,6 +11,8 @@ import math
 import os
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+import numpy as np
+
 FOOD_SENSE_RANGE = 2000.0
 FOOD_CLUSTER_CELL = 120.0
 # Hold a cluster while its centroid stays within two cells; stops shaping
@@ -76,9 +78,13 @@ def squash_mass(mass: float, cap: float) -> float:
     return min(1.0, math.log1p(mass) / math.log1p(cap))
 
 
-def food_draw_radius_px(sz: float, scale: float) -> float:
-    """Matrix-pixel radius so large pellets occupy more cells than crumbs."""
-    return max(FOOD_DRAW_RADIUS_MIN_PX, float(sz) * FOOD_DRAW_RADIUS_PER_SZ * float(scale))
+def food_draw_radius_px(sz, scale):
+    """Matrix-pixel radius so large pellets occupy more cells than crumbs.
+
+    Accepts scalars or numpy arrays for `sz` (and broadcast-compatible
+    `scale`) so the scalar and vectorized draw paths share one formula.
+    """
+    return np.maximum(FOOD_DRAW_RADIUS_MIN_PX, sz * FOOD_DRAW_RADIUS_PER_SZ * scale)
 
 
 def cluster_eat_bonus(

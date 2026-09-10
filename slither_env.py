@@ -20,8 +20,6 @@ from food_sense import (
     BOOST_CLUSTER_MIN_MASS,
     BOOST_CLUSTER_RANGE,
     FOOD_CHANNEL_LOG_CAP,
-    FOOD_DRAW_RADIUS_MIN_PX,
-    FOOD_DRAW_RADIUS_PER_SZ,
     FOOD_LOCK_RADIUS,
     FOOD_SENSE_RANGE,
     FOOD_SECTOR_LOG_CAP,
@@ -129,9 +127,13 @@ class _DeathPacketWriter:
         plt.close(fig)
         try:
             from cleanup_data import prune_events
-            prune_events()
-        except Exception:
+        except ImportError:
             pass
+        else:
+            try:
+                prune_events()
+            except Exception as e:
+                print(f"Failed to prune events: {e}")
 
         json_filename = f"event_{date_str}_{uniq}_{cause_token}.json"
         json_path = os.path.join(debug_dir, json_filename)
@@ -645,6 +647,7 @@ class SlitherEnv:
         self.steps_in_episode = 0
         self.steps_since_food = 0
         self._locked_food_target = None
+        self._matrix_food_target = None
         self._cached_lock_radius = None
         self._cdp_spawn_wait_t0 = time.time()
         # NAV debug separator
@@ -1045,6 +1048,13 @@ class SlitherEnv:
         # instead of paying for an identical flood-fill again.
         new_foods = data.get('foods', [])
         post_food_target = self._matrix_food_target
+        if post_food_target is None:
+            # _process_data_to_matrix() short-circuited (e.g. missing snake
+            # data) without setting the cache — fall back to computing it
+            # directly so shaping doesn't silently go stale.
+            post_food_target = locked_food_target(
+                new_foods, new_x, new_y, self._locked_food_target, lock_radius=self.food_lock_radius,
+            )
         new_food_dist = post_food_target[2] if post_food_target else None
         nearby_food_mass = 0.0
         for f in new_foods:
@@ -1270,15 +1280,16 @@ class SlitherEnv:
             fx, fy, f_sz = arr[:, 0], arr[:, 1], arr[:, 2]
             dx = fx - mx
             dy = fy - my_
-            rx = -sin_a * dx + cos_a * dy
-            ry = -cos_a * dx - sin_a * dy
-            angle = np.arctan2(rx, -ry)
-            angle = np.where(angle < 0.0, angle + 2.0 * math.pi, angle)
             dist = np.hypot(dx, dy)
             within = dist <= SCOPE
             if np.any(within):
-                si = (angle[within] / SECTOR_ANGLE).astype(np.int64) % NUM_SECTORS
-                score = np.maximum(0.0, 1.0 - dist[within] / SCOPE) * f_sz[within]
+                dx_w, dy_w, dist_w, sz_w = dx[within], dy[within], dist[within], f_sz[within]
+                rx = -sin_a * dx_w + cos_a * dy_w
+                ry = -cos_a * dx_w - sin_a * dy_w
+                angle = np.arctan2(rx, -ry)
+                angle = np.where(angle < 0.0, angle + 2.0 * math.pi, angle)
+                si = (angle / SECTOR_ANGLE).astype(np.int64) % NUM_SECTORS
+                score = np.maximum(0.0, 1.0 - dist_w / SCOPE) * sz_w
                 food_sums = np.bincount(si, weights=score, minlength=NUM_SECTORS)
                 sectors[:NUM_SECTORS] = food_sums[:NUM_SECTORS]
         for si in range(NUM_SECTORS):
@@ -1464,7 +1475,7 @@ class SlitherEnv:
             ry = -cos_a * dxw - sin_a * dyw
             hx = cx_grid + rx * self.scale
             hy = cy_grid + ry * self.scale
-            r = np.maximum(FOOD_DRAW_RADIUS_MIN_PX, sz * FOOD_DRAW_RADIUS_PER_SZ * self.scale)
+            r = food_draw_radius_px(sz, self.scale)
             m = self.matrix_size
             visible = ~((hx < -r) | (hy < -r) | (hx >= m + r) | (hy >= m + r))
             for i in np.nonzero(visible)[0]:
