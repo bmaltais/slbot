@@ -725,11 +725,9 @@ class SlitherEnv:
         # Normalize to [-pi, pi] to avoid accumulation
         while target_ang > math.pi: target_ang -= 2 * math.pi
         while target_ang < -math.pi: target_ang += 2 * math.pi
-        if hasattr(self.browser, 'send_action_get_data'):
-            # Combined: send action + read pre-wait state in ONE call
-            self.browser.send_action_get_data(target_ang, boost)
-        else:
-            self.browser.send_action(target_ang, boost)
+        # send_action_get_data() also reads game state; env.step discards that
+        # read and then calls get_game_data() after the frame-skip wait.
+        self.browser.send_action(target_ang, boost)
         if self.backend == "websocket":
             # CDP: send is fire-and-forget (~1ms), state reads from memory (instant)
             # Just wait for server to process action + push updates

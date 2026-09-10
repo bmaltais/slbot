@@ -90,5 +90,32 @@ class TestSlitherEnv(unittest.TestCase):
         self.assertEqual(info.get('cause'), 'InvalidFrame')
         self.assertTrue(np.array_equal(state, self.env.last_matrix))
 
+    def test_step_sends_action_without_combined_read(self):
+        """Issue #4: do not pay a discarded send_action_get_data() round-trip."""
+        alive = {
+            'dead': False,
+            'valid': True,
+            'self': {'x': 21600, 'y': 21600, 'len': 10, 'ang': 0.0},
+            'enemies': [],
+            'foods': [],
+            'map_radius': 21600,
+            'map_center_x': 21600,
+            'map_center_y': 21600,
+            'view_radius': 500,
+            'gsc': 1.0,
+        }
+        self.env.frame_skip = 0
+        self.env._cached_data = alive
+        self.env.browser.send_action = MagicMock()
+        self.env.browser.send_action_get_data = MagicMock(return_value=alive)
+        self.env.browser.get_game_data = MagicMock(return_value=alive)
+
+        state, reward, done, info = self.env.step(11)  # boost straight
+
+        self.assertFalse(done)
+        self.env.browser.send_action.assert_called_once_with(0.0, 1)
+        self.env.browser.send_action_get_data.assert_not_called()
+        self.env.browser.get_game_data.assert_called_once()
+
 if __name__ == '__main__':
     unittest.main()
