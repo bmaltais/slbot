@@ -83,11 +83,12 @@ class CDPInterceptor:
     MAX_ENEMIES = 50
     MAX_BODY_PTS = 150
 
-    def __init__(self, driver):
+    def __init__(self, driver, nickname="CDPBot"):
         """
         Args:
             driver: Selenium WebDriver instance (Chrome, must have
                     --remote-debugging-port and --remote-allow-origins=*)
+            nickname: Bot name; used to identify our snake from SNAKE_ADD.
         """
         self.driver = driver
         self.state = GameState()
@@ -108,7 +109,7 @@ class CDPInterceptor:
         self._packet_handler._spawn_received = threading.Event()
         self._packet_handler._connected_event = threading.Event()
         self._packet_handler._close_requested = False
-        self._packet_handler.nickname = "CDPBot"
+        self._packet_handler.nickname = nickname
         # CDP is passive — Chrome handles WS sends, so _send_binary is a no-op
         self._packet_handler._send_binary = lambda data: None
         self._packet_handler.ws = None
@@ -184,16 +185,25 @@ class CDPInterceptor:
         if self._listener_thread and self._listener_thread.is_alive():
             self._listener_thread.join(timeout=3.0)
 
-    def reset(self):
-        """Reset game state (called on force_restart/reconnect)."""
+    def reset(self, *, clear_ws_id=False):
+        """Reset parsed game state for a new round.
+
+        Does not clear `_game_ws_request_id` unless `clear_ws_id=True`.
+        `connect()` often binds the new game WS before re-arm; wiping the
+        id then drops incoming frames and CDP never activates.
+        """
         with self._lock:
             old_connected = self.state.connected
             self.state = GameState()
             self.state.connected = old_connected
             self._packet_handler.state = self.state
-            self._game_ws_request_id = None
+            if clear_ws_id:
+                self._game_ws_request_id = None
             self._frames_received = 0
             self._init_received.clear()
+            spawn_ev = getattr(self._packet_handler, '_spawn_received', None)
+            if spawn_ev is not None:
+                spawn_ev.clear()
 
     def _cdp_send(self, method, params=None):
         """Send a CDP command and return the response."""
@@ -255,8 +265,17 @@ class CDPInterceptor:
             rid = msg['params'].get('requestId', '')
             # Detect the game WebSocket (port 444 or /slither path)
             if '/slither' in url or ':444' in url:
-                self._game_ws_request_id = rid
-                self._frames_received = 0  # Reset frame count for new WS
+                with self._lock:
+                    old_connected = self.state.connected
+                    self.state = GameState()
+                    self.state.connected = old_connected
+                    self._packet_handler.state = self.state
+                    self._game_ws_request_id = rid
+                    self._frames_received = 0
+                self._init_received.clear()
+                spawn_ev = getattr(self._packet_handler, '_spawn_received', None)
+                if spawn_ev is not None:
+                    spawn_ev.clear()
                 log(f"[CDP] Game WebSocket detected: {url} (rid={rid})")
 
         elif method == 'Network.webSocketFrameReceived':
@@ -303,11 +322,26 @@ class CDPInterceptor:
         # Track that init has been received (snake identification happens on main thread)
 
     def try_activate(self):
-        """Try to activate game state by identifying our snake. Call from main thread."""
+        """Try to activate game state by identifying our snake. Call from main thread.
+
+        Returns immediately if init/frames are not ready — do not poll-sleep here.
+        """
         if self.state.playing:
             return True
         if not self._init_received.is_set() or self._frames_received < 10:
             return False
+
+        with self._lock:
+            my_id = self.state.my_id
+            mine = self.state.snakes.get(my_id) if my_id != -1 else None
+            if mine is not None:
+                self.state.dead = False
+                self.state.playing = True
+                self.state.connected = True
+                log(f"[CDP] Game state active — snake id={my_id} "
+                    f"(from packets, {len(self.state.snakes)} snakes, "
+                    f"{self._frames_received} frames)")
+                return True
 
         # Identify our snake by matching browser position to parsed WS snakes
         try:

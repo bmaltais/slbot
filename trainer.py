@@ -1780,6 +1780,10 @@ def train(args):
     agent_total_eps = [0] * cfg.env.num_agents
     agent_last_cause = ["—"] * cfg.env.num_agents
     agent_spawning = [False] * cfg.env.num_agents
+    cdp_play_ticks = 0
+    cdp_active_ticks = 0
+    cdp_fallback_max = 0
+    one_step_deaths = 0
 
     # Initial Reset
     states = env.reset()
@@ -1913,8 +1917,10 @@ def train(args):
             dashboard.log_event(f"AI: {short}")
 
     def finalize_episode(agent_index, terminal_state, cause, force_done_flag):
-        nonlocal start_episode, max_steps_per_episode, best_avg_reward, best_fitness, episodes_since_improvement
+        nonlocal start_episode, max_steps_per_episode, best_avg_reward, best_fitness, episodes_since_improvement, one_step_deaths
         total_steps_local = episode_steps[agent_index]
+        if total_steps_local <= 1 and not force_done_flag:
+            one_step_deaths += 1
         total_reward = episode_rewards[agent_index]
         food_eaten = episode_food[agent_index]
         peak_length = episode_peak_length[agent_index]
@@ -1968,11 +1974,29 @@ def train(args):
                    f"Eps: {eps:.3f} | L: {loss_val:.4f} | Q: {q_mean:.2f}/{q_max:.2f} | "
                    f"Rx:{reflex_rate:.2%} | {cause_label} | {pos_str}{wall_str}{enemy_str}")
 
+        if cfg.browser_backend == "websocket":
+            cdp_on = infos[agent_index].get('cdp_active')
+            rearm_ms = infos[agent_index].get('rearm_ms')
+            fb = infos[agent_index].get('fallback_ticks', 0) or 0
+            rearm_s = f"{rearm_ms:.0f}ms" if isinstance(rearm_ms, (int, float)) else "?"
+            one_step = " 1-step-spawn-death" if total_steps_local <= 1 and not force_done_flag else ""
+            log_msg += (
+                f" | CDP:{'on' if cdp_on else 'off'} rearm={rearm_s} "
+                f"fb={fb}{one_step}"
+            )
+
         logger.info(log_msg)
 
         # Print stats occasionally
         if start_episode % 10 == 0:
             logger.info(f"Death Stats: {death_stats}")
+            if cfg.browser_backend == "websocket":
+                pct = 100.0 * cdp_active_ticks / max(cdp_play_ticks, 1)
+                logger.info(
+                    f"[CDP] active {cdp_active_ticks}/{cdp_play_ticks} playing ticks "
+                    f"({pct:.0f}%) fallback_ticks={cdp_fallback_max} "
+                    f"one_step_deaths={one_step_deaths}"
+                )
 
         # Action distribution for this episode
         act = episode_actions[agent_index]
@@ -2157,6 +2181,14 @@ def train(args):
                 if infos[i].get('spawned'):
                     agent_spawning[i] = False
                     continue
+
+                if cfg.browser_backend == "websocket":
+                    cdp_play_ticks += 1
+                    if infos[i].get('cdp_active'):
+                        cdp_active_ticks += 1
+                    fb = infos[i].get('fallback_ticks') or 0
+                    if fb > cdp_fallback_max:
+                        cdp_fallback_max = fb
 
                 episode_rewards[i] += rewards[i]
                 episode_steps[i] += 1
