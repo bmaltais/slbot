@@ -406,6 +406,14 @@ class TestFoodStrings(unittest.TestCase):
         homogeneous = food_sense.foods_xyz([[1.0, 2.0, 0.0], [3.0, 4.0, 5.0]])
         np.testing.assert_array_equal(homogeneous[:, 2], [1.0, 5.0])
 
+    def test_foods_xyz_accepts_other_arrays(self):
+        f32 = food_sense.foods_xyz(np.array([[1, 2, 0], [3, 4, 5]], dtype=np.float32))
+        self.assertEqual(f32.dtype, np.float64)
+        np.testing.assert_array_equal(f32, [[1.0, 2.0, 1.0], [3.0, 4.0, 5.0]])
+        xy = food_sense.foods_xyz(np.array([[1.0, 2.0]]))
+        np.testing.assert_array_equal(xy, [[1.0, 2.0, 1.0]])
+        self.assertEqual(food_sense.foods_xyz(np.empty((0, 2))).shape, (0, 3))
+
     def test_empty_and_single(self):
         self.assertEqual(food_sense._iter_food_strings([], 0.0, 0.0), [])
         got = food_sense._iter_food_strings([[10.0, 0.0, 2.0]], 0.0, 0.0)

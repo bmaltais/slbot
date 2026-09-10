@@ -262,14 +262,16 @@ def foods_xyz(foods: Iterable[FoodItem]) -> np.ndarray:
 
     An (n, 3) float64 array is assumed to be in this format already and is
     returned as-is, so callers can convert once per tick and pass the array
-    to every consumer. The usual homogeneous [x, y, sz] rows convert with one
-    np.asarray; ragged or malformed lists fall back to per-item food_size().
+    to every consumer. Other numeric arrays are cast in place; the usual
+    homogeneous [x, y, sz] rows convert with one np.asarray; ragged or
+    malformed lists fall back to per-item food_size().
     """
     if isinstance(foods, np.ndarray):
         if foods.ndim == 2 and foods.shape[1] == 3 and foods.dtype == np.float64:
             return foods
-        foods = foods.tolist()
-    if not foods:
+        if foods.size == 0:
+            return np.empty((0, 3), dtype=np.float64)
+    elif not foods:
         return np.empty((0, 3), dtype=np.float64)
     try:
         raw = np.asarray(foods, dtype=np.float64)

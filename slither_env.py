@@ -121,6 +121,8 @@ def _thick_polyline_samples(px, py, radius):
 
     Reproduces `_draw_thick_line` for every consecutive point pair: circles
     spaced half a radius apart along each segment, both endpoints included.
+    A zero-length segment yields its point twice where the old code drew it
+    once; the drawn pixels are identical (discs overwrite with one value).
     """
     px = np.asarray(px, dtype=np.float64)
     py = np.asarray(py, dtype=np.float64)

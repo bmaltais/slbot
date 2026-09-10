@@ -88,6 +88,16 @@ def test_reflex_agents_bypass_the_network(greedy):
     assert greedy.reflex_stats[0]['reflex_actions'] == 0
 
 
+def test_mismatched_agent_ids_raise(greedy):
+    with pytest.raises(ValueError):
+        greedy.select_actions([_obs(0), _obs(1)], [0])
+
+
+def test_hybrid_rejects_bare_matrices(greedy):
+    with pytest.raises(ValueError):
+        greedy.select_actions([_obs(0)['matrix']])
+
+
 def test_random_epsilon_skips_the_network():
     agent = _agent(1.0)
     sizes = _spy(agent)

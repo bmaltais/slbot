@@ -187,7 +187,8 @@ class DDQNAgent:
         One action per observation, with a single batched forward pass.
 
         states: list of dicts {'matrix': (12, H, W) uint8 or float32 [0, 1],
-        'sectors': (99,)} or bare (12, H, W) arrays for the legacy model.
+        'sectors': (99,)}; the legacy (non-hybrid) model also accepts bare
+        (12, H, W) arrays. agent_ids, when given, must be one per state.
         Reflexes and epsilon-random picks are resolved per agent on the CPU
         (cheap numpy on the sector vector); only the agents that fall through
         to the network are stacked, copied to the device as one batch and
@@ -199,6 +200,16 @@ class DDQNAgent:
         n = len(states)
         if agent_ids is None:
             agent_ids = range(n)
+        else:
+            agent_ids = list(agent_ids)
+            if len(agent_ids) != n:
+                raise ValueError(
+                    f"select_actions: {n} states but {len(agent_ids)} agent_ids"
+                )
+        if self.use_hybrid and any(not isinstance(s, dict) for s in states):
+            raise ValueError(
+                "select_actions: the hybrid model needs dict observations with 'sectors'"
+            )
         actions = [None] * n
         net_idx = []
         eps_threshold = self.get_epsilon()
