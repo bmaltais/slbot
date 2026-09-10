@@ -151,5 +151,84 @@ class TestSlitherEnv(unittest.TestCase):
         self.env.browser.send_action_get_data.assert_called_once()
         self.env.browser.get_game_data.assert_called_once()
 
+    def _quiet_rewards(self):
+        self.env.survival_reward = 0.0
+        self.env.survival_escalation = 0.0
+        self.env.food_reward = 0.0
+        self.env.food_shaping = 0.0
+        self.env.cluster_eat_reward = 0.0
+        self.env.length_bonus = 0.0
+        self.env.straight_penalty = 0.0
+        self.env.wall_proximity_penalty = 0.0
+        self.env.enemy_proximity_penalty = 0.0
+        self.env.enemy_approach_penalty = 0.0
+        self.env.boost_penalty = 0.0
+        self.env.mass_loss_penalty = 0.0
+        self.env.starvation_penalty = 0.0
+        self.env.contest_food_reward = 0.0
+        self.env.kill_opportunity_reward = 0.0
+        self.env.enemy_zone_control_reward = 0.0
+        self.env.idle_food_penalty = 0.0
+        self.env.idle_food_range = 500.0
+        self.env.food_lock_radius = 240.0
+
+    def _step_frames(self, pre, post):
+        self.env.frame_skip = 0
+        self.env._cached_data = pre
+        self.env.prev_length = pre['self']['len']
+        self.env.browser.send_action = MagicMock()
+        self.env.browser.get_game_data = MagicMock(return_value=post)
+        return self.env.step(0)
+
+    def test_idle_food_penalty_when_nearby_cluster_not_eaten(self):
+        self._quiet_rewards()
+        self.env.idle_food_penalty = 0.03
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        food = [21600.0 + 200.0, 21600.0, 4.0]
+        pre['foods'] = [food]
+        post['foods'] = [food]
+        _state, reward, done, _info = self._step_frames(pre, post)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, -0.03)
+
+    def test_idle_food_penalty_skips_far_food(self):
+        self._quiet_rewards()
+        self.env.idle_food_penalty = 0.03
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        food = [21600.0 + 1500.0, 21600.0, 4.0]
+        pre['foods'] = [food]
+        post['foods'] = [food]
+        _state, reward, done, _info = self._step_frames(pre, post)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, 0.0)
+
+    def test_idle_food_penalty_skips_when_eating(self):
+        self._quiet_rewards()
+        self.env.idle_food_penalty = 0.03
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        eaten = [21610.0, 21600.0, 2.0]
+        leftover = [21600.0 + 180.0, 21600.0, 6.0]
+        pre['foods'] = [eaten, leftover]
+        post['foods'] = [leftover]
+        post['self'] = dict(pre['self'])
+        post['self']['x'] = 21620.0
+        post['self']['len'] = 11
+        _state, reward, done, _info = self._step_frames(pre, post)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, 0.0)
+
+    def test_set_curriculum_stage_loads_idle_food_knobs(self):
+        self.env.set_curriculum_stage({
+            'idle_food_penalty': 0.03,
+            'idle_food_range': 500,
+            'food_lock_radius': 240,
+        })
+        self.assertAlmostEqual(self.env.idle_food_penalty, 0.03)
+        self.assertEqual(self.env.idle_food_range, 500)
+        self.assertEqual(self.env.food_lock_radius, 240)
+
 if __name__ == '__main__':
     unittest.main()

@@ -62,11 +62,41 @@ if not logger.hasHandlers():
     logger.addHandler(f_handler_app)
     logger.addHandler(f_handler_train)
 
+# Rolling env-step rate shown on the Agents Board.
+SPS_WINDOW_S = 10.0
+
+
+def rolling_steps_per_sec(step_times, now, window=SPS_WINDOW_S, started_at=None):
+    """Average env steps/s over the last `window` seconds.
+
+    `step_times` is a deque of unix timestamps, pruned in place. Spawn/idle
+    gaps count: the divisor is wall-clock time (the full window, or time
+    since `started_at` if shorter), not the span of remaining samples.
+    """
+    cutoff = now - window
+    while step_times and step_times[0] < cutoff:
+        step_times.popleft()
+    elapsed = window if started_at is None else min(window, now - started_at)
+    if elapsed <= 0:
+        return 0.0
+    return len(step_times) / elapsed
+
 
 class TrainingDashboard:
     """Rich TUI dashboard for real-time training visualization."""
 
     SPARKLINE_CHARS = " ▁▂▃▄▅▆▇█"
+    # Side-by-side Agents+Events needs ~2x the agent table (~114 cols).
+    NARROW_WIDTH = 180
+    HEADER_HEIGHT = 3
+    BODY_LOWER_HEIGHT = 12
+    FOOTER_HEIGHT = 3
+    BODY_UPPER_MIN_HEIGHT = 14
+    EVENTS_PANEL_CHROME = 2  # Panel top+bottom borders
+    EVENTS_STORE_MAX = 80
+    EVENTS_MAX_VISIBLE = 20
+    AGENTS_BOARD_MIN_H = 6
+    AGENTS_BOARD_MAX_H = 14
 
     def __init__(self):
         self.console = Console()
@@ -93,7 +123,7 @@ class TrainingDashboard:
         self.long_length_sma = deque(maxlen=500)
         self.long_survival_sma = deque(maxlen=500)  # SMA20 of steps
         self.long_reward_sma = deque(maxlen=500)    # SMA20 of reward
-        self.events = deque(maxlen=12)
+        self.events = deque(maxlen=self.EVENTS_STORE_MAX)
         # Current episode data
         self.episode = 0
         self.stage = 1
@@ -224,7 +254,7 @@ class TrainingDashboard:
 
     def update_agent_board(self, agents_data):
         """Update live agent board. agents_data: list of dicts per agent.
-        Each dict: {name, reward, food, steps, ep_time, total_eps, last_cause}
+        Each dict: {name, reward, food, steps, sps, ep_time, total_eps, last_cause}
         """
         self.agents_board = agents_data
 
@@ -270,6 +300,109 @@ class TrainingDashboard:
         h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
         return f"{h:02d}:{m:02d}:{s:02d}"
 
+    def _term_width(self):
+        try:
+            return int(self.console.size.width)
+        except Exception:
+            try:
+                return os.get_terminal_size().columns
+            except OSError:
+                return 120
+
+    def _term_height(self):
+        try:
+            return int(self.console.size.height)
+        except Exception:
+            try:
+                return os.get_terminal_size().lines
+            except OSError:
+                return 40
+
+    def _max_bottom_height(self, term_height):
+        reserved = (
+            self.HEADER_HEIGHT
+            + self.BODY_LOWER_HEIGHT
+            + self.FOOTER_HEIGHT
+            + self.BODY_UPPER_MIN_HEIGHT
+        )
+        return max(8, int(term_height) - reserved)
+
+    def _agents_board_height(self, n_agents):
+        n = max(int(n_agents), 1)
+        return max(self.AGENTS_BOARD_MIN_H, min(n + 4, self.AGENTS_BOARD_MAX_H))
+
+    def _event_inner_width(self, term_width, stacked):
+        pad = 4  # panel borders + horizontal padding
+        if stacked:
+            return max(10, int(term_width) - pad)
+        return max(10, int(term_width) // 2 - pad)
+
+    @staticmethod
+    def _wrap_rows(line, width):
+        width = max(int(width), 1)
+        if not line:
+            return 1
+        total = 0
+        for part in str(line).splitlines() or [""]:
+            total += max(1, (len(part) + width - 1) // width)
+        return total
+
+    def _fit_events(self, events, max_rows, inner_width):
+        """Newest events that fit in max_rows, accounting for wrapping."""
+        if max_rows <= 0 or not events:
+            return []
+        fitted = []
+        used = 0
+        for ev in reversed(events):
+            need = self._wrap_rows(ev, inner_width)
+            if fitted and used + need > max_rows:
+                break
+            if not fitted and need > max_rows:
+                fitted.append(ev)
+                break
+            fitted.append(ev)
+            used += need
+            if used >= max_rows:
+                break
+        fitted.reverse()
+        return fitted
+
+    def _events_bottom_geom(self, events, agents_board, term_width=None, term_height=None):
+        """Panel heights and the event slice that fits this terminal."""
+        term_width = self._term_width() if term_width is None else int(term_width)
+        term_height = self._term_height() if term_height is None else int(term_height)
+        stacked = term_width < self.NARROW_WIDTH
+        n_agents = max(len(agents_board or []), 1)
+        max_bottom = self._max_bottom_height(term_height)
+        agents_h = self._agents_board_height(n_agents)
+        chrome = self.EVENTS_PANEL_CHROME
+        min_events_h = chrome + 1
+
+        if stacked:
+            agents_h = min(agents_h, max(4, max_bottom - min_events_h))
+            max_rows = max(1, max_bottom - agents_h - chrome)
+        else:
+            max_rows = max(1, max_bottom - chrome)
+        max_rows = min(max_rows, self.EVENTS_MAX_VISIBLE)
+
+        inner_w = self._event_inner_width(term_width, stacked)
+        shown = self._fit_events(events, max_rows, inner_w)
+        content_rows = (
+            sum(self._wrap_rows(ev, inner_w) for ev in shown) if shown else 1
+        )
+        content_rows = min(max(content_rows, 1), max_rows)
+        events_h = content_rows + chrome
+
+        if stacked:
+            events_h = min(events_h, max(min_events_h, max_bottom - agents_h))
+            bottom_h = agents_h + events_h
+        else:
+            bottom_h = min(max_bottom, max(agents_h, events_h))
+            fill_rows = min(self.EVENTS_MAX_VISIBLE, max(1, bottom_h - chrome))
+            if fill_rows > content_rows:
+                shown = self._fit_events(events, fill_rows, inner_w)
+        return shown, agents_h, events_h, bottom_h, stacked
+
     def _build_layout(self):
         global _shutdown_requested
         # Snapshot collections so a Live refresh never iterates a deque the
@@ -293,14 +426,17 @@ class TrainingDashboard:
         long_reward_sma = self._as_list(self.long_reward_sma)
         events = self._as_list(self.events)
         agents_board = list(self.agents_board) if self.agents_board else []
+        shown_events, agents_h, events_h, bottom_h, stacked = self._events_bottom_geom(
+            events, agents_board,
+        )
 
         layout = Layout()
         layout.split_column(
-            Layout(name="header", size=3),
+            Layout(name="header", size=self.HEADER_HEIGHT),
             Layout(name="body_upper"),
-            Layout(name="body_lower", size=12),
-            Layout(name="footer", size=3),
-            Layout(name="bottom_bar"),
+            Layout(name="body_lower", size=self.BODY_LOWER_HEIGHT),
+            Layout(name="footer", size=self.FOOTER_HEIGHT),
+            Layout(name="bottom_bar", size=bottom_h),
         )
         layout["body_upper"].split_row(
             Layout(name="left", ratio=1),
@@ -574,10 +710,20 @@ class TrainingDashboard:
         layout["footer"].update(Panel(footer_text, style="dim"))
 
         # ── BOTTOM BAR: Agents Board + Events ──
-        layout["bottom_bar"].split_row(
-            Layout(name="agents_board", ratio=1),
-            Layout(name="events", ratio=1),
-        )
+        # Narrow terminals: stack Events under the Agents Board so both
+        # can use the full width instead of truncating columns/lines.
+        # Events panel height tracks the visible event count, capped to
+        # leftover terminal rows so the upper dashboard stays readable.
+        if stacked:
+            layout["bottom_bar"].split_column(
+                Layout(name="agents_board", size=agents_h),
+                Layout(name="events", size=events_h),
+            )
+        else:
+            layout["bottom_bar"].split_row(
+                Layout(name="agents_board", ratio=1),
+                Layout(name="events", ratio=1),
+            )
 
         # Agents Board
         agent_table = Table(box=None, padding=(0, 1), expand=True)
@@ -587,6 +733,7 @@ class TrainingDashboard:
         agent_table.add_column("Food", justify="right", width=5)
         agent_table.add_column("Size", justify="right", width=5)
         agent_table.add_column("Steps", justify="right", width=6)
+        agent_table.add_column("St/s", justify="right", width=6)
         agent_table.add_column("Time", justify="right", width=7)
         agent_table.add_column("Eps", justify="right", width=5)
         agent_table.add_column("Last Death", width=11)
@@ -605,6 +752,15 @@ class TrainingDashboard:
                 cause_style = "red" if cause == "Wall" else "yellow" if cause == "Snake" else "dim"
                 size_val = a.get('length', 0)
                 size_style = "bold green" if size_val >= 100 else "green" if size_val >= 30 else "dim"
+                sps_val = a.get('sps', 0.0)
+                if sps_val <= 0:
+                    sps_style = "dim"
+                elif sps_val < 2:
+                    sps_style = "red"
+                elif sps_val < 5:
+                    sps_style = "yellow"
+                else:
+                    sps_style = "green"
                 server = a.get('server', '')
                 # Show short form: just IP or last segment
                 short_srv = server.split('/')[-1] if '/' in server else server
@@ -615,20 +771,21 @@ class TrainingDashboard:
                     str(a.get('food', 0)),
                     f"[{size_style}]{size_val}[/]",
                     str(a.get('steps', 0)),
+                    f"[{sps_style}]{sps_val:.1f}[/]",
                     time_str,
                     str(a.get('total_eps', 0)),
                     f"[{cause_style}]{cause}[/]",
                     short_srv,
                 )
         else:
-            agent_table.add_row("—", "Waiting...", "", "", "", "", "", "", "", "")
+            agent_table.add_row("—", "Waiting...", "", "", "", "", "", "", "", "", "")
 
         layout["agents_board"].update(Panel(agent_table, title="[bold]Agents Board", border_style="cyan"))
 
         # Events
         event_lines = Text()
-        if events:
-            for ev in events:
+        if shown_events:
+            for ev in shown_events:
                 event_lines.append(ev + "\n")
         else:
             event_lines.append("Waiting for events...\n", style="dim")
@@ -1621,6 +1778,12 @@ def train(args):
     if args.vision_size:
         cfg.env.resolution = (args.vision_size, args.vision_size)
 
+    if getattr(args, "max_foods", None) is not None:
+        cfg.env.max_foods = args.max_foods
+    os.environ["SLBOT_MAX_FOODS"] = str(int(cfg.env.max_foods))
+    import food_sense
+    food_sense.MAX_FOODS = food_sense.configured_max_foods()
+
     # Backend selection
     cfg.browser_backend = args.backend
     cfg.ws_server_url = args.ws_server_url
@@ -1653,6 +1816,7 @@ def train(args):
     logger.info(f"  LR: {cfg.opt.lr}")
     logger.info(f"  PER: {cfg.buffer.prioritized}")
     logger.info(f"  Backend: {cfg.browser_backend}")
+    logger.info(f"  Max foods: {cfg.env.max_foods}")
     if cfg.ws_server_url:
         logger.info(f"  WS Server: {cfg.ws_server_url}")
 
@@ -1784,6 +1948,8 @@ def train(args):
     agent_total_eps = [0] * cfg.env.num_agents
     agent_last_cause = ["—"] * cfg.env.num_agents
     agent_spawning = [False] * cfg.env.num_agents
+    agent_step_times = [deque() for _ in range(cfg.env.num_agents)]
+    agent_sps_started = [time.time()] * cfg.env.num_agents
     cdp_play_ticks = 0
     cdp_active_ticks = 0
     cdp_fallback_max = 0
@@ -2196,6 +2362,7 @@ def train(args):
 
                 episode_rewards[i] += rewards[i]
                 episode_steps[i] += 1
+                agent_step_times[i].append(time.time())
                 episode_food[i] += infos[i].get('food_eaten', 0)
                 agent_length[i] = infos[i].get('length', agent_length[i])
                 if agent_length[i] > episode_peak_length[i]:
@@ -2244,6 +2411,10 @@ def train(args):
                         'food': episode_food[i],
                         'length': agent_length[i],
                         'steps': episode_steps[i],
+                        'sps': rolling_steps_per_sec(
+                            agent_step_times[i], now,
+                            started_at=agent_sps_started[i],
+                        ),
                         'ep_time': now - agent_ep_start[i],
                         'total_eps': agent_total_eps[i],
                         'last_cause': 'spawning' if agent_spawning[i] else agent_last_cause[i],
@@ -2276,6 +2447,8 @@ def train(args):
                         agent_total_eps.append(0)
                         agent_last_cause.append("—")
                         agent_spawning.append(True)
+                        agent_step_times.append(deque())
+                        agent_sps_started.append(time.time())
                         states.append(new_state)
                         logger.info(f"[AUTO-SCALE] Added agent #{env.num_agents} "
                                     f"(CPU:{metrics['cpu_percent']:.0f}% "
@@ -2308,6 +2481,8 @@ def train(args):
                     agent_total_eps.pop()
                     agent_last_cause.pop()
                     agent_spawning.pop()
+                    agent_step_times.pop()
+                    agent_sps_started.pop()
                     states.pop()
                     logger.info(f"[AUTO-SCALE] Removed agent -> {env.num_agents} "
                                 f"(CPU:{metrics['cpu_percent']:.0f}% "
@@ -2361,6 +2536,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-agents", type=int, default=5, help="Max agents for auto-scaling (default: 5)")
     parser.add_argument("--backend", choices=["selenium", "websocket"], default="selenium", help="Browser backend: selenium (default) or websocket")
     parser.add_argument("--ws-server-url", type=str, default="", help="WebSocket server URL override (e.g. ws://1.2.3.4:444/slither)")
+    parser.add_argument("--max-foods", type=int, default=None, help="Per-step food/prey observation cap (default: 800, or SLBOT_MAX_FOODS)")
     parser.add_argument("--reflex5", action="store_true", help="Enable body encirclement reflex (aggressive, off by default)")
     parser.add_argument("--reset", action="store_true", help="Total reset: delete logs, CSV, checkpoints, events")
     parser.add_argument("--ai-supervisor", choices=["claude", "openai", "gemini", "ollama"], default=None, help="Enable AI Supervisor with chosen LLM provider")

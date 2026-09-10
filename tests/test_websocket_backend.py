@@ -19,6 +19,7 @@ from browser_engine import SlitherBrowser
 from cdp_intercept import CDPInterceptor, steering_js
 from slither_env import SlitherEnv
 from trainer import ResourceMonitor
+import ws_protocol
 from worker_process import READY_MSG, run_worker_loop
 from worker_session import WorkerSession
 
@@ -480,6 +481,13 @@ class TestCdpSpawnGate(unittest.TestCase):
         self.assertFalse(info.get('spawning', False))
         self.assertTrue(info.get('cdp_active'))
         env.browser.send_action.assert_called_once()
+
+
+class TestPreyPacketIds(unittest.TestCase):
+    def test_j_is_prey_update_not_a_snake_remove_alias(self):
+        self.assertEqual(ws_protocol.PACKET_PREY_UPDATE, ord('j'))
+        self.assertEqual(ws_protocol.PACKET_PREY_ADD, ord('y'))
+        self.assertFalse(hasattr(ws_protocol, "PACKET_SNAKE_REMOVE_DEAD"))
 
 
 if __name__ == '__main__':

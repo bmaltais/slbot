@@ -35,6 +35,10 @@ MUTABLE_PARAMS = {
     "starvation_grace_steps":   (5,    200,   0.30),
     "max_steps":                (100,  10000, 0.20),
     "contest_food_reward":      (0.0,  5.0,   0.50),
+    "cluster_eat_reward":       (0.0,  8.0,   0.40),
+    "idle_food_penalty":        (0.0,  0.2,   0.40),
+    "idle_food_range":          (100,  2000,  0.30),
+    "food_lock_radius":         (0.0,  600,   0.30),
     "enemy_zone_control_reward":(0.0,  0.5,   0.50),
     "kill_opportunity_reward":  (0.0,  30.0,  0.40),
 }
@@ -130,7 +134,8 @@ class Mutator:
         'enemy':    ['enemy_alert_dist', 'enemy_proximity_penalty',
                       'enemy_approach_penalty', 'death_snake'],
         'food':     ['food_reward', 'food_shaping', 'length_bonus',
-                      'contest_food_reward', 'starvation_penalty'],
+                      'contest_food_reward', 'cluster_eat_reward', 'starvation_penalty',
+                      'idle_food_penalty', 'idle_food_range', 'food_lock_radius'],
         'risk':     ['boost_penalty', 'mass_loss_penalty',
                       'wall_proximity_penalty', 'enemy_proximity_penalty'],
     }

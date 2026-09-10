@@ -25,6 +25,7 @@ import urllib.request
 import websocket as ws_lib
 
 from ws_engine import GameState, SlitherWSClient
+from food_sense import MAX_FOODS as FOOD_SENSE_MAX_FOODS
 from ws_protocol import (
     PacketReader, TWO_PI,
     PACKET_INIT, PACKET_SNAKE_ADD, PACKET_PREINIT, PACKET_PONG,
@@ -33,7 +34,7 @@ from ws_protocol import (
     PACKET_FOOD_ADD, PACKET_FOOD_ADD_B, PACKET_FOOD_ADD_F,
     PACKET_FOOD_EAT, PACKET_FAM_UPDATE, PACKET_TAIL_REMOVE,
     PACKET_DEATH, PACKET_SECTOR_ON, PACKET_SECTOR_OFF,
-    PACKET_MINIMAP, PACKET_LEADERBOARD, PACKET_SNAKE_REMOVE_DEAD,
+    PACKET_MINIMAP, PACKET_LEADERBOARD,
     ROTATION_PACKETS, MOVEMENT_PACKETS, FOOD_ADD_PACKETS,
 )
 
@@ -79,7 +80,7 @@ class CDPInterceptor:
         interceptor.send_action(angle, boost)  # Via CDP Runtime.evaluate
     """
 
-    MAX_FOODS = 300
+    MAX_FOODS = FOOD_SENSE_MAX_FOODS
     MAX_ENEMIES = 50
     MAX_BODY_PTS = 150
 
