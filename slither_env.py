@@ -20,6 +20,8 @@ from food_sense import (
     BOOST_CLUSTER_MIN_MASS,
     BOOST_CLUSTER_RANGE,
     FOOD_CHANNEL_LOG_CAP,
+    FOOD_DRAW_RADIUS_MIN_PX,
+    FOOD_DRAW_RADIUS_PER_SZ,
     FOOD_LOCK_RADIUS,
     FOOD_SENSE_RANGE,
     FOOD_SECTOR_LOG_CAP,
@@ -125,6 +127,11 @@ class _DeathPacketWriter:
         plt.tight_layout()
         plt.savefig(img_path)
         plt.close(fig)
+        try:
+            from cleanup_data import prune_events
+            prune_events()
+        except Exception:
+            pass
 
         json_filename = f"event_{date_str}_{uniq}_{cause_token}.json"
         json_path = os.path.join(debug_dir, json_filename)
@@ -258,6 +265,15 @@ class SlitherEnv:
         self.idle_food_range = 500.0
         self.food_lock_radius = FOOD_LOCK_RADIUS
         self._locked_food_target = None
+        # Set by _process_data_to_matrix's compass draw; step() reuses it
+        # instead of recomputing the same locked_food_target() call.
+        self._matrix_food_target = None
+        # lock_radius in effect when _locked_food_target was last derived from
+        # the data now sitting in _cached_data. If a step reads that same
+        # cached data with this same radius, locked_food_target() on it is
+        # guaranteed (by construction) to return _locked_food_target
+        # unchanged, so step() can skip recomputing it.
+        self._cached_lock_radius = None
 
         # Frame validation (from tsrgy0)
         self.last_matrix = self._matrix_zeros()
@@ -629,6 +645,7 @@ class SlitherEnv:
         self.steps_in_episode = 0
         self.steps_since_food = 0
         self._locked_food_target = None
+        self._cached_lock_radius = None
         self._cdp_spawn_wait_t0 = time.time()
         # NAV debug separator
         with open("logs/nav_debug.log", "a") as _f:
@@ -794,7 +811,8 @@ class SlitherEnv:
 
         # Get current state before action (use cache from previous step if available)
         t_start = time.time()
-        if self._cached_data is not None:
+        used_cached_data = self._cached_data is not None
+        if used_cached_data:
             data = self._cached_data
             self._cached_data = None
         else:
@@ -870,10 +888,18 @@ class SlitherEnv:
         # Distance to locked food cluster BEFORE action (not nearest crumb).
         # Lock holds the previous pile so shaping cannot flip between two nearby clusters.
         foods = data.get('foods', [])
-        pre_food_target = locked_food_target(
-            foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
-        )
-        self._locked_food_target = pre_food_target
+        # If this is the same data the previous step cached (the common
+        # case) and lock_radius hasn't changed since, _locked_food_target
+        # already IS locked_food_target(foods, mx, my, ...) for these exact
+        # inputs — it was derived from this same (foods, mx, my) last step,
+        # and re-deriving a lock from itself is a no-op. Skip the flood-fill.
+        if used_cached_data and self._cached_lock_radius == self.food_lock_radius:
+            pre_food_target = self._locked_food_target
+        else:
+            pre_food_target = locked_food_target(
+                foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
+            )
+            self._locked_food_target = pre_food_target
         current_food_dist = pre_food_target[2] if pre_food_target else None
 
         # Execute action — relative to current heading (ang)
@@ -1014,11 +1040,11 @@ class SlitherEnv:
             reward += self.length_bonus * new_len
         
         # 4. SHAPING REWARD: Reward for moving TOWARDS the locked food cluster
+        # _process_data_to_matrix() already ran locked_food_target() on this
+        # same (foods, new_x, new_y, lock) for the compass draw — reuse it
+        # instead of paying for an identical flood-fill again.
         new_foods = data.get('foods', [])
-        post_food_target = locked_food_target(
-            new_foods, new_x, new_y, self._locked_food_target,
-            lock_radius=self.food_lock_radius,
-        )
+        post_food_target = self._matrix_food_target
         new_food_dist = post_food_target[2] if post_food_target else None
         nearby_food_mass = 0.0
         for f in new_foods:
@@ -1141,8 +1167,11 @@ class SlitherEnv:
         self.prev_enemy_dist = min_enemy_dist
         self.prev_nearby_food_mass = nearby_food_mass
 
-        # Cache post-action data for next step's pre-action read
+        # Cache post-action data for next step's pre-action read. Record the
+        # lock_radius _locked_food_target was just derived under so next
+        # step can verify it still matches before skipping recomputation.
         self._cached_data = data
+        self._cached_lock_radius = self.food_lock_radius
 
         return state, reward, False, self._info(
             length=new_len,
@@ -1230,18 +1259,28 @@ class SlitherEnv:
             return max(0.0, 1.0 - d / SCOPE)
 
         # --- Food scores (sum mass in sector, then log-squash so piles beat crumbs) ---
+        # Vectorized: same per-food math as to_ego_angle_dist/sector_index/
+        # score_distance above, but as array ops instead of a Python loop —
+        # food_size() still runs per-item since food entries have variable
+        # length, but the trig/binning that dominated cost does not.
         foods = data.get('foods', [])
-        for f in foods:
-            if len(f) < 2:
-                continue
-            fx, fy = f[0], f[1]
-            f_sz = food_size(f)
-            dx, dy = fx - mx, fy - my_
-            angle, dist = to_ego_angle_dist(dx, dy)
-            if dist > SCOPE:
-                continue
-            si = sector_index(angle)
-            sectors[si] += score_distance(dist) * f_sz
+        valid = [(f[0], f[1], food_size(f)) for f in foods if len(f) >= 2]
+        if valid:
+            arr = np.asarray(valid, dtype=np.float64)
+            fx, fy, f_sz = arr[:, 0], arr[:, 1], arr[:, 2]
+            dx = fx - mx
+            dy = fy - my_
+            rx = -sin_a * dx + cos_a * dy
+            ry = -cos_a * dx - sin_a * dy
+            angle = np.arctan2(rx, -ry)
+            angle = np.where(angle < 0.0, angle + 2.0 * math.pi, angle)
+            dist = np.hypot(dx, dy)
+            within = dist <= SCOPE
+            if np.any(within):
+                si = (angle[within] / SECTOR_ANGLE).astype(np.int64) % NUM_SECTORS
+                score = np.maximum(0.0, 1.0 - dist[within] / SCOPE) * f_sz[within]
+                food_sums = np.bincount(si, weights=score, minlength=NUM_SECTORS)
+                sectors[:NUM_SECTORS] = food_sums[:NUM_SECTORS]
         for si in range(NUM_SECTORS):
             sectors[si] = squash_mass(float(sectors[si]), FOOD_SECTOR_LOG_CAP)
 
@@ -1406,22 +1445,30 @@ class SlitherEnv:
             print("="*50 + "\n")
             self._map_vars_printed = True
 
-        # 1. Food (Channel 0) — splat mass so large pellets are bigger AND brighter
+        # 1. Food (Channel 0) — splat mass so large pellets are bigger AND brighter.
+        # Vectorized: compute egocentric px/py + draw radius for every food at
+        # once and filter to the handful actually inside the crop, instead of
+        # doing that arithmetic in a per-item Python loop. _draw_circle still
+        # runs per surviving food (it mutates `matrix`, not vectorizable here)
+        # but that's now only ~1/4 of `foods`, same as before this change.
         foods = data.get('foods', [])
         cx_grid = self.matrix_size / 2.0
         cy_grid = self.matrix_size / 2.0
-        for f in foods:
-            if len(f) < 2:
-                continue
-            fx, fy = f[0], f[1]
-            sz = food_size(f)
-            rx, ry = _ego_raw(fx - mx, fy - my)
+        valid = [(f[0], f[1], food_size(f)) for f in foods if len(f) >= 2]
+        if valid:
+            arr = np.asarray(valid, dtype=np.float64)
+            fx, fy, sz = arr[:, 0], arr[:, 1], arr[:, 2]
+            dxw = fx - mx
+            dyw = fy - my
+            rx = -sin_a * dxw + cos_a * dyw
+            ry = -cos_a * dxw - sin_a * dyw
             hx = cx_grid + rx * self.scale
             hy = cy_grid + ry * self.scale
-            r = food_draw_radius_px(sz, self.scale)
-            if hx < -r or hy < -r or hx >= self.matrix_size + r or hy >= self.matrix_size + r:
-                continue
-            self._draw_circle(matrix, 0, hx, hy, r, sz, blend='add')
+            r = np.maximum(FOOD_DRAW_RADIUS_MIN_PX, sz * FOOD_DRAW_RADIUS_PER_SZ * self.scale)
+            m = self.matrix_size
+            visible = ~((hx < -r) | (hy < -r) | (hx >= m + r) | (hy >= m + r))
+            for i in np.nonzero(visible)[0]:
+                self._draw_circle(matrix, 0, hx[i], hy[i], r[i], sz[i], blend='add')
 
         food_ch = matrix[0]
         if food_ch.max() > 0:
@@ -1429,10 +1476,13 @@ class SlitherEnv:
             food_ch /= math.log1p(FOOD_CHANNEL_LOG_CAP)
             np.clip(food_ch, 0.0, 1.0, out=food_ch)
 
-        # Compass toward the locked cluster when it is off the 1000-unit crop
+        # Compass toward the locked cluster when it is off the 1000-unit crop.
+        # step() reuses this same (foods, mx, my, lock) result for its
+        # post-action shaping instead of recomputing the identical call.
         cluster = locked_food_target(
             foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
         )
+        self._matrix_food_target = cluster
         if cluster:
             nfx, nfy = cluster[0], cluster[1]
             rx, ry = _ego_raw(nfx - mx, nfy - my)
