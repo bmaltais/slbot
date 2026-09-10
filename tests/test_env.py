@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from slither_env import SlitherEnv
+from food_sense import CLUSTER_EAT_MASS_CAP, squash_mass
+from slither_env import ACTION_BOOST, SlitherEnv
 from coord_transform import world_to_grid
 
 
@@ -171,14 +172,17 @@ class TestSlitherEnv(unittest.TestCase):
         self.env.idle_food_penalty = 0.0
         self.env.idle_food_range = 500.0
         self.env.food_lock_radius = 240.0
+        self.env.boost_cluster_reward = 0.0
+        self.env.boost_cluster_range = 400.0
+        self.env.boost_cluster_min_mass = 6.0
 
-    def _step_frames(self, pre, post):
+    def _step_frames(self, pre, post, action=0):
         self.env.frame_skip = 0
         self.env._cached_data = pre
         self.env.prev_length = pre['self']['len']
         self.env.browser.send_action = MagicMock()
         self.env.browser.get_game_data = MagicMock(return_value=post)
-        return self.env.step(0)
+        return self.env.step(action)
 
     def test_idle_food_penalty_when_nearby_cluster_not_eaten(self):
         self._quiet_rewards()
@@ -229,6 +233,76 @@ class TestSlitherEnv(unittest.TestCase):
         self.assertAlmostEqual(self.env.idle_food_penalty, 0.03)
         self.assertEqual(self.env.idle_food_range, 500)
         self.assertEqual(self.env.food_lock_radius, 240)
+
+    def test_set_curriculum_stage_loads_boost_cluster_knobs(self):
+        self.env.set_curriculum_stage({
+            'boost_cluster_reward': 0.4,
+            'boost_cluster_range': 400,
+            'boost_cluster_min_mass': 6,
+            'boost_penalty': 0.04,
+        })
+        self.assertAlmostEqual(self.env.boost_cluster_reward, 0.4)
+        self.assertEqual(self.env.boost_cluster_range, 400)
+        self.assertEqual(self.env.boost_cluster_min_mass, 6)
+        self.assertAlmostEqual(self.env.boost_penalty, 0.04)
+
+    def test_boost_toward_nearby_pile_pays(self):
+        self._quiet_rewards()
+        self.env.boost_cluster_reward = 0.4
+        self.env.boost_cluster_range = 400.0
+        self.env.boost_cluster_min_mass = 6.0
+        self.env.boost_penalty = 0.04
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        pile = [[21600.0 + 180.0 + i, 21600.0, 2.0] for i in range(8)]
+        pre['foods'] = pile
+        post['foods'] = pile
+        post['self'] = dict(pre['self'])
+        post['self']['x'] = 21630.0
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
+        self.assertFalse(done)
+        expected = 0.4 * squash_mass(16.0, CLUSTER_EAT_MASS_CAP) * (1.0 - 180.0 / 400.0)
+        self.assertAlmostEqual(reward, expected)
+
+    def test_boost_into_empty_pays_penalty(self):
+        self._quiet_rewards()
+        self.env.boost_penalty = 0.04
+        self.env.boost_cluster_reward = 0.4
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        post['self'] = dict(pre['self'])
+        post['self']['x'] = 21630.0
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, -0.04)
+
+    def test_boost_at_crumb_pays_penalty(self):
+        self._quiet_rewards()
+        self.env.boost_penalty = 0.04
+        self.env.boost_cluster_reward = 0.4
+        self.env.boost_cluster_min_mass = 6.0
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        food = [[21600.0 + 150.0, 21600.0, 1.0]]
+        pre['foods'] = food
+        post['foods'] = food
+        post['self'] = dict(pre['self'])
+        post['self']['x'] = 21630.0
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, -0.04)
+
+    def test_negative_boost_penalty_rewards_empty_boost(self):
+        self._quiet_rewards()
+        self.env.boost_penalty = -0.2
+        self.env.boost_cluster_reward = 0.0
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        post['self'] = dict(pre['self'])
+        post['self']['x'] = 21630.0
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, 0.2)
 
 if __name__ == '__main__':
     unittest.main()

@@ -17,10 +17,13 @@ plt.switch_backend('Agg')
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from coord_transform import world_to_grid
 from food_sense import (
+    BOOST_CLUSTER_MIN_MASS,
+    BOOST_CLUSTER_RANGE,
     FOOD_CHANNEL_LOG_CAP,
     FOOD_LOCK_RADIUS,
     FOOD_SENSE_RANGE,
     FOOD_SECTOR_LOG_CAP,
+    boost_cluster_bonus,
     cluster_eat_bonus,
     eaten_food_mass,
     food_draw_radius_px,
@@ -31,6 +34,9 @@ from food_sense import (
 )
 
 ACTION_DIM = 14
+ACTION_BOOST = 11
+ACTION_BOOST_LEFT = 12
+ACTION_BOOST_RIGHT = 13
 
 
 def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
@@ -232,6 +238,9 @@ class SlitherEnv:
         self.mass_loss_penalty = 0.0
         self.contest_food_reward = 0.0
         self.cluster_eat_reward = 0.0
+        self.boost_cluster_reward = 0.0
+        self.boost_cluster_range = BOOST_CLUSTER_RANGE
+        self.boost_cluster_min_mass = BOOST_CLUSTER_MIN_MASS
         self.enemy_zone_control_reward = 0.0
         self.kill_opportunity_reward = 0.0
         self.prev_enemy_dist = None
@@ -315,6 +324,9 @@ class SlitherEnv:
         self.starvation_max_penalty = stage_config.get('starvation_max_penalty', 0.5)
         self.contest_food_reward = stage_config.get('contest_food_reward', 0.0)
         self.cluster_eat_reward = stage_config.get('cluster_eat_reward', 0.0)
+        self.boost_cluster_reward = stage_config.get('boost_cluster_reward', 0.0)
+        self.boost_cluster_range = stage_config.get('boost_cluster_range', BOOST_CLUSTER_RANGE)
+        self.boost_cluster_min_mass = stage_config.get('boost_cluster_min_mass', BOOST_CLUSTER_MIN_MASS)
         self.enemy_zone_control_reward = stage_config.get('enemy_zone_control_reward', 0.0)
         self.kill_opportunity_reward = stage_config.get('kill_opportunity_reward', 0.0)
         self.idle_food_penalty = stage_config.get('idle_food_penalty', 0.0)
@@ -326,6 +338,7 @@ class SlitherEnv:
               f"enemy_approach={self.enemy_approach_penalty} boost_pen={self.boost_penalty} "
               f"starv_pen={self.starvation_penalty} contest={self.contest_food_reward} "
               f"cluster_eat={self.cluster_eat_reward} "
+              f"boost_cluster={self.boost_cluster_reward}/{self.boost_cluster_range}/{self.boost_cluster_min_mass} "
               f"idle_food={self.idle_food_penalty}/{self.idle_food_range} "
               f"lock={self.food_lock_radius} "
               f"zone={self.enemy_zone_control_reward} kill={self.kill_opportunity_reward}")
@@ -729,11 +742,11 @@ class SlitherEnv:
         elif action == 8:  angle_change =  0.96  # ~55 deg
         elif action == 9:  angle_change = -1.57  # ~90 deg
         elif action == 10: angle_change =  1.57  # ~90 deg
-        elif action == 11: boost = 1
-        elif action == 12:
+        elif action == ACTION_BOOST: boost = 1
+        elif action == ACTION_BOOST_LEFT:
             angle_change = -0.18
             boost = 1
-        elif action == 13:
+        elif action == ACTION_BOOST_RIGHT:
             angle_change = 0.18
             boost = 1
 
@@ -1081,9 +1094,33 @@ class SlitherEnv:
                         pressure = max(0.0, 1.0 - (min_enemy_dist / enemy_pressure_dist))
                         reward += self.enemy_zone_control_reward * pressure
 
-        # 8. Boost penalty — applied consistently to prevent spam
-        if self.boost_penalty > 0 and boost == 1:
-            reward -= self.boost_penalty
+        # 8. Boost: pay to sprint at a nearby fat pile; otherwise keep the spam cost
+        if boost == 1:
+            pre_mass = pre_food_target[3] if pre_food_target else 0.0
+            aimed = None
+            if pre_food_target is not None:
+                aimed = math.hypot(pre_food_target[0] - new_x, pre_food_target[1] - new_y)
+            closing = bool(
+                ate_this_step
+                or (
+                    current_food_dist is not None
+                    and aimed is not None
+                    and aimed < current_food_dist
+                )
+            )
+            cluster_boost = boost_cluster_bonus(
+                current_food_dist,
+                pre_mass,
+                closing,
+                self.boost_cluster_reward,
+                range_=self.boost_cluster_range,
+                min_mass=self.boost_cluster_min_mass,
+            )
+            if cluster_boost > 0:
+                reward += cluster_boost
+            else:
+                # Positive = spam cost; negative = S6-style boost reward; 0 disables.
+                reward -= self.boost_penalty
 
         # 9. Starvation penalty: escalating penalty for not eating
         # Kicks in after grace period, grows linearly with steps without food

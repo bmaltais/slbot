@@ -1,8 +1,10 @@
-"""Food sensing: range, density, and cluster targeting.
+"""Food sensing: range, density, and trail/cluster targeting.
 
 The game camera is often ~400 units at spawn while the observation matrix
 covers 1000 and sectors cover 2000. Food must be collected out to
-FOOD_SENSE_RANGE, and density (not nearest-pellet) is what the agent uses.
+FOOD_SENSE_RANGE. Adjacent occupied cells form a string; targeting aims at
+the nearest pellet on the richest string so the snake follows trails instead
+of cutting toward a centroid in empty space.
 """
 
 import math
@@ -46,6 +48,11 @@ PREY_DEFAULT_SIZE = 10.0
 EAT_MATCH_RADIUS = 45.0
 CLUSTER_EAT_CRUMB = 1.0
 CLUSTER_EAT_MASS_CAP = 40.0
+BOOST_CLUSTER_RANGE = 400.0
+BOOST_CLUSTER_MIN_MASS = 6.0
+_NEIGHBOR_8 = tuple(
+    (dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy
+)
 
 FoodItem = Sequence[float]
 
@@ -85,6 +92,28 @@ def cluster_eat_bonus(
         return 0.0
     surplus = min(mass - crumb, cap)
     return scale * math.log1p(surplus)
+
+
+def boost_cluster_bonus(
+    dist: Optional[float],
+    mass: float,
+    closing: bool,
+    scale: float,
+    range_: float = BOOST_CLUSTER_RANGE,
+    min_mass: float = BOOST_CLUSTER_MIN_MASS,
+    cap: float = CLUSTER_EAT_MASS_CAP,
+) -> float:
+    """Bonus for boosting into a nearby high-mass pile or trail.
+
+    Zero unless the step is closing (or already eating), the locked target is
+    inside range_, and its mass clears min_mass. Scale is log-compressed.
+    """
+    if not closing or scale <= 0.0 or range_ <= 0.0:
+        return 0.0
+    if dist is None or dist >= range_ or mass < min_mass:
+        return 0.0
+    closeness = max(0.0, 1.0 - dist / range_)
+    return scale * squash_mass(mass, cap) * closeness
 
 
 def point_to_segment_dist(
@@ -192,16 +221,17 @@ def select_visible_foods(
     return [[x, y, sz] for _, x, y, sz in scored]
 
 
-def cluster_foods(
+def _bin_foods(
     foods: Iterable[FoodItem],
     mx: float,
     my: float,
-    cell: float = FOOD_CLUSTER_CELL,
-    sense_range: float = FOOD_SENSE_RANGE,
-) -> List[Tuple[float, float, float, float]]:
-    """Bin foods into cells. Returns (cx, cy, dist, mass) per occupied cell."""
+    cell: float,
+    sense_range: float,
+) -> Dict[Tuple[int, int], List]:
+    """Map cell -> [mass, accx, accy, pellets]. pellets are (fx, fy, sz)."""
     range_sq = sense_range * sense_range
-    bins: Dict[Tuple[int, int], List[float]] = {}
+    bins: Dict[Tuple[int, int], List] = {}
+    inv_cell = 1.0 / max(cell, 1e-6)
     for f in foods:
         if f is None or len(f) < 2:
             continue
@@ -212,17 +242,31 @@ def cluster_foods(
         dist_sq = dx * dx + dy * dy
         if dist_sq > range_sq:
             continue
-        bx = int(math.floor(dx / cell + 0.5))
-        by = int(math.floor(dy / cell + 0.5))
+        bx = int(math.floor(dx * inv_cell + 0.5))
+        by = int(math.floor(dy * inv_cell + 0.5))
         rec = bins.get((bx, by))
         if rec is None:
-            bins[(bx, by)] = [sz, fx * sz, fy * sz]
+            bins[(bx, by)] = [sz, fx * sz, fy * sz, [(fx, fy, sz)]]
         else:
             rec[0] += sz
             rec[1] += fx * sz
             rec[2] += fy * sz
+            rec[3].append((fx, fy, sz))
+    return bins
+
+
+def cluster_foods(
+    foods: Iterable[FoodItem],
+    mx: float,
+    my: float,
+    cell: float = FOOD_CLUSTER_CELL,
+    sense_range: float = FOOD_SENSE_RANGE,
+) -> List[Tuple[float, float, float, float]]:
+    """Bin foods into cells. Returns (cx, cy, dist, mass) per occupied cell."""
     out = []
-    for mass, accx, accy in bins.values():
+    for mass, accx, accy, _pellets in _bin_foods(
+        foods, mx, my, cell=cell, sense_range=sense_range
+    ).values():
         if mass <= 0.0:
             continue
         cx = accx / mass
@@ -230,6 +274,49 @@ def cluster_foods(
         dist = math.hypot(cx - mx, cy - my)
         out.append((cx, cy, dist, mass))
     return out
+
+
+def _iter_food_strings(
+    foods: Iterable[FoodItem],
+    mx: float,
+    my: float,
+    cell: float = FOOD_CLUSTER_CELL,
+    sense_range: float = FOOD_SENSE_RANGE,
+) -> List[Tuple[float, float, float, float]]:
+    """8-connected cell components. Aim at the nearest pellet on each string.
+
+    Returns (aim_x, aim_y, aim_dist, total_mass) per component.
+    """
+    bins = _bin_foods(foods, mx, my, cell=cell, sense_range=sense_range)
+    visited = set()
+    strings: List[Tuple[float, float, float, float]] = []
+    for start in bins:
+        if start in visited:
+            continue
+        stack = [start]
+        visited.add(start)
+        cells = []
+        while stack:
+            key = stack.pop()
+            cells.append(key)
+            bx, by = key
+            for dx, dy in _NEIGHBOR_8:
+                nb = (bx + dx, by + dy)
+                if nb in bins and nb not in visited:
+                    visited.add(nb)
+                    stack.append(nb)
+        pellets: List[Tuple[float, float, float]] = []
+        mass = 0.0
+        for key in cells:
+            rec = bins[key]
+            mass += rec[0]
+            pellets.extend(rec[3])
+        if mass <= 0.0 or not pellets:
+            continue
+        nearest = min(pellets, key=lambda p: (p[0] - mx) ** 2 + (p[1] - my) ** 2)
+        dist = math.hypot(nearest[0] - mx, nearest[1] - my)
+        strings.append((nearest[0], nearest[1], dist, mass))
+    return strings
 
 
 def _best_from_clusters(
@@ -254,12 +341,13 @@ def best_food_target(
     sense_range: float = FOOD_SENSE_RANGE,
     cell: float = FOOD_CLUSTER_CELL,
 ) -> Optional[Tuple[float, float, float, float]]:
-    """Densest nearby cluster: maximize mass * (1 - dist/range).
+    """Richest nearby string: maximize total_mass * (1 - nearest_dist/range).
 
+    Aim point is the nearest pellet on that string, not the centroid.
     Returns (cx, cy, dist, mass) or None.
     """
     return _best_from_clusters(
-        cluster_foods(foods, mx, my, cell=cell, sense_range=sense_range),
+        _iter_food_strings(foods, mx, my, cell=cell, sense_range=sense_range),
         sense_range,
     )
 
@@ -273,25 +361,25 @@ def locked_food_target(
     cell: float = FOOD_CLUSTER_CELL,
     lock_radius: float = FOOD_LOCK_RADIUS,
 ) -> Optional[Tuple[float, float, float, float]]:
-    """Keep the previous cluster while it still exists nearby; else pick a new best.
+    """Keep the previous string while its aim point is still nearby; else pick a new best.
 
-    Matching is by world-space centroid, not cell index, so the lock survives
-    the snake moving and individual pellets disappearing. lock_radius <= 0
-    disables hysteresis and always returns best_food_target.
+    The lock is the previous nearest pellet. Each step the aim slides to the
+    new near end, which stays inside lock_radius as pellets are eaten.
+    lock_radius <= 0 disables hysteresis and always returns best_food_target.
     """
-    clusters = cluster_foods(foods, mx, my, cell=cell, sense_range=sense_range)
+    strings = _iter_food_strings(foods, mx, my, cell=cell, sense_range=sense_range)
     if locked is not None and lock_radius > 0:
         lx, ly = float(locked[0]), float(locked[1])
         best_match = None
         best_d = lock_radius
-        for cx, cy, dist, mass in clusters:
+        for cx, cy, dist, mass in strings:
             d = math.hypot(cx - lx, cy - ly)
             if d <= best_d:
                 best_d = d
                 best_match = (cx, cy, dist, mass)
         if best_match is not None:
             return best_match
-    return _best_from_clusters(clusters, sense_range)
+    return _best_from_clusters(strings, sense_range)
 
 
 def idle_food_cost(
