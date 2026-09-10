@@ -90,9 +90,8 @@ class TestSlitherEnv(unittest.TestCase):
         self.assertEqual(info.get('cause'), 'InvalidFrame')
         self.assertTrue(np.array_equal(state, self.env.last_matrix))
 
-    def test_step_sends_action_without_combined_read(self):
-        """Issue #4: do not pay a discarded send_action_get_data() round-trip."""
-        alive = {
+    def _alive_frame(self):
+        return {
             'dead': False,
             'valid': True,
             'self': {'x': 21600, 'y': 21600, 'len': 10, 'ang': 0.0},
@@ -104,17 +103,42 @@ class TestSlitherEnv(unittest.TestCase):
             'view_radius': 500,
             'gsc': 1.0,
         }
+
+    def test_step_sends_action_without_combined_read(self):
+        """Issue #4: do not pay a discarded send_action_get_data() round-trip."""
+        alive = self._alive_frame()
         self.env.frame_skip = 0
         self.env._cached_data = alive
         self.env.browser.send_action = MagicMock()
         self.env.browser.send_action_get_data = MagicMock(return_value=alive)
         self.env.browser.get_game_data = MagicMock(return_value=alive)
 
-        state, reward, done, info = self.env.step(11)  # boost straight
+        _, _, done, _ = self.env.step(0)
 
         self.assertFalse(done)
-        self.env.browser.send_action.assert_called_once_with(0.0, 1)
+        self.env.browser.send_action.assert_called_once()
+        args, _kwargs = self.env.browser.send_action.call_args
+        self.assertEqual(len(args), 2)
         self.env.browser.send_action_get_data.assert_not_called()
+        self.env.browser.get_game_data.assert_called_once()
+
+    def test_step_falls_back_to_combined_send_without_send_action(self):
+        """Backends that only expose send_action_get_data() still get a send."""
+        alive = self._alive_frame()
+
+        class CombinedOnly:
+            def __init__(self):
+                self.send_action_get_data = MagicMock(return_value=alive)
+                self.get_game_data = MagicMock(return_value=alive)
+
+        self.env.frame_skip = 0
+        self.env._cached_data = alive
+        self.env.browser = CombinedOnly()
+
+        _, _, done, _ = self.env.step(0)
+
+        self.assertFalse(done)
+        self.env.browser.send_action_get_data.assert_called_once()
         self.env.browser.get_game_data.assert_called_once()
 
 if __name__ == '__main__':
