@@ -9,6 +9,8 @@ class EnvironmentConfig:
     grayscale: bool = False
     num_agents: int = 1
     view_first: bool = False
+    # Per-step food/prey observation cap (SLBOT_MAX_FOODS / --max-foods).
+    max_foods: int = 800
 
 @dataclass
 class ModelConfig:

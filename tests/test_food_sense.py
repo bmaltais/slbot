@@ -8,15 +8,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from food_sense import (
     FOOD_CHANNEL_LOG_CAP,
     FOOD_KEEP_DIST_BIAS,
+    FOOD_LIST_PRUNE_MULT,
+    FOOD_LOCK_RADIUS,
     FOOD_SENSE_RANGE,
     MAX_FOODS,
+    MAX_FOODS_DEFAULT,
     PREY_DEFAULT_SIZE,
+    configured_max_foods,
     best_food_target,
     cluster_eat_bonus,
     cluster_foods,
     eaten_food_mass,
     food_draw_radius_px,
+    idle_food_cost,
     js_collect_foods,
+    locked_food_target,
     select_visible_foods,
     squash_mass,
 )
@@ -72,10 +78,22 @@ class TestFoodSenseHelpers(unittest.TestCase):
         js = js_collect_foods()
         self.assertIn(str(int(FOOD_SENSE_RANGE)), js)
         self.assertIn(str(FOOD_KEEP_DIST_BIAS), js)
-        self.assertNotIn("MAX_FOODS * 2", js)
         self.assertIn("for (var i = 0; i < window.foods.length; i++)", js)
         self.assertIn("window.preys", js)
         self.assertIn("foodList = []", js)
+        self.assertIn("considerFood", js)
+        self.assertNotIn("viewRadius * 1.2", js)
+        self.assertIn("var senseRange = %.1f" % FOOD_SENSE_RANGE, js)
+        self.assertIn("MAX_FOODS * %d" % FOOD_LIST_PRUNE_MULT, js)
+        self.assertIn("foodList.length = MAX_FOODS", js)
+
+    def test_configured_max_foods_reads_env(self):
+        with patch.dict(os.environ, {"SLBOT_MAX_FOODS": "120"}, clear=False):
+            self.assertEqual(configured_max_foods(), 120)
+        with patch.dict(os.environ, {"SLBOT_MAX_FOODS": "99999"}, clear=False):
+            self.assertEqual(configured_max_foods(), 4000)
+        with patch.dict(os.environ, {"SLBOT_MAX_FOODS": "nope"}, clear=False):
+            self.assertEqual(configured_max_foods(), MAX_FOODS_DEFAULT)
 
     def test_draw_radius_grows_with_size(self):
         scale = 160 / 2000.0
@@ -114,6 +132,46 @@ class TestFoodSenseHelpers(unittest.TestCase):
         mass, n = eaten_food_mass(pre, post, 0.0, 0.0, 20.0, 0.0, eat_radius=50.0)
         self.assertEqual(n, 0)
         self.assertEqual(mass, 0.0)
+
+    def test_lock_holds_when_a_nearby_pile_scores_higher(self):
+        mx, my = 0.0, 0.0
+        pile_a = [[200.0 + i, 0.0, 1.0] for i in range(8)]
+        pile_b = [[0.0, 280.0 + i, 1.0] for i in range(20)]
+        foods = pile_a + pile_b
+        first = best_food_target(pile_a, mx, my)
+        self.assertIsNotNone(first)
+        locked = locked_food_target(foods, mx, my, first)
+        self.assertIsNotNone(locked)
+        # Unlocked scoring prefers the denser pile_b; the lock must stay on A.
+        unlocked = best_food_target(foods, mx, my)
+        self.assertGreater(unlocked[1], 200.0)
+        self.assertLess(abs(locked[0] - first[0]), 40.0)
+        self.assertLess(abs(locked[1] - first[1]), 40.0)
+
+    def test_lock_releases_when_the_cluster_is_gone(self):
+        pile_a = [[200.0 + i, 0.0, 1.0] for i in range(8)]
+        pile_b = [[0.0, 280.0 + i, 1.0] for i in range(20)]
+        locked_a = best_food_target(pile_a, 0.0, 0.0)
+        retarget = locked_food_target(pile_b, 0.0, 0.0, locked_a)
+        self.assertIsNotNone(retarget)
+        self.assertGreater(retarget[1], 200.0)
+
+    def test_lock_radius_zero_always_picks_best(self):
+        pile_a = [[200.0 + i, 0.0, 1.0] for i in range(8)]
+        pile_b = [[0.0, 280.0 + i, 1.0] for i in range(20)]
+        locked_a = best_food_target(pile_a, 0.0, 0.0)
+        best = locked_food_target(pile_a + pile_b, 0.0, 0.0, locked_a, lock_radius=0)
+        unlocked = best_food_target(pile_a + pile_b, 0.0, 0.0)
+        self.assertAlmostEqual(best[0], unlocked[0])
+        self.assertAlmostEqual(best[1], unlocked[1])
+
+    def test_idle_food_cost_only_when_in_range_and_hungry(self):
+        self.assertEqual(idle_food_cost(200.0, ate=False, penalty=0.03, commit_range=500.0), 0.03)
+        self.assertEqual(idle_food_cost(200.0, ate=True, penalty=0.03, commit_range=500.0), 0.0)
+        self.assertEqual(idle_food_cost(800.0, ate=False, penalty=0.03, commit_range=500.0), 0.0)
+        self.assertEqual(idle_food_cost(None, ate=False, penalty=0.03, commit_range=500.0), 0.0)
+        self.assertEqual(idle_food_cost(200.0, ate=False, penalty=0.0, commit_range=500.0), 0.0)
+        self.assertEqual(FOOD_LOCK_RADIUS, 240.0)
 
 
 class TestFoodObservation(unittest.TestCase):
@@ -211,9 +269,10 @@ class TestBrowserFoodJs(unittest.TestCase):
         js = browser.driver.execute_script.call_args[0][0]
         self.assertIn("var MAX_FOODS = %d" % MAX_FOODS, js)
         self.assertIn(str(int(FOOD_SENSE_RANGE)), js)
-        self.assertNotIn("MAX_FOODS * 2", js)
+        self.assertNotIn("viewRadius * 1.2", js)
         self.assertIn("window._botGetState", js)
         self.assertIn("window.preys", js)
+        self.assertIn("considerFood", js)
 
 
 if __name__ == '__main__':

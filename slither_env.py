@@ -18,13 +18,15 @@ plt.switch_backend('Agg')
 from coord_transform import world_to_grid
 from food_sense import (
     FOOD_CHANNEL_LOG_CAP,
+    FOOD_LOCK_RADIUS,
     FOOD_SENSE_RANGE,
     FOOD_SECTOR_LOG_CAP,
-    best_food_target,
     cluster_eat_bonus,
     eaten_food_mass,
     food_draw_radius_px,
     food_size,
+    idle_food_cost,
+    locked_food_target,
     squash_mass,
 )
 
@@ -241,6 +243,13 @@ class SlitherEnv:
         self.starvation_max_penalty = 2.0    # cap per step
         self.steps_since_food = 0
 
+        # Nearby-food miss cost: flat penalty for not eating while a cluster is in reach.
+        # Distinct from starvation (which waits for a grace window, then ramps).
+        self.idle_food_penalty = 0.0
+        self.idle_food_range = 500.0
+        self.food_lock_radius = FOOD_LOCK_RADIUS
+        self._locked_food_target = None
+
         # Frame validation (from tsrgy0)
         self.last_matrix = self._matrix_zeros()
         self.last_valid_data = None
@@ -308,12 +317,17 @@ class SlitherEnv:
         self.cluster_eat_reward = stage_config.get('cluster_eat_reward', 0.0)
         self.enemy_zone_control_reward = stage_config.get('enemy_zone_control_reward', 0.0)
         self.kill_opportunity_reward = stage_config.get('kill_opportunity_reward', 0.0)
+        self.idle_food_penalty = stage_config.get('idle_food_penalty', 0.0)
+        self.idle_food_range = stage_config.get('idle_food_range', 500.0)
+        self.food_lock_radius = stage_config.get('food_lock_radius', FOOD_LOCK_RADIUS)
 
         print(f"  ENV: food={self.food_reward} shaping={self.food_shaping} surv={self.survival_reward} "
               f"wall={self.death_wall_penalty} snake={self.death_snake_penalty} "
               f"enemy_approach={self.enemy_approach_penalty} boost_pen={self.boost_penalty} "
               f"starv_pen={self.starvation_penalty} contest={self.contest_food_reward} "
               f"cluster_eat={self.cluster_eat_reward} "
+              f"idle_food={self.idle_food_penalty}/{self.idle_food_range} "
+              f"lock={self.food_lock_radius} "
               f"zone={self.enemy_zone_control_reward} kill={self.kill_opportunity_reward}")
 
     def _update_from_game_data(self, data):
@@ -601,6 +615,7 @@ class SlitherEnv:
         self.invalid_frame_count = 0
         self.steps_in_episode = 0
         self.steps_since_food = 0
+        self._locked_food_target = None
         self._cdp_spawn_wait_t0 = time.time()
         # NAV debug separator
         with open("logs/nav_debug.log", "a") as _f:
@@ -839,9 +854,13 @@ class SlitherEnv:
         # Save pre-action data for death detection
         pre_action_data = data
 
-        # Distance to densest food cluster BEFORE action (not nearest crumb)
+        # Distance to locked food cluster BEFORE action (not nearest crumb).
+        # Lock holds the previous pile so shaping cannot flip between two nearby clusters.
         foods = data.get('foods', [])
-        pre_food_target = best_food_target(foods, mx, my)
+        pre_food_target = locked_food_target(
+            foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
+        )
+        self._locked_food_target = pre_food_target
         current_food_dist = pre_food_target[2] if pre_food_target else None
 
         # Execute action — relative to current heading (ang)
@@ -981,9 +1000,12 @@ class SlitherEnv:
         if self.length_bonus > 0 and new_len > 0:
             reward += self.length_bonus * new_len
         
-        # 4. SHAPING REWARD: Reward for moving TOWARDS food
+        # 4. SHAPING REWARD: Reward for moving TOWARDS the locked food cluster
         new_foods = data.get('foods', [])
-        post_food_target = best_food_target(new_foods, new_x, new_y)
+        post_food_target = locked_food_target(
+            new_foods, new_x, new_y, self._locked_food_target,
+            lock_radius=self.food_lock_radius,
+        )
         new_food_dist = post_food_target[2] if post_food_target else None
         nearby_food_mass = 0.0
         for f in new_foods:
@@ -1000,16 +1022,31 @@ class SlitherEnv:
         )
         if self.cluster_eat_reward > 0 and eaten_mass > 0:
             reward += cluster_eat_bonus(eaten_mass, self.cluster_eat_reward)
-        if eaten_mass > 0 or food_eaten > 0:
+        ate_this_step = eaten_mass > 0 or food_eaten > 0
+        if ate_this_step:
             self.steps_since_food = 0
         else:
             self.steps_since_food += 1
-            
-        if current_food_dist is not None and new_food_dist is not None:
+
+        # Skip shaping on eat steps: consuming the lock would retarget to a
+        # farther pile and look like we moved away from food.
+        if (
+            not ate_this_step
+            and current_food_dist is not None
+            and new_food_dist is not None
+        ):
             dist_delta = current_food_dist - new_food_dist
             shaping_reward = dist_delta * self.food_shaping
             shaping_reward = max(-2.0, min(2.0, shaping_reward))
             reward += shaping_reward
+
+        reward -= idle_food_cost(
+            current_food_dist,
+            ate_this_step,
+            self.idle_food_penalty,
+            self.idle_food_range,
+        )
+        self._locked_food_target = post_food_target
 
         # 4b. Contest reward: food collected while under enemy pressure is strategically valuable
         if self.contest_food_reward > 0 and food_eaten > 0 and min_enemy_dist != float('inf') and min_enemy_dist < enemy_pressure_dist:
@@ -1355,8 +1392,10 @@ class SlitherEnv:
             food_ch /= math.log1p(FOOD_CHANNEL_LOG_CAP)
             np.clip(food_ch, 0.0, 1.0, out=food_ch)
 
-        # Compass toward the densest cluster when it is off the 1000-unit crop
-        cluster = best_food_target(foods, mx, my)
+        # Compass toward the locked cluster when it is off the 1000-unit crop
+        cluster = locked_food_target(
+            foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
+        )
         if cluster:
             nfx, nfy = cluster[0], cluster[1]
             rx, ry = _ego_raw(nfx - mx, nfy - my)

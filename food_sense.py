@@ -6,11 +6,34 @@ FOOD_SENSE_RANGE, and density (not nearest-pellet) is what the agent uses.
 """
 
 import math
+import os
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 FOOD_SENSE_RANGE = 2000.0
 FOOD_CLUSTER_CELL = 120.0
-MAX_FOODS = 800
+# Hold a cluster while its centroid stays within two cells; stops shaping
+# from flipping between two nearby piles.
+FOOD_LOCK_RADIUS = 240.0
+# Per-step food/prey cap. 800 covers a busy 2000-unit disc; lower it via
+# SLBOT_MAX_FOODS or --max-foods if payload/paint cost shows up in St/s.
+MAX_FOODS_DEFAULT = 800
+MAX_FOODS_MIN = 50
+MAX_FOODS_MAX = 4000
+FOOD_LIST_PRUNE_MULT = 3
+
+
+def configured_max_foods(default: int = MAX_FOODS_DEFAULT) -> int:
+    """Runtime food cap: SLBOT_MAX_FOODS env, else default. Clamped."""
+    raw = os.environ.get("SLBOT_MAX_FOODS", "").strip()
+    if not raw:
+        return int(default)
+    try:
+        return max(MAX_FOODS_MIN, min(MAX_FOODS_MAX, int(raw)))
+    except ValueError:
+        return int(default)
+
+
+MAX_FOODS = configured_max_foods()
 FOOD_CHANNEL_LOG_CAP = 20.0
 FOOD_SECTOR_LOG_CAP = 12.0
 FOOD_KEEP_DIST_BIAS = 80.0
@@ -146,9 +169,11 @@ def select_visible_foods(
     mx: float,
     my: float,
     sense_range: float = FOOD_SENSE_RANGE,
-    max_foods: int = MAX_FOODS,
+    max_foods: Optional[int] = None,
 ) -> List[List[float]]:
     """Keep foods within sense_range. If over max_foods, prefer mass/proximity."""
+    if max_foods is None:
+        max_foods = configured_max_foods()
     range_sq = sense_range * sense_range
     scored = []
     for item in foods:
@@ -207,6 +232,21 @@ def cluster_foods(
     return out
 
 
+def _best_from_clusters(
+    clusters: Iterable[Tuple[float, float, float, float]],
+    sense_range: float,
+) -> Optional[Tuple[float, float, float, float]]:
+    best = None
+    best_score = -1.0
+    inv = 1.0 / max(sense_range, 1.0)
+    for cx, cy, dist, mass in clusters:
+        score = mass * max(0.0, 1.0 - dist * inv)
+        if score > best_score:
+            best_score = score
+            best = (cx, cy, dist, mass)
+    return best
+
+
 def best_food_target(
     foods: Iterable[FoodItem],
     mx: float,
@@ -218,34 +258,94 @@ def best_food_target(
 
     Returns (cx, cy, dist, mass) or None.
     """
-    best = None
-    best_score = -1.0
-    inv = 1.0 / max(sense_range, 1.0)
-    for cx, cy, dist, mass in cluster_foods(
-        foods, mx, my, cell=cell, sense_range=sense_range
-    ):
-        score = mass * max(0.0, 1.0 - dist * inv)
-        if score > best_score:
-            best_score = score
-            best = (cx, cy, dist, mass)
-    return best
+    return _best_from_clusters(
+        cluster_foods(foods, mx, my, cell=cell, sense_range=sense_range),
+        sense_range,
+    )
+
+
+def locked_food_target(
+    foods: Iterable[FoodItem],
+    mx: float,
+    my: float,
+    locked: Optional[Tuple[float, float, float, float]] = None,
+    sense_range: float = FOOD_SENSE_RANGE,
+    cell: float = FOOD_CLUSTER_CELL,
+    lock_radius: float = FOOD_LOCK_RADIUS,
+) -> Optional[Tuple[float, float, float, float]]:
+    """Keep the previous cluster while it still exists nearby; else pick a new best.
+
+    Matching is by world-space centroid, not cell index, so the lock survives
+    the snake moving and individual pellets disappearing. lock_radius <= 0
+    disables hysteresis and always returns best_food_target.
+    """
+    clusters = cluster_foods(foods, mx, my, cell=cell, sense_range=sense_range)
+    if locked is not None and lock_radius > 0:
+        lx, ly = float(locked[0]), float(locked[1])
+        best_match = None
+        best_d = lock_radius
+        for cx, cy, dist, mass in clusters:
+            d = math.hypot(cx - lx, cy - ly)
+            if d <= best_d:
+                best_d = d
+                best_match = (cx, cy, dist, mass)
+        if best_match is not None:
+            return best_match
+    return _best_from_clusters(clusters, sense_range)
+
+
+def idle_food_cost(
+    cluster_dist: Optional[float],
+    ate: bool,
+    penalty: float,
+    commit_range: float,
+) -> float:
+    """Flat miss cost while a food cluster is already in reach.
+
+    Zero when the step ate, when no cluster is in range, or when the knobs
+    are disabled. Does not replace starvation_penalty (long-horizon hunger).
+    """
+    if ate or penalty <= 0.0 or commit_range <= 0.0:
+        return 0.0
+    if cluster_dist is None:
+        return 0.0
+    if cluster_dist < commit_range:
+        return penalty
+    return 0.0
 
 
 def js_collect_foods() -> str:
     """JS snippet: scan foods + preys out to FOOD_SENSE_RANGE, keep top MAX_FOODS.
 
-    Expects JS locals: window.foods, window.preys, my_snake, viewRadius, MAX_FOODS.
+    Expects JS locals: window.foods, window.preys, my_snake, MAX_FOODS.
+    Clamped to FOOD_SENSE_RANGE so the Selenium backend matches websocket.
+    Prunes the candidate list to MAX_FOODS whenever it hits
+    MAX_FOODS * FOOD_LIST_PRUNE_MULT so a busy server does not full-sort
+    every in-range pellet each step.
     Defines: visible_foods as [[x, y, sz], ...].
     """
     sense = "%.1f" % FOOD_SENSE_RANGE
     bias = "%.1f" % FOOD_KEEP_DIST_BIAS
     prey_sz = "%.1f" % PREY_DEFAULT_SIZE
+    prune_mult = int(FOOD_LIST_PRUNE_MULT)
     return (
         "            var visible_foods = [];\n"
         "            var foodList = [];\n"
         "            var myX = my_snake.x, myY = my_snake.y;\n"
-        f"            var senseRange = Math.max(viewRadius * 1.2, {sense});\n"
+        f"            var senseRange = {sense};\n"
         "            var senseRangeSq = senseRange * senseRange;\n"
+        f"            var pruneAt = MAX_FOODS * {prune_mult};\n"
+        "            function considerFood(fx, fy, sz) {\n"
+        "                var dx = fx - myX, dy = fy - myY;\n"
+        "                var distSq = dx*dx + dy*dy;\n"
+        "                if (distSq > senseRangeSq) return;\n"
+        "                var dist = Math.sqrt(distSq);\n"
+        f"                foodList.push([fx, fy, sz, sz / (dist + {bias})]);\n"
+        "                if (foodList.length >= pruneAt) {\n"
+        "                    foodList.sort(function(a, b) { return b[3] - a[3]; });\n"
+        "                    foodList.length = MAX_FOODS;\n"
+        "                }\n"
+        "            }\n"
         "            if (window.foods && window.foods.length) {\n"
         "                for (var i = 0; i < window.foods.length; i++) {\n"
         "                    var f = window.foods[i];\n"
@@ -253,12 +353,7 @@ def js_collect_foods() -> str:
         "                    var fx = (typeof f.xx === 'number') ? f.xx : (typeof f.x === 'number') ? f.x : (typeof f.rx === 'number') ? f.rx : null;\n"
         "                    var fy = (typeof f.yy === 'number') ? f.yy : (typeof f.y === 'number') ? f.y : (typeof f.ry === 'number') ? f.ry : null;\n"
         "                    if (fx === null || fy === null) continue;\n"
-        "                    var dx = fx - myX, dy = fy - myY;\n"
-        "                    var distSq = dx*dx + dy*dy;\n"
-        "                    if (distSq > senseRangeSq) continue;\n"
-        "                    var sz = f.sz || 1;\n"
-        "                    var dist = Math.sqrt(distSq);\n"
-        f"                    foodList.push([fx, fy, sz, sz / (dist + {bias})]);\n"
+        "                    considerFood(fx, fy, f.sz || 1);\n"
         "                }\n"
         "            }\n"
         "            if (window.preys && window.preys.length) {\n"
@@ -268,15 +363,13 @@ def js_collect_foods() -> str:
         "                    var px = (typeof p.xx === 'number') ? p.xx : (typeof p.x === 'number') ? p.x : (typeof p.rx === 'number') ? p.rx : null;\n"
         "                    var py = (typeof p.yy === 'number') ? p.yy : (typeof p.y === 'number') ? p.y : (typeof p.ry === 'number') ? p.ry : null;\n"
         "                    if (px === null || py === null) continue;\n"
-        "                    var dx = px - myX, dy = py - myY;\n"
-        "                    var distSq = dx*dx + dy*dy;\n"
-        "                    if (distSq > senseRangeSq) continue;\n"
-        f"                    var sz = p.sz || {prey_sz};\n"
-        "                    var dist = Math.sqrt(distSq);\n"
-        f"                    foodList.push([px, py, sz, sz / (dist + {bias})]);\n"
+        f"                    considerFood(px, py, p.sz || {prey_sz});\n"
         "                }\n"
         "            }\n"
-        "            foodList.sort(function(a, b) { return b[3] - a[3]; });\n"
-        "            for (var i = 0; i < Math.min(foodList.length, MAX_FOODS); i++)\n"
+        "            if (foodList.length > MAX_FOODS) {\n"
+        "                foodList.sort(function(a, b) { return b[3] - a[3]; });\n"
+        "                foodList.length = MAX_FOODS;\n"
+        "            }\n"
+        "            for (var i = 0; i < foodList.length; i++)\n"
         "                visible_foods.push([foodList[i][0], foodList[i][1], foodList[i][2]]);\n"
     )

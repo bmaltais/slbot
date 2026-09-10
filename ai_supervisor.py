@@ -65,6 +65,9 @@ TUNABLE_PARAMS = {
     "cluster_eat_reward":      (0.0,   8.0,   float, "reward"),
     "starvation_penalty":      (0.0,   0.05,  float, "reward"),
     "starvation_grace_steps":  (20,    200,   int,   "reward"),
+    "idle_food_penalty":       (0.0,   0.2,   float, "reward"),
+    "idle_food_range":         (100,   2000,  float, "reward"),
+    "food_lock_radius":        (0.0,   600,   float, "reward"),
     # Agent
     "gamma":                   (0.8,   0.999, float, "agent"),
     "lr":                      (1e-6,  1e-3,  float, "agent"),
@@ -454,6 +457,9 @@ class AISupervisor:
                 "cluster_eat_reward": "cluster_eat_reward",
                 "starvation_penalty": "starvation_penalty",
                 "starvation_grace_steps": "starvation_grace_steps",
+                "idle_food_penalty": "idle_food_penalty",
+                "idle_food_range": "idle_food_range",
+                "food_lock_radius": "food_lock_radius",
                 "gamma": "gamma",
             }
             for style_key, param_key in stage_mapping.items():
