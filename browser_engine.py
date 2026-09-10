@@ -190,9 +190,12 @@ class SlitherBrowser:
 
         return True
 
-    def _handle_login(self):
+    def _handle_login(self, wait_cdp=True):
         """
         Handles the initial login screen.
+
+        wait_cdp: if False, skip the CDP activate wait so the caller can
+        reset intercept state and re-arm once after inject/reconnect.
         """
         try:
             # Close extra windows (ads/popups)
@@ -257,7 +260,8 @@ class SlitherBrowser:
                     log("[LOGIN] Game started!")
                     self.inject_override_script()
                     self.inject_fast_getstate()
-                    self._start_cdp_if_enabled()
+                    if wait_cdp:
+                        self._start_cdp_if_enabled()
                     return True
                 time.sleep(0.5)
             
@@ -281,6 +285,13 @@ class SlitherBrowser:
         log(f"[CDP] Not yet active — frames={self._cdp._frames_received} "
             f"ws_detected={self._cdp._game_ws_request_id is not None} "
             f"snakes={len(self._cdp.state.snakes)} init={self._cdp._init_received.is_set()}")
+
+    def _rearm_cdp(self):
+        """Clear stale WS request ids and activate intercept once after respawn."""
+        if not self._use_cdp or not self._cdp:
+            return
+        self._cdp.reset()
+        self._start_cdp_if_enabled()
 
     def inject_override_script(self):
         """
@@ -1035,14 +1046,11 @@ class SlitherBrowser:
         return getGameState();
         """
         try:
-            # CDP path: read from Python memory (instant, no Selenium round-trip)
+            # CDP path: read from Python memory (instant, no Selenium round-trip).
+            # Do not try_activate() here — that is a Selenium execute_script on
+            # every tick after death. Re-arm once on respawn via _rearm_cdp().
             if self._cdp and self._cdp.active:
                 return self._cdp.get_game_data()
-            # Try lazy activation if CDP is receiving frames but not yet active
-            if self._cdp and self._cdp._frames_received > 10 and not self._cdp.state.playing:
-                self._cdp.try_activate()
-                if self._cdp.active:
-                    return self._cdp.get_game_data()
             # Use fast injected function if available (~30 bytes vs ~8KB of JS)
             if getattr(self, '_fast_getstate_injected', False):
                 result = self.driver.execute_script("return window._botGetState();")
@@ -1081,8 +1089,6 @@ class SlitherBrowser:
         angle: target direction in radians (-PI to PI)
         boost: 0 or 1
         """
-        is_boost = 1 if boost > 0.5 else 0
-
         try:
             # CDP interceptor path (WebSocket-based)
             if self._cdp and self._cdp.active:
@@ -1091,11 +1097,8 @@ class SlitherBrowser:
 
             # Set xm/ym directly — game computes wang = atan2(ym, xm)
             # Distance 500 from origin (0,0 = screen center in game coords)
-            boost_js = "window.accelerating=true;if(window.setAcceleration)window.setAcceleration(1);" if is_boost else "window.accelerating=false;if(window.setAcceleration)window.setAcceleration(0);"
-            self.driver.execute_script(
-                f"xm=Math.cos({angle})*500;ym=Math.sin({angle})*500;"
-                f"window._botTargetAng={angle};{boost_js}"
-            )
+            from cdp_intercept import steering_js
+            self.driver.execute_script(steering_js(angle, boost))
         except Exception as e:
             pass
 
@@ -1115,6 +1118,23 @@ class SlitherBrowser:
         self.send_action(angle, boost)
         return self.get_game_data()
 
+    def close(self):
+        """Stop CDP intercept and quit Chrome. Safe to call more than once."""
+        cdp = getattr(self, '_cdp', None)
+        if cdp is not None:
+            try:
+                cdp.stop()
+            except Exception:
+                pass
+            self._cdp = None
+        driver = getattr(self, 'driver', None)
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            self.driver = None
+
     def force_restart(self):
         """
         Resets the game state.
@@ -1127,7 +1147,7 @@ class SlitherBrowser:
 
             if not is_playing:
                 log("[RESTART] Not playing. Reconnecting...")
-                self._handle_login()
+                self._handle_login(wait_cdp=False)
             else:
                 log("[RESTART] Forcing new connection...")
                 self.driver.execute_script("if (window.connect) window.connect();")
@@ -1137,9 +1157,8 @@ class SlitherBrowser:
             self._canvas_center = None   # Reset cached center
             self.inject_override_script()
             self.inject_fast_getstate()
-            # Reset CDP state so it picks up the new game WS connection
-            if self._cdp:
-                self._cdp.reset()
+            # Re-arm CDP once on respawn (not on every get_game_data tick).
+            self._rearm_cdp()
 
         except Exception as e:
             log(f"[RESTART] Error: {e}. Refreshing page...")
@@ -1147,9 +1166,10 @@ class SlitherBrowser:
             self._canvas_center = None
             self.driver.refresh()
             time.sleep(3)
-            self._handle_login()
+            self._handle_login(wait_cdp=False)
             self.inject_override_script()
             self.inject_fast_getstate()
+            self._rearm_cdp()
 
     def inject_view_plus_overlay(self):
         """

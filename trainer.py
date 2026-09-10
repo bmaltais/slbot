@@ -1054,6 +1054,14 @@ class ResourceMonitor:
     def record_step(self, duration):
         self.step_times.append(duration)
 
+    @staticmethod
+    def tick_is_active(dones, infos):
+        """True when every agent is playing (no death/respawn latency in the tick)."""
+        return not any(
+            dones[i] or infos[i].get('spawning') or infos[i].get('spawned')
+            for i in range(len(dones))
+        )
+
     def should_check(self):
         return time.time() - self.last_check > self.check_interval
 
@@ -1078,7 +1086,9 @@ class ResourceMonitor:
 
         # Backend-aware thresholds
         if backend == "websocket":
-            step_down_threshold = 100   # ms
+            # Down threshold matches selenium until CDP respawn is cheap;
+            # death/reconnect ticks must not be in avg_step_ms (see tick_is_active).
+            step_down_threshold = 500   # ms
             step_up_threshold = 50      # ms
             ram_down_threshold = 200    # MB (WS uses ~5MB/agent vs ~500MB)
             ram_up_threshold = 500
@@ -2125,11 +2135,8 @@ def train(args):
             if monitor:
                 # Don't let death/respawn latency look like "system too slow" (or
                 # all-spawning ~1ms steps look like idle capacity to scale up).
-                n_inactive = sum(
-                    1 for i in range(env.num_agents)
-                    if dones[i] or infos[i].get('spawning') or infos[i].get('spawned')
-                )
-                if n_inactive < env.num_agents:
+                # Any inactive agent pollutes avg_step_ms — skip the whole tick.
+                if ResourceMonitor.tick_is_active(dones, infos):
                     monitor.record_step(time.time() - step_start)
 
             loss = None

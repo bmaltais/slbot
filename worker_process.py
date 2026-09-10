@@ -94,7 +94,10 @@ def run_worker_loop(remote, matrix_size, boot_fn, autoreset=False, initial_stage
             with lock:
                 sess = session
             if sess is not None:
-                sess.close()
+                try:
+                    sess.close()
+                except Exception:
+                    pass
             break
 
         with lock:

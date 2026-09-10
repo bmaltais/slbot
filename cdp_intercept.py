@@ -44,6 +44,29 @@ def log(msg):
     print(msg, flush=True)
 
 
+def steering_js(angle, boost):
+    """JS that sets heading the same way as selenium SlitherBrowser.send_action.
+
+    xm/ym are offsets from screen center; the game does `wang = atan2(ym, xm)`.
+    Adding canvas pixel center warps heading toward the bottom-right.
+    """
+    is_boost = 1 if boost > 0.5 else 0
+    if is_boost:
+        boost_js = (
+            "window.accelerating=true;"
+            "if(window.setAcceleration)window.setAcceleration(1);"
+        )
+    else:
+        boost_js = (
+            "window.accelerating=false;"
+            "if(window.setAcceleration)window.setAcceleration(0);"
+        )
+    return (
+        f"xm=Math.cos({angle})*500;ym=Math.sin({angle})*500;"
+        f"window._botTargetAng={angle};{boost_js}"
+    )
+
+
 class CDPInterceptor:
     """
     Intercepts slither.io WebSocket traffic via Chrome DevTools Protocol.
@@ -336,24 +359,10 @@ class CDPInterceptor:
         """
         Send steering command via CDP Runtime.evaluate.
         Much faster than Selenium execute_script (~1-2ms vs ~10-15ms).
+        Must set the same xm/ym as selenium (offsets from screen center).
         """
-        is_boost = 1 if boost > 0.5 else 0
-        js = (
-            f"if(window.slither){{"
-            f"var c=document.getElementById('mc')||document.querySelector('canvas');"
-            f"var cx=c?c.width/2:400,cy=c?c.height/2:300;"
-            f"window._botTargetAng={angle};"
-            f"if(window.slither&&typeof window.slither.wang!=='undefined')window.slither.wang={angle};"
-            f"if(window.slither&&typeof window.slither.eang!=='undefined')window.slither.eang={angle};"
-            f"window.xm=cx+Math.cos({angle})*300;window.ym=cy+Math.sin({angle})*300;"
-            f"if(typeof window.mx!=='undefined')window.mx=window.xm;"
-            f"if(typeof window.my!=='undefined')window.my=window.ym;"
-            f"window.accelerating={'true' if is_boost else 'false'};"
-            f"if(window.setAcceleration)window.setAcceleration({is_boost});"
-            f"}}"
-        )
         self._cdp_send_fire_and_forget('Runtime.evaluate', {
-            'expression': js,
+            'expression': steering_js(angle, boost),
             'returnByValue': False,
         })
 
