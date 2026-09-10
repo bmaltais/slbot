@@ -1,22 +1,18 @@
 import sys
 import os
 import unittest
-from unittest.mock import MagicMock
-import math
+from unittest.mock import MagicMock, patch
 
-# Adjust path to include project root
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-# Add gen2 directory to path so internal imports in slither_env work
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gen2.slither_env import SlitherEnv
+from slither_env import SlitherEnv
+
 
 class TestZeroBug(unittest.TestCase):
-    def test_zero_coordinate_death_handling(self):
+    @patch('slither_env._create_browser', return_value=MagicMock())
+    def test_zero_coordinate_death_handling(self, _mock_create):
         print("\nTesting Zero-Coordinate Death Handling...")
 
-        # 1. Setup Env with mocked browser
-        # We don't want actual chrome launching
         env = SlitherEnv(headless=True, nickname="TestBot", view_plus=False)
         env.browser = MagicMock()
 

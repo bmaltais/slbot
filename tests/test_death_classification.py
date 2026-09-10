@@ -1,40 +1,30 @@
-
 import sys
 import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Add parent dir to path to import slither_env
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the module to be tested
 import slither_env
+
 
 class TestDeathClassification(unittest.TestCase):
     def setUp(self):
-        # We need to patch the SlitherBrowser class used inside slither_env
-        self.patcher = patch('slither_env.SlitherBrowser')
-        self.MockBrowser = self.patcher.start()
+        # Browser is created via _create_browser(), not slither_env.SlitherBrowser.
+        self.patcher = patch('slither_env._create_browser', return_value=MagicMock())
+        self.patcher.start()
+        self.addCleanup(self.patcher.stop)
 
-        # Configure the mock instance
-        self.mock_browser_instance = self.MockBrowser.return_value
-
-        # Instantiate SlitherEnv (it will use the mock)
         self.env = slither_env.SlitherEnv(headless=True)
 
-        # Set default penalties for testing
         self.env.death_wall_penalty = -100
         self.env.death_snake_penalty = -10
 
-        # Default map settings
         self.env.map_radius = 21600
         self.env.map_center_x = 21600
         self.env.map_center_y = 21600
         self.env.boundary_type = 'circle'
         self.env.last_dist_to_wall = 99999
-
-    def tearDown(self):
-        self.patcher.stop()
 
     def test_snake_collision_near_wall(self):
         """
