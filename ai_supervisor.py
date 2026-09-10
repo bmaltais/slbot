@@ -63,6 +63,9 @@ TUNABLE_PARAMS = {
     "boost_penalty":           (-1.0,  2.0,   float, "reward"),
     "length_bonus":            (0.0,   0.5,   float, "reward"),
     "cluster_eat_reward":      (0.0,   8.0,   float, "reward"),
+    "boost_cluster_reward":    (0.0,   2.0,   float, "reward"),
+    "boost_cluster_range":     (150,   800,   float, "reward"),
+    "boost_cluster_min_mass":  (2.0,   20.0,  float, "reward"),
     "starvation_penalty":      (0.0,   0.05,  float, "reward"),
     "starvation_grace_steps":  (20,    200,   int,   "reward"),
     "idle_food_penalty":       (0.0,   0.2,   float, "reward"),
@@ -121,6 +124,10 @@ or if avg_steps is decreasing over time despite other metrics being stable.
 ## Guidelines
 
 - Focus on FOOD EFFICIENCY first — the snake needs to grow to survive. If food/step < 0.20, boost food_reward.
+- In Stage 1, keep food_shaping in 0.03-0.08 so the snake aims at clusters. Near-zero shaping makes it wander.
+- cluster_eat_reward pays extra for eating a pile vs a crumb (vanished mass, not length ticks).
+- idle_food_penalty + short starvation punish cruising through empty space while food is in reach.
+- boost_cluster_reward pays for boosting toward a nearby high-mass pile; boost_penalty still applies when that does not fire.
 - Make conservative changes — the agent is learning online; drastic shifts destabilize training.
 - Only change 1-3 parameters per consultation. Do NOT change everything at once.
 - If training looks healthy (improving reward, reasonable food intake), recommend NO changes.
@@ -455,6 +462,9 @@ class AISupervisor:
                 "boost_penalty": "boost_penalty",
                 "length_bonus": "length_bonus",
                 "cluster_eat_reward": "cluster_eat_reward",
+                "boost_cluster_reward": "boost_cluster_reward",
+                "boost_cluster_range": "boost_cluster_range",
+                "boost_cluster_min_mass": "boost_cluster_min_mass",
                 "starvation_penalty": "starvation_penalty",
                 "starvation_grace_steps": "starvation_grace_steps",
                 "idle_food_penalty": "idle_food_penalty",

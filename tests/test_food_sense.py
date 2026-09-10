@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from food_sense import (
+    CLUSTER_EAT_MASS_CAP,
     FOOD_CHANNEL_LOG_CAP,
     FOOD_KEEP_DIST_BIAS,
     FOOD_LIST_PRUNE_MULT,
@@ -16,6 +17,7 @@ from food_sense import (
     PREY_DEFAULT_SIZE,
     configured_max_foods,
     best_food_target,
+    boost_cluster_bonus,
     cluster_eat_bonus,
     cluster_foods,
     eaten_food_mass,
@@ -164,6 +166,62 @@ class TestFoodSenseHelpers(unittest.TestCase):
         unlocked = best_food_target(pile_a + pile_b, 0.0, 0.0)
         self.assertAlmostEqual(best[0], unlocked[0])
         self.assertAlmostEqual(best[1], unlocked[1])
+
+    def test_best_target_aims_at_near_end_of_trail(self):
+        trail = [[80.0 + i * 80.0, 0.0, 1.0] for i in range(10)]
+        target = best_food_target(trail, 0.0, 0.0)
+        self.assertIsNotNone(target)
+        cx, cy, dist, mass = target
+        self.assertAlmostEqual(mass, 10.0)
+        self.assertLess(cx, 160.0)
+        self.assertGreater(cx, 40.0)
+        self.assertAlmostEqual(dist, cx)
+
+    def test_abutting_crumb_joins_the_trail(self):
+        crumb = [[30.0, 0.0, 1.0]]
+        trail = [[80.0 + i * 80.0, 0.0, 1.0] for i in range(10)]
+        target = best_food_target(crumb + trail, 0.0, 0.0)
+        self.assertIsNotNone(target)
+        self.assertAlmostEqual(target[3], 11.0)
+        self.assertAlmostEqual(target[0], 30.0)
+
+    def test_trail_beats_disconnected_crumb(self):
+        crumb = [[0.0, 250.0, 1.0]]
+        trail = [[80.0 + i * 80.0, 0.0, 1.0] for i in range(10)]
+        target = best_food_target(crumb + trail, 0.0, 0.0)
+        self.assertIsNotNone(target)
+        self.assertAlmostEqual(target[3], 10.0)
+        self.assertGreater(target[0], 50.0)
+        self.assertLess(abs(target[1]), 1.0)
+
+    def test_disconnected_piles_are_separate_strings(self):
+        pile_a = [[200.0 + i, 0.0, 1.0] for i in range(8)]
+        pile_b = [[0.0, 280.0 + i, 1.0] for i in range(20)]
+        target = best_food_target(pile_a + pile_b, 0.0, 0.0)
+        self.assertIsNotNone(target)
+        self.assertGreater(target[1], 200.0)
+        self.assertAlmostEqual(target[3], 20.0)
+
+    def test_lock_slides_along_trail(self):
+        trail = [[80.0 + i * 80.0, 0.0, 1.0] for i in range(10)]
+        first = best_food_target(trail, 0.0, 0.0)
+        self.assertIsNotNone(first)
+        self.assertAlmostEqual(first[0], 80.0)
+        rest = trail[1:]
+        locked = locked_food_target(rest, 80.0, 0.0, first)
+        self.assertIsNotNone(locked)
+        self.assertAlmostEqual(locked[0], 160.0)
+        self.assertAlmostEqual(locked[3], 9.0)
+
+    def test_boost_cluster_bonus_requires_close_fat_closing_pile(self):
+        self.assertEqual(boost_cluster_bonus(180.0, 16.0, False, 0.4), 0.0)
+        self.assertEqual(boost_cluster_bonus(180.0, 2.0, True, 0.4), 0.0)
+        self.assertEqual(boost_cluster_bonus(500.0, 16.0, True, 0.4), 0.0)
+        self.assertEqual(boost_cluster_bonus(None, 16.0, True, 0.4), 0.0)
+        paid = boost_cluster_bonus(180.0, 16.0, True, 0.4)
+        self.assertGreater(paid, 0.0)
+        expected = 0.4 * squash_mass(16.0, CLUSTER_EAT_MASS_CAP) * (1.0 - 180.0 / 400.0)
+        self.assertAlmostEqual(paid, expected)
 
     def test_idle_food_cost_only_when_in_range_and_hungry(self):
         self.assertEqual(idle_food_cost(200.0, ate=False, penalty=0.03, commit_range=500.0), 0.03)
