@@ -529,9 +529,13 @@ class SlitherEnv:
         return info
 
     def _spawning_obs(self):
-        obs = self._matrix_zeros()
-        obs['spawning'] = True
-        return obs
+        """Reuse zero arrays for spawn-wait ticks (arrays are treated as read-only)."""
+        cached = getattr(self, '_cached_spawning_arrays', None)
+        if cached is None:
+            z = self._matrix_zeros()
+            cached = (z['matrix'], z['sectors'])
+            self._cached_spawning_arrays = cached
+        return {'matrix': cached[0], 'sectors': cached[1], 'spawning': True}
 
     def _cdp_ready(self):
         ready = getattr(self.browser, 'cdp_is_active', None)

@@ -416,6 +416,14 @@ class TestCdpSpawnGate(unittest.TestCase):
         self.assertFalse(obs.get('spawning', False))
         self.assertIn('matrix', obs)
 
+    def test_spawning_obs_reuses_zero_arrays(self):
+        env = self._env()
+        a = env._spawning_obs()
+        b = env._spawning_obs()
+        self.assertTrue(a.get('spawning'))
+        self.assertIs(a['matrix'], b['matrix'])
+        self.assertIs(a['sectors'], b['sectors'])
+
     def test_step_stays_spawning_while_cdp_unarmed(self):
         env = self._env()
         obs, reward, done, info = env.step(0)

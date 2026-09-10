@@ -1921,7 +1921,7 @@ def train(args):
             dashboard.log_event(f"AI: {short}")
 
     def finalize_episode(agent_index, terminal_state, cause, force_done_flag):
-        nonlocal start_episode, max_steps_per_episode, best_avg_reward, best_fitness, episodes_since_improvement, one_step_deaths
+        nonlocal start_episode, max_steps_per_episode, best_avg_reward, best_fitness, episodes_since_improvement, one_step_deaths, cdp_play_ticks, cdp_active_ticks, cdp_fallback_max
         total_steps_local = episode_steps[agent_index]
         if total_steps_local <= 1 and not force_done_flag:
             one_step_deaths += 1

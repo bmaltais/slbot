@@ -188,6 +188,20 @@ class CDPInterceptor:
         if self._listener_thread and self._listener_thread.is_alive():
             self._listener_thread.join(timeout=3.0)
 
+    def _reset_parsed_state(self, *, clear_ws_id=False):
+        """Rebuild GameState and frame counters. Caller may already hold `_lock`."""
+        old_connected = self.state.connected
+        self.state = GameState()
+        self.state.connected = old_connected
+        self._packet_handler.state = self.state
+        if clear_ws_id:
+            self._game_ws_request_id = None
+        self._frames_received = 0
+        self._init_received.clear()
+        spawn_ev = getattr(self._packet_handler, '_spawn_received', None)
+        if spawn_ev is not None:
+            spawn_ev.clear()
+
     def reset(self, *, clear_ws_id=False):
         """Reset parsed game state for a new round.
 
@@ -196,17 +210,7 @@ class CDPInterceptor:
         id then drops incoming frames and CDP never activates.
         """
         with self._lock:
-            old_connected = self.state.connected
-            self.state = GameState()
-            self.state.connected = old_connected
-            self._packet_handler.state = self.state
-            if clear_ws_id:
-                self._game_ws_request_id = None
-            self._frames_received = 0
-            self._init_received.clear()
-            spawn_ev = getattr(self._packet_handler, '_spawn_received', None)
-            if spawn_ev is not None:
-                spawn_ev.clear()
+            self._reset_parsed_state(clear_ws_id=clear_ws_id)
 
     def _cdp_send(self, method, params=None):
         """Send a CDP command and return the response."""
@@ -279,8 +283,9 @@ class CDPInterceptor:
             if '/slither' in url or ':444' in url:
                 # Bind the new id only. Do not wipe playing/my_id — Chrome may
                 # already have spawned, and env.reset waits on that gate.
-                self._game_ws_request_id = rid
-                self._frames_received = 0
+                with self._lock:
+                    self._game_ws_request_id = rid
+                    self._frames_received = 0
                 log(f"[CDP] Game WebSocket detected: {url} (rid={rid})")
 
         elif method == 'Network.webSocketFrameReceived':
@@ -298,9 +303,11 @@ class CDPInterceptor:
                             # Text frame — raw UTF-8 bytes
                             raw = payload_data.encode('utf-8')
                         self._handle_game_frame(raw)
-                        self._frames_received += 1
-                        if self._frames_received <= 3:
-                            log(f"[CDP] Frame #{self._frames_received}: {len(raw)}B opcode={opcode} "
+                        with self._lock:
+                            self._frames_received += 1
+                            nframes = self._frames_received
+                        if nframes <= 3:
+                            log(f"[CDP] Frame #{nframes}: {len(raw)}B opcode={opcode} "
                                 f"first_bytes={list(raw[:8])}")
                     except Exception as e:
                         logger.debug(f"[CDP] Frame decode error: {e}")
