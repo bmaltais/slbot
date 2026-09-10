@@ -258,7 +258,7 @@ class TestFoodObservation(unittest.TestCase):
         crumb = self.env._process_data_to_matrix(crumb_data)[0]
         pile = self.env._process_data_to_matrix(pile_data)[0]
         self.assertGreater(float(pile.max()), float(crumb.max()))
-        self.assertLessEqual(float(pile.max()), 1.0)
+        self.assertLessEqual(float(pile.max()), 255)  # uint8 frame
 
     def test_sector_score_sums_cluster_mass(self):
         crumb = self.env._compute_sectors(self._data([[21800.0, 21600.0, 1.0]]))
@@ -278,8 +278,9 @@ class TestFoodObservation(unittest.TestCase):
         crumb = self.env._process_data_to_matrix(self._data([[21700.0, 21600.0, 1.0]]))[0]
         big = self.env._process_data_to_matrix(self._data([[21700.0, 21600.0, 12.0]]))[0]
         self.assertGreater(float(big.max()), float(crumb.max()))
-        self.assertGreater(int((big > 0.05).sum()), int((crumb > 0.05).sum()))
-        self.assertLessEqual(float(big.max()), 1.0)
+        # uint8 frame: 0.05 of full scale is ~12
+        self.assertGreater(int((big > 12).sum()), int((crumb > 12).sum()))
+        self.assertLessEqual(float(big.max()), 255)
 
 
 class TestWsFoodRange(unittest.TestCase):

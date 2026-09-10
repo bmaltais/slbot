@@ -43,7 +43,9 @@ class TestSlitherEnv(unittest.TestCase):
         # At (42, 42), distance is 21500.
         # Wall threshold = 21600 - 500 = 21100.
         # 21500 > 21100, so it IS Wall (Warning Zone).
-        self.assertEqual(matrix[1, 42, 42], 1.0)
+        # Frames are uint8: 1.0 renders as 255.
+        self.assertEqual(matrix.dtype, np.uint8)
+        self.assertEqual(matrix[1, 42, 42], 255)
 
         # Check Wall rendering
         # View radius 500. Scale = 84 / 1000 = 0.084.
@@ -52,7 +54,7 @@ class TestSlitherEnv(unittest.TestCase):
         # dx_wall = 100.
         # gx = 42 + 100 * 0.084 = 50.4 -> 50.
         # So at gx=52, we should be strictly outside.
-        self.assertEqual(matrix[1, 42, 55], 1.0)
+        self.assertEqual(matrix[1, 42, 55], 255)
 
     def test_update_from_game_data_ignores_nan(self):
         self.env.last_dist_to_wall = 1234

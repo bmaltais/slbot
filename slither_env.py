@@ -27,7 +27,7 @@ from food_sense import (
     cluster_eat_bonus,
     eaten_food_mass,
     food_draw_radius_px,
-    food_size,
+    foods_xyz,
     idle_food_cost,
     locked_food_target,
     squash_mass,
@@ -37,6 +37,106 @@ ACTION_DIM = 14
 ACTION_BOOST = 11
 ACTION_BOOST_LEFT = 12
 ACTION_BOOST_RIGHT = 13
+
+# Observation frames leave the env as uint8 (0..255). The float [0, 1]
+# render is quantized once here — the replay buffer stores uint8 anyway, and
+# shipping uint8 across the worker pipe is 4x less pickle traffic.
+FRAME_DTYPE = np.uint8
+
+
+def quantize_frame(frame):
+    """[0, 1] float frame -> uint8. Clipped so an out-of-range value can never
+    wrap around during the cast. uint8 input is returned as-is."""
+    frame = np.asarray(frame)
+    if frame.dtype == FRAME_DTYPE:
+        return frame
+    return np.clip(frame * 255.0, 0.0, 255.0).astype(FRAME_DTYPE)
+
+
+def _pts_xy(pts):
+    """Body points -> (n, 2) float64 array. Tolerates ragged / short entries."""
+    if not pts:
+        return np.empty((0, 2), dtype=np.float64)
+    try:
+        arr = np.asarray(pts, dtype=np.float64)
+    except (TypeError, ValueError):
+        arr = None
+    if arr is None or arr.ndim != 2 or arr.shape[1] < 2:
+        arr = np.asarray(
+            [(p[0], p[1]) for p in pts if p is not None and len(p) >= 2],
+            dtype=np.float64,
+        ).reshape(-1, 2)
+    return arr[:, :2]
+
+
+def _disc_pixels(cx, cy, r, size):
+    """Grid cells covered by filled discs, vectorized over discs.
+
+    Same cells the old per-pixel loop visited: for each disc, the window
+    [floor(c) - ceil(r), floor(c) + ceil(r)] on both axes, keeping cells
+    whose centre lies within r of (cx, cy), clipped to the size x size grid.
+    Returns (ys, xs, disc_index) int64 arrays (may be empty).
+    """
+    cx = np.asarray(cx, dtype=np.float64).ravel()
+    cy = np.asarray(cy, dtype=np.float64).ravel()
+    r = np.broadcast_to(np.asarray(r, dtype=np.float64), cx.shape).ravel()
+    empty = (np.empty(0, np.int64),) * 3
+    if cx.size == 0:
+        return empty
+
+    r_int = np.ceil(r).astype(np.int64)
+    fx = np.floor(cx).astype(np.int64)
+    fy = np.floor(cy).astype(np.int64)
+    # Drop discs whose window misses the grid entirely (most enemy body
+    # points are off-crop) before allocating the per-disc windows.
+    keep = ((fx + r_int >= 0) & (fx - r_int < size)
+            & (fy + r_int >= 0) & (fy - r_int < size))
+    if not keep.all():
+        idx_keep = np.nonzero(keep)[0]
+        if idx_keep.size == 0:
+            return empty
+        cx, cy, r, r_int, fx, fy = (a[idx_keep] for a in (cx, cy, r, r_int, fx, fy))
+    else:
+        idx_keep = None
+
+    offs = np.arange(-int(r_int.max()), int(r_int.max()) + 1, dtype=np.int64)
+    # Per-disc window columns / rows (N, K); the (N, K, K) work is one add
+    # and one compare. dy² + dx² is exactly the loop's dx*dx + dy*dy.
+    ox = fx[:, None] + offs[None, :]
+    oy = fy[:, None] + offs[None, :]
+    dx2 = (ox - cx[:, None]) ** 2
+    dy2 = (oy - cy[:, None]) ** 2
+    inside = dy2[:, :, None] + dx2[:, None, :] <= (r * r)[:, None, None]
+    inside &= ((oy >= 0) & (oy < size))[:, :, None]
+    inside &= ((ox >= 0) & (ox < size))[:, None, :]
+    d_local, iy, ix = np.nonzero(inside)
+    pix_y = oy[d_local, iy]
+    pix_x = ox[d_local, ix]
+    di = idx_keep[d_local] if idx_keep is not None else d_local
+    return pix_y, pix_x, di
+
+
+def _thick_polyline_samples(px, py, radius):
+    """Disc centres a thick polyline is built from.
+
+    Reproduces `_draw_thick_line` for every consecutive point pair: circles
+    spaced half a radius apart along each segment, both endpoints included.
+    """
+    px = np.asarray(px, dtype=np.float64)
+    py = np.asarray(py, dtype=np.float64)
+    if px.size < 2:
+        return px, py
+    x0, y0, x1, y1 = px[:-1], py[:-1], px[1:], py[1:]
+    ddx = x1 - x0
+    ddy = y1 - y0
+    dist = np.hypot(ddx, ddy)
+    steps = (dist / max(0.5, radius * 0.5)).astype(np.int64) + 1
+    counts = steps + 1
+    seg = np.repeat(np.arange(steps.size), counts)
+    starts = np.cumsum(counts) - counts
+    i_local = np.arange(counts.sum()) - np.repeat(starts, counts)
+    t = i_local / steps[seg]
+    return x0[seg] + t * ddx[seg], y0[seg] + t * ddy[seg]
 
 
 def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
@@ -276,6 +376,9 @@ class SlitherEnv:
         # guaranteed (by construction) to return _locked_food_target
         # unchanged, so step() can skip recomputing it.
         self._cached_lock_radius = None
+        # foods list -> (n, 3) array, built once per tick (see _foods_array)
+        self._foods_cache_key = None
+        self._foods_cache = None
 
         # Frame validation (from tsrgy0)
         self.last_matrix = self._matrix_zeros()
@@ -418,17 +521,30 @@ class SlitherEnv:
         """Surface-to-surface distance to nearest enemy (accounts for body width)."""
         min_enemy_dist = float('inf')
         for e in enemies or []:
-            ex, ey = e.get('x', 0), e.get('y', 0)
             half_width = e.get('sc', 1.0) * 29.0 * 0.5
-            head_dist = max(0.0, math.hypot(ex - mx, ey - my) - half_width)
-            min_enemy_dist = min(min_enemy_dist, head_dist)
-            for pt in e.get('pts', []):
-                if len(pt) >= 2:
-                    px, py = pt[0], pt[1]
-                    body_dist = max(0.0, math.hypot(px - mx, py - my) - half_width)
-                    min_enemy_dist = min(min_enemy_dist, body_dist)
+            pts = _pts_xy(e.get('pts', []))
+            xs = np.append(pts[:, 0], e.get('x', 0))
+            ys = np.append(pts[:, 1], e.get('y', 0))
+            # min over max(0, d_i) == max(0, min d_i)
+            nearest = max(0.0, float((np.hypot(xs - mx, ys - my) - half_width).min()))
+            if nearest < min_enemy_dist:
+                min_enemy_dist = nearest
         return min_enemy_dist
-    
+
+    def _foods_array(self, foods):
+        """(n, 3) float64 [x, y, size] for a foods list (size as food_size()).
+
+        The matrix, the sector vector and step()'s shaping all read the same
+        list every tick, so the conversion is cached per list object. The
+        list itself is held so its id cannot be recycled while cached.
+        """
+        if foods is self._foods_cache_key and self._foods_cache is not None:
+            return self._foods_cache
+        arr = foods_xyz(foods)
+        self._foods_cache_key = foods
+        self._foods_cache = arr
+        return arr
+
     def _is_outside_map(self, x, y):
         """Returns True if position is outside the map boundary."""
         return self.last_dist_to_wall <= 0
@@ -437,52 +553,37 @@ class SlitherEnv:
         """Returns True if position is within threshold of wall."""
         return self.last_dist_to_wall < threshold
 
-    def _draw_circle(self, matrix, channel, cx, cy, r, value, blend='set'):
-        """Draws a filled circle on the matrix.
+    def _draw_discs(self, matrix, channel, cx, cy, r, value, blend='set'):
+        """Filled discs on one float channel, vectorized over discs.
 
-        blend='set' overwrites, 'max' keeps the brighter cell, 'add' accumulates.
+        blend='set' overwrites, 'max' keeps the brighter cell, 'add'
+        accumulates. `value` is a scalar, or one value per disc for
+        'add'/'max' ('set' with per-disc values would have no defined winner
+        where discs overlap).
         """
-        r_int = int(math.ceil(r))
-        x_min = max(0, int(cx - r_int))
-        x_max = min(self.matrix_size, int(cx + r_int + 1))
-        y_min = max(0, int(cy - r_int))
-        y_max = min(self.matrix_size, int(cy + r_int + 1))
-
-        r_sq = r * r
-        use_max = blend == 'max'
-        use_add = blend == 'add'
-
-        for y in range(y_min, y_max):
-            for x in range(x_min, x_max):
-                dx = x - cx
-                dy = y - cy
-                if dx*dx + dy*dy <= r_sq:
-                    if use_max:
-                        if value > matrix[channel, y, x]:
-                            matrix[channel, y, x] = value
-                    elif use_add:
-                        matrix[channel, y, x] += value
-                    else:
-                        matrix[channel, y, x] = value
-
-    def _draw_thick_line(self, matrix, channel, x0, y0, x1, y1, width, value):
-        """Draws a thick line by interpolating circles along the segment."""
-        radius = width / 2.0
-        dist = math.hypot(x1 - x0, y1 - y0)
-
-        if dist == 0:
-            self._draw_circle(matrix, channel, x0, y0, radius, value)
+        size = self.matrix_size
+        ys, xs, di = _disc_pixels(cx, cy, r, size)
+        if ys.size == 0:
             return
+        ch = matrix[channel]
+        vals = np.asarray(value, dtype=np.float64)
+        if blend == 'add':
+            vals = vals[di] if vals.ndim else np.full(di.shape, float(vals))
+            acc = np.bincount(ys * size + xs, weights=vals, minlength=size * size)
+            ch += acc.reshape(size, size).astype(np.float32)
+        elif blend == 'max':
+            np.maximum.at(ch, (ys, xs), vals[di] if vals.ndim else float(vals))
+        else:
+            if vals.ndim:
+                raise ValueError("blend='set' needs a scalar value")
+            ch[ys, xs] = float(vals)
 
-        # Interpolate circles
-        # Step size should be radius to ensure coverage
-        steps = int(dist / max(0.5, radius * 0.5)) + 1
-
-        for i in range(steps + 1):
-            t = i / max(1, steps)
-            x = x0 + t * (x1 - x0)
-            y = y0 + t * (y1 - y0)
-            self._draw_circle(matrix, channel, x, y, radius, value)
+    def _draw_thick_polyline(self, matrix, channel, px, py, width, value):
+        """Thick polyline through (px[i], py[i]): discs of radius width/2
+        every half radius along each segment, overwriting with `value`."""
+        radius = width / 2.0
+        sx, sy = _thick_polyline_samples(px, py, radius)
+        self._draw_discs(matrix, channel, sx, sy, radius, value)
 
     # =====================================================
     # DEATH CLASSIFICATION (Forensic approach)
@@ -900,7 +1001,8 @@ class SlitherEnv:
             pre_food_target = self._locked_food_target
         else:
             pre_food_target = locked_food_target(
-                foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
+                self._foods_array(foods), mx, my, self._locked_food_target,
+                lock_radius=self.food_lock_radius,
             )
             self._locked_food_target = pre_food_target
         current_food_dist = pre_food_target[2] if pre_food_target else None
@@ -1053,16 +1155,15 @@ class SlitherEnv:
             # data) without setting the cache — fall back to computing it
             # directly so shaping doesn't silently go stale.
             post_food_target = locked_food_target(
-                new_foods, new_x, new_y, self._locked_food_target, lock_radius=self.food_lock_radius,
+                self._foods_array(new_foods), new_x, new_y, self._locked_food_target,
+                lock_radius=self.food_lock_radius,
             )
         new_food_dist = post_food_target[2] if post_food_target else None
         nearby_food_mass = 0.0
-        for f in new_foods:
-            if len(f) < 2:
-                continue
-            fdist = math.hypot(f[0] - new_x, f[1] - new_y)
-            if fdist <= 1200:
-                nearby_food_mass += f[2] if len(f) > 2 else 1.0
+        farr = self._foods_array(new_foods)
+        if farr.shape[0]:
+            fdist = np.hypot(farr[:, 0] - new_x, farr[:, 1] - new_y)
+            nearby_food_mass = float(farr[fdist <= 1200, 2].sum())
 
         sc = float(new_snake.get('sc', 1.0) or 1.0)
         eat_radius = max(50.0, sc * 29.0)
@@ -1204,7 +1305,7 @@ class SlitherEnv:
 
     def _matrix_zeros(self):
         return {
-            'matrix': np.zeros((3, self.matrix_size, self.matrix_size), dtype=np.float32),
+            'matrix': np.zeros((3, self.matrix_size, self.matrix_size), dtype=FRAME_DTYPE),
             'sectors': np.zeros(99, dtype=np.float32),
         }
 
@@ -1270,13 +1371,10 @@ class SlitherEnv:
 
         # --- Food scores (sum mass in sector, then log-squash so piles beat crumbs) ---
         # Vectorized: same per-food math as to_ego_angle_dist/sector_index/
-        # score_distance above, but as array ops instead of a Python loop —
-        # food_size() still runs per-item since food entries have variable
-        # length, but the trig/binning that dominated cost does not.
+        # score_distance above, but as array ops instead of a Python loop.
         foods = data.get('foods', [])
-        valid = [(f[0], f[1], food_size(f)) for f in foods if len(f) >= 2]
-        if valid:
-            arr = np.asarray(valid, dtype=np.float64)
+        arr = self._foods_array(foods)
+        if arr.shape[0]:
             fx, fy, f_sz = arr[:, 0], arr[:, 1], arr[:, 2]
             dx = fx - mx
             dy = fy - my_
@@ -1332,20 +1430,27 @@ class SlitherEnv:
                     approach = (rel_vx * to_us_x + rel_vy * to_us_y) / to_us_len
                     sectors[72 + si] = max(-1.0, min(1.0, approach))
 
-            # Body points
-            for pt in e.get('pts', []):
-                if len(pt) < 2:
-                    continue
-                px, py = pt[0], pt[1]
-                dx, dy = px - mx, py - my_
-                angle, dist = to_ego_angle_dist(dx, dy)
-                effective_dist = max(0.0, dist - half_width)
-                if effective_dist < SCOPE:
-                    si = sector_index(angle)
-                    sc = score_distance(effective_dist)
-                    if sc > sectors[24 + si]:
-                        sectors[24 + si] = sc
-                        sectors[48 + si] = 0.0  # body type
+            # Body points — vectorized form of the per-point loop above:
+            # a sector takes the closest body point's score when that beats
+            # what is already there (head/earlier enemies) and becomes body type.
+            pts = _pts_xy(e.get('pts', []))
+            if pts.shape[0]:
+                bdx = pts[:, 0] - mx
+                bdy = pts[:, 1] - my_
+                bdist = np.hypot(bdx, bdy)
+                eff = np.maximum(0.0, bdist - half_width)
+                within = eff < SCOPE
+                if np.any(within):
+                    rx = -sin_a * bdx[within] + cos_a * bdy[within]
+                    ry = -cos_a * bdx[within] - sin_a * bdy[within]
+                    angle = np.arctan2(rx, -ry)
+                    angle = np.where(angle < 0.0, angle + 2.0 * math.pi, angle)
+                    si = (angle / SECTOR_ANGLE).astype(np.int64) % NUM_SECTORS
+                    body_best = np.full(NUM_SECTORS, -1.0)
+                    np.maximum.at(body_best, si, 1.0 - eff[within] / SCOPE)
+                    better = body_best > sectors[24:48]
+                    sectors[24:48][better] = body_best[better]
+                    sectors[48:72][better] = 0.0  # body type
 
         # --- Wall per sector (ray-circle intersection) ---
         # Map is circle centered at (map_center_x, map_center_y) with radius map_radius
@@ -1401,17 +1506,20 @@ class SlitherEnv:
         Channel 0: Food
         Channel 1: Enemies (Head = 1.0, Body = 0.5) + Walls (1.0) -> DANGER
         Channel 2: Self (Head = 1.0, Body = 0.5) -> SAFE/SELF
-        
+
+        Rendered in float [0, 1] and returned quantized to uint8 (0..255),
+        the format the replay buffer stores and the worker pipe carries.
+
         Uses DYNAMIC view_radius from game for correct scaling!
         """
         matrix = np.zeros((3, self.matrix_size, self.matrix_size), dtype=np.float32)
 
         if not data or data.get('dead'):
-            return matrix
+            return quantize_frame(matrix)
 
         my_snake = data.get('self')
         if not my_snake:
-            return matrix
+            return quantize_frame(matrix)
 
         mx, my = my_snake['x'], my_snake['y']
         ang = my_snake.get('ang', 0)
@@ -1419,12 +1527,6 @@ class SlitherEnv:
         # Egocentric rotation: rotate world so snake heading = matrix "up"
         sin_a = math.sin(ang)
         cos_a = math.cos(ang)
-
-        def _ego(dx, dy):
-            """World-relative (dx,dy) → egocentric grid coords."""
-            rx = -sin_a * dx + cos_a * dy
-            ry = -cos_a * dx - sin_a * dy
-            return int(rx * self.scale + self.matrix_size / 2), int(ry * self.scale + self.matrix_size / 2)
 
         def _ego_raw(dx, dy):
             """World-relative (dx,dy) → egocentric (rx,ry) unscaled."""
@@ -1457,18 +1559,15 @@ class SlitherEnv:
             self._map_vars_printed = True
 
         # 1. Food (Channel 0) — splat mass so large pellets are bigger AND brighter.
-        # Vectorized: compute egocentric px/py + draw radius for every food at
-        # once and filter to the handful actually inside the crop, instead of
-        # doing that arithmetic in a per-item Python loop. _draw_circle still
-        # runs per surviving food (it mutates `matrix`, not vectorizable here)
-        # but that's now only ~1/4 of `foods`, same as before this change.
+        # Every pellet's egocentric centre and draw radius is computed as
+        # array math and all discs are rasterized in one vectorized pass
+        # (off-crop pellets are culled inside _disc_pixels).
         foods = data.get('foods', [])
         cx_grid = self.matrix_size / 2.0
         cy_grid = self.matrix_size / 2.0
-        valid = [(f[0], f[1], food_size(f)) for f in foods if len(f) >= 2]
-        if valid:
-            arr = np.asarray(valid, dtype=np.float64)
-            fx, fy, sz = arr[:, 0], arr[:, 1], arr[:, 2]
+        farr = self._foods_array(foods)
+        if farr.shape[0]:
+            fx, fy, sz = farr[:, 0], farr[:, 1], farr[:, 2]
             dxw = fx - mx
             dyw = fy - my
             rx = -sin_a * dxw + cos_a * dyw
@@ -1476,10 +1575,7 @@ class SlitherEnv:
             hx = cx_grid + rx * self.scale
             hy = cy_grid + ry * self.scale
             r = food_draw_radius_px(sz, self.scale)
-            m = self.matrix_size
-            visible = ~((hx < -r) | (hy < -r) | (hx >= m + r) | (hy >= m + r))
-            for i in np.nonzero(visible)[0]:
-                self._draw_circle(matrix, 0, hx[i], hy[i], r[i], sz[i], blend='add')
+            self._draw_discs(matrix, 0, hx, hy, r, sz, blend='add')
 
         food_ch = matrix[0]
         if food_ch.max() > 0:
@@ -1491,7 +1587,7 @@ class SlitherEnv:
         # step() reuses this same (foods, mx, my, lock) result for its
         # post-action shaping instead of recomputing the identical call.
         cluster = locked_food_target(
-            foods, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
+            farr, mx, my, self._locked_food_target, lock_radius=self.food_lock_radius,
         )
         self._matrix_food_target = cluster
         if cluster:
@@ -1515,7 +1611,7 @@ class SlitherEnv:
                     t = min(tx, ty)
                     ex = cx + t * ndx
                     ey = cy + t * ndy
-                    self._draw_circle(matrix, 0, ex, ey, 1.5, 0.8, blend='max')
+                    self._draw_discs(matrix, 0, ex, ey, 1.5, 0.8, blend='max')
 
         # 2. Enemies (Channel 1)
         enemies = data.get('enemies', [])
@@ -1546,47 +1642,45 @@ class SlitherEnv:
 
             # Only draw if roughly on screen (optimization)
             if -50 < hx < self.matrix_size + 50 and -50 < hy < self.matrix_size + 50:
-                 self._draw_circle(matrix, 1, hx, hy, head_radius, 1.0)
+                self._draw_discs(matrix, 1, hx, hy, head_radius, 1.0)
 
-            pts = e.get('pts', [])
-
-            # Draw Body
-            prev_x, prev_y = hx, hy
-
-            for pt in pts:
-                px_world, py_world = pt[0], pt[1]
-                rx_p, ry_p = _ego_raw(px_world - mx, py_world - my)
-
-                px_grid = cx_grid + rx_p * self.scale
-                py_grid = cy_grid + ry_p * self.scale
-
-                self._draw_thick_line(matrix, 1, prev_x, prev_y, px_grid, py_grid, width_matrix, 0.5)
-                prev_x, prev_y = px_grid, py_grid
+            # Draw Body: one thick polyline head -> pts[0] -> pts[1] ...
+            # (drawn after the head, so the body overwrites where they overlap,
+            # exactly like the old per-segment draw order)
+            pts = _pts_xy(e.get('pts', []))
+            if pts.shape[0]:
+                pdx = pts[:, 0] - mx
+                pdy = pts[:, 1] - my
+                rx_p = -sin_a * pdx + cos_a * pdy
+                ry_p = -cos_a * pdx - sin_a * pdy
+                px = np.concatenate(([hx], cx_grid + rx_p * self.scale))
+                py = np.concatenate(([hy], cy_grid + ry_p * self.scale))
+                self._draw_thick_polyline(matrix, 1, px, py, width_matrix, 0.5)
 
         # 3. Self (Channel 2)
         cx, cy = self.matrix_size // 2, self.matrix_size // 2
 
-        my_pts = my_snake.get('pts', [])
+        my_pts = _pts_xy(my_snake.get('pts', []))
         my_sc = my_snake.get('sc', 1.0)
         # Enforce minimum width of 2.5 pixels for self as well
         my_width_matrix = max(2.5, (my_sc * 29.0) * self.scale)
 
-        # Head to first point
-        if my_pts:
-             px, py = my_pts[0][0], my_pts[0][1]
-             bx, by = _ego(px - mx, py - my)
-             self._draw_thick_line(matrix, 2, cx, cy, bx, by, my_width_matrix, 0.5)
-
-        for i in range(len(my_pts) - 1):
-            p1 = my_pts[i]
-            p2 = my_pts[i+1]
-            x1, y1 = _ego(p1[0] - mx, p1[1] - my)
-            x2, y2 = _ego(p2[0] - mx, p2[1] - my)
-            self._draw_thick_line(matrix, 2, x1, y1, x2, y2, my_width_matrix, 0.5)
+        # Body: polyline from the head cell through every body point. Body
+        # cells are truncated to integer grid coords (toward zero, like int()).
+        if my_pts.shape[0]:
+            pdx = my_pts[:, 0] - mx
+            pdy = my_pts[:, 1] - my
+            rx_p = -sin_a * pdx + cos_a * pdy
+            ry_p = -cos_a * pdx - sin_a * pdy
+            bx = (rx_p * self.scale + self.matrix_size / 2).astype(np.int64)
+            by = (ry_p * self.scale + self.matrix_size / 2).astype(np.int64)
+            px = np.concatenate(([cx], bx))
+            py = np.concatenate(([cy], by))
+            self._draw_thick_polyline(matrix, 2, px, py, my_width_matrix, 0.5)
 
         # Head
         my_head_radius = (my_width_matrix / 2.0) * 1.2
-        self._draw_circle(matrix, 2, cx, cy, my_head_radius, 1.0)
+        self._draw_discs(matrix, 2, cx, cy, my_head_radius, 1.0)
 
         # 4. Walls (Channel 1 - DANGER)
         # Radial / Circular Wall Rendering (Force Python Logic)
@@ -1661,9 +1755,9 @@ class SlitherEnv:
                     brightness = 0.3 + 0.7 * proximity
                     radius = 1.5 + 1.5 * proximity  # bigger when closer
 
-                    self._draw_circle(matrix, 1, ex, ey, radius, brightness)
+                    self._draw_discs(matrix, 1, ex, ey, radius, brightness)
 
-        return matrix
+        return quantize_frame(matrix)
 
     def close(self):
         if self._death_writer is not None:

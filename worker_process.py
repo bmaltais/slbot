@@ -200,7 +200,7 @@ def echo_worker(remote, parent_remote, worker_id, headless, nickname, matrix_siz
             remote.send('ok')
         elif cmd == 'reset':
             remote.send({
-                'matrix': np.zeros((3, matrix_size, matrix_size), dtype=np.float32),
+                'matrix': np.zeros((3, matrix_size, matrix_size), dtype=np.uint8),
                 'sectors': np.zeros(99, dtype=np.float32),
             })
         elif cmd == 'reset_one':
@@ -233,7 +233,7 @@ def delayed_echo_worker(remote, parent_remote, worker_id, headless, nickname, ma
             remote.send('ok')
         elif cmd == 'reset':
             remote.send({
-                'matrix': np.zeros((3, matrix_size, matrix_size), dtype=np.float32),
+                'matrix': np.zeros((3, matrix_size, matrix_size), dtype=np.uint8),
                 'sectors': np.zeros(99, dtype=np.float32),
             })
         elif cmd == 'reset_one':

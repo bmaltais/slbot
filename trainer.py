@@ -1279,8 +1279,8 @@ class ResourceMonitor:
 class VecFrameStack:
     """
     Wraps SubprocVecEnv to stack frames.
-    Observations are dicts: {'matrix': (3,H,W), 'sectors': (75,)}.
-    Only matrices get stacked (4 frames -> 12 channels).
+    Observations are dicts: {'matrix': (3,H,W) uint8, 'sectors': (99,) float32}.
+    Only matrices get stacked (4 frames -> 12 channels, still uint8).
     Sectors are passed through from the current frame (no stacking).
     """
     def __init__(self, venv, k):
@@ -2300,13 +2300,14 @@ def train(args):
 
             # Select actions — steps_done increments once per batch (decoupled from num_agents)
             # Spawning agents are reconnecting; send a dummy action and skip tracking.
-            actions = []
-            for i, s in enumerate(states):
-                if agent_spawning[i] or i in _agents_draining:
-                    actions.append(0)
-                    continue
-                a = agent.select_action(s, agent_id=i)
-                actions.append(a)
+            # Live agents are decided in one batched forward pass (one
+            # host->device copy and one sync per tick instead of one per agent).
+            actions = [0] * len(states)
+            live = [i for i in range(len(states))
+                    if not (agent_spawning[i] or i in _agents_draining)]
+            chosen = agent.select_actions([states[i] for i in live], live)
+            for i, a in zip(live, chosen):
+                actions[i] = a
                 if a == 0: episode_actions[i][0] += 1        # straight
                 elif a in (1, 2, 3, 4): episode_actions[i][1] += 1  # micro + gentle
                 elif a in (5, 6): episode_actions[i][2] += 1  # medium
