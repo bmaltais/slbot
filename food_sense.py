@@ -11,6 +11,8 @@ import math
 import os
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+import numpy as np
+
 FOOD_SENSE_RANGE = 2000.0
 FOOD_CLUSTER_CELL = 120.0
 # Hold a cluster while its centroid stays within two cells; stops shaping
@@ -76,9 +78,13 @@ def squash_mass(mass: float, cap: float) -> float:
     return min(1.0, math.log1p(mass) / math.log1p(cap))
 
 
-def food_draw_radius_px(sz: float, scale: float) -> float:
-    """Matrix-pixel radius so large pellets occupy more cells than crumbs."""
-    return max(FOOD_DRAW_RADIUS_MIN_PX, float(sz) * FOOD_DRAW_RADIUS_PER_SZ * float(scale))
+def food_draw_radius_px(sz, scale):
+    """Matrix-pixel radius so large pellets occupy more cells than crumbs.
+
+    Accepts scalars or numpy arrays for `sz` (and broadcast-compatible
+    `scale`) so the scalar and vectorized draw paths share one formula.
+    """
+    return np.maximum(FOOD_DRAW_RADIUS_MIN_PX, sz * FOOD_DRAW_RADIUS_PER_SZ * scale)
 
 
 def cluster_eat_bonus(
@@ -172,6 +178,29 @@ def vanished_foods(
     return gone
 
 
+def _near_segment(
+    foods: Iterable[FoodItem], x0: float, y0: float, x1: float, y1: float, margin: float,
+) -> List[FoodItem]:
+    """Bounding-box prefilter: foods within `margin` of the segment's bbox.
+
+    Cheap (4 comparisons/item) vs. the O(n) bucket-build downstream. A single
+    step's segment is short, so this typically shrinks hundreds of candidates
+    down to a handful before the real (still exact) distance checks run.
+    """
+    xmin = min(x0, x1) - margin
+    xmax = max(x0, x1) + margin
+    ymin = min(y0, y1) - margin
+    ymax = max(y0, y1) + margin
+    out = []
+    for f in foods:
+        if f is None or len(f) < 2:
+            continue
+        x, y = f[0], f[1]
+        if xmin <= x <= xmax and ymin <= y <= ymax:
+            out.append(f)
+    return out
+
+
 def eaten_food_mass(
     pre_foods: Iterable[FoodItem],
     post_foods: Iterable[FoodItem],
@@ -182,10 +211,20 @@ def eaten_food_mass(
     eat_radius: float = 60.0,
     match_radius: float = EAT_MATCH_RADIUS,
 ) -> Tuple[float, int]:
-    """Mass and count of vanished foods that sat on the snake's path this step."""
+    """Mass and count of vanished foods that sat on the snake's path this step.
+
+    Only foods within eat_radius of the path segment can ever be counted, and
+    only foods within match_radius beyond that can affect vanish-matching for
+    them, so both food lists are bounding-box-filtered before the exact
+    vanished_foods() pass instead of scanning every in-range pellet.
+    """
+    near_pre = _near_segment(pre_foods, x0, y0, x1, y1, eat_radius)
+    if not near_pre:
+        return 0.0, 0
+    near_post = _near_segment(post_foods, x0, y0, x1, y1, eat_radius + match_radius)
     mass = 0.0
     count = 0
-    for f in vanished_foods(pre_foods, post_foods, match_radius=match_radius):
+    for f in vanished_foods(near_pre, near_post, match_radius=match_radius):
         fx, fy = float(f[0]), float(f[1])
         if point_to_segment_dist(fx, fy, x0, y0, x1, y1) <= eat_radius:
             mass += food_size(f)
