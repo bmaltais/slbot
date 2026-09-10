@@ -302,7 +302,7 @@ class TestCdpInterceptorReset(unittest.TestCase):
         self.assertEqual(cdp._game_ws_request_id, 'ws-new')
         self.assertEqual(cdp._frames_received, 0)
 
-    def test_try_activate_uses_packet_my_id_without_selenium(self):
+    def test_try_activate_does_not_lock_packet_my_id_without_position(self):
         from ws_engine import Snake
         cdp = CDPInterceptor(MagicMock())
         cdp._running = True
@@ -310,11 +310,31 @@ class TestCdpInterceptorReset(unittest.TestCase):
         cdp._init_received.set()
         cdp._frames_received = 20
         cdp.state.my_id = 7
-        cdp.state.snakes[7] = Snake(id=7, x=21600, y=21600)
+        cdp.state.snakes[7] = Snake(id=7, x=-548101, y=716830)
+        cdp.driver.execute_script.return_value = {'x': 21600, 'y': 21600}
+        self.assertFalse(cdp.try_activate())
+        self.assertFalse(cdp.state.playing)
+        self.assertEqual(cdp.state.my_id, 7)
+
+    def test_try_activate_matches_browser_position_not_first_snake(self):
+        from ws_engine import Snake
+        cdp = CDPInterceptor(MagicMock())
+        cdp._running = True
+        cdp._game_ws_request_id = 'ws-1'
+        cdp._init_received.set()
+        cdp._frames_received = 20
+        cdp.state.my_id = 7
+        cdp.state.snakes[7] = Snake(id=7, x=-548101, y=716830)
+        cdp.state.snakes[9] = Snake(id=9, x=21610, y=21590)
+        cdp.driver.execute_script.return_value = {'x': 21600, 'y': 21600}
         self.assertTrue(cdp.try_activate())
-        cdp.driver.execute_script.assert_not_called()
+        self.assertEqual(cdp.state.my_id, 9)
         self.assertTrue(cdp.state.playing)
         self.assertTrue(cdp.active)
+
+    def test_cdp_does_not_assume_first_snake_add(self):
+        cdp = CDPInterceptor(MagicMock())
+        self.assertFalse(cdp._packet_handler._assume_first_snake)
 
     def test_try_activate_returns_false_until_frames(self):
         cdp = CDPInterceptor(MagicMock())

@@ -110,6 +110,8 @@ class CDPInterceptor:
         self._packet_handler._connected_event = threading.Event()
         self._packet_handler._close_requested = False
         self._packet_handler.nickname = nickname
+        # Other snakes are added on the same WS; first SNAKE_ADD is not us.
+        self._packet_handler._assume_first_snake = False
         # CDP is passive — Chrome handles WS sends, so _send_binary is a no-op
         self._packet_handler._send_binary = lambda data: None
         self._packet_handler.ws = None
@@ -331,19 +333,9 @@ class CDPInterceptor:
         if not self._init_received.is_set() or self._frames_received < 10:
             return False
 
-        with self._lock:
-            my_id = self.state.my_id
-            mine = self.state.snakes.get(my_id) if my_id != -1 else None
-            if mine is not None:
-                self.state.dead = False
-                self.state.playing = True
-                self.state.connected = True
-                log(f"[CDP] Game state active — snake id={my_id} "
-                    f"(from packets, {len(self.state.snakes)} snakes, "
-                    f"{self._frames_received} frames)")
-                return True
-
-        # Identify our snake by matching browser position to parsed WS snakes
+        # Always match Chrome's snake. Trusting packet my_id / first SNAKE_ADD
+        # locks onto a random other snake (coords like -548101,716830), then
+        # wall-reflex u-turns forever with food=0.
         try:
             result = self.driver.execute_script(
                 "if(!window.slither) return null;"

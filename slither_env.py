@@ -252,6 +252,10 @@ class SlitherEnv:
         # Map center is (21600, 21600), so (0,0) is far outside.
         if abs(mx) <= 1000 and abs(my) <= 1000:
             return False
+        # CDP wrong-snake lock: parsed coords like 665762 / -548101.
+        # Playable map is ~0..43200.
+        if abs(mx) > 80000 or abs(my) > 80000:
+            return False
         return True
 
     def _is_valid_frame(self, data):
