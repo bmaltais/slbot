@@ -14,12 +14,15 @@ import numpy as np
 
 
 SECTOR_DIM = 99
+# Observation frames are uint8 (see slither_env.quantize_frame); this module
+# must stay importable without the env, so the dtype is restated here.
+FRAME_DTYPE = np.uint8
 
 
 def spawning_obs(matrix_size):
     """Placeholder observation while Chrome/boot/reset is still running."""
     return {
-        'matrix': np.zeros((3, matrix_size, matrix_size), dtype=np.float32),
+        'matrix': np.zeros((3, matrix_size, matrix_size), dtype=FRAME_DTYPE),
         'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
         'spawning': True,
     }
@@ -54,7 +57,7 @@ class WorkerSession:
 
     def _dummy_obs(self):
         return {
-            'matrix': np.zeros((3, self.matrix_size, self.matrix_size), dtype=np.float32),
+            'matrix': np.zeros((3, self.matrix_size, self.matrix_size), dtype=FRAME_DTYPE),
             'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
         }
 

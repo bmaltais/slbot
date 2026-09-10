@@ -52,9 +52,6 @@ CLUSTER_EAT_CRUMB = 1.0
 CLUSTER_EAT_MASS_CAP = 40.0
 BOOST_CLUSTER_RANGE = 400.0
 BOOST_CLUSTER_MIN_MASS = 6.0
-_NEIGHBOR_8 = tuple(
-    (dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy
-)
 
 FoodItem = Sequence[float]
 
@@ -260,38 +257,117 @@ def select_visible_foods(
     return [[x, y, sz] for _, x, y, sz in scored]
 
 
-def _bin_foods(
-    foods: Iterable[FoodItem],
-    mx: float,
-    my: float,
-    cell: float,
-    sense_range: float,
-) -> Dict[Tuple[int, int], List]:
-    """Map cell -> [mass, accx, accy, pellets]. pellets are (fx, fy, sz)."""
-    range_sq = sense_range * sense_range
-    bins: Dict[Tuple[int, int], List] = {}
-    inv_cell = 1.0 / max(cell, 1e-6)
-    for f in foods:
-        if f is None or len(f) < 2:
-            continue
-        fx, fy = float(f[0]), float(f[1])
-        sz = food_size(f)
-        dx = fx - mx
-        dy = fy - my
-        dist_sq = dx * dx + dy * dy
-        if dist_sq > range_sq:
-            continue
-        bx = int(math.floor(dx * inv_cell + 0.5))
-        by = int(math.floor(dy * inv_cell + 0.5))
-        rec = bins.get((bx, by))
-        if rec is None:
-            bins[(bx, by)] = [sz, fx * sz, fy * sz, [(fx, fy, sz)]]
+def foods_xyz(foods: Iterable[FoodItem]) -> np.ndarray:
+    """Foods -> (n, 3) float64 rows [x, y, food_size(item)].
+
+    An (n, 3) float64 array is assumed to be in this format already and is
+    returned as-is, so callers can convert once per tick and pass the array
+    to every consumer. Other numeric arrays are cast in place; the usual
+    homogeneous [x, y, sz] rows convert with one np.asarray; ragged or
+    malformed lists fall back to per-item food_size().
+    """
+    if isinstance(foods, np.ndarray):
+        if foods.ndim == 2 and foods.shape[1] == 3 and foods.dtype == np.float64:
+            return foods
+        if foods.size == 0:
+            return np.empty((0, 3), dtype=np.float64)
+    elif not foods:
+        return np.empty((0, 3), dtype=np.float64)
+    try:
+        raw = np.asarray(foods, dtype=np.float64)
+    except (TypeError, ValueError):
+        raw = None
+    if raw is not None and raw.ndim == 2 and raw.shape[1] >= 2:
+        out = np.empty((raw.shape[0], 3), dtype=np.float64)
+        out[:, :2] = raw[:, :2]
+        if raw.shape[1] > 2:
+            sz = raw[:, 2]
+            out[:, 2] = np.where(sz > 0.0, sz, 1.0)  # food_size(): non-positive -> 1.0
         else:
-            rec[0] += sz
-            rec[1] += fx * sz
-            rec[2] += fy * sz
-            rec[3].append((fx, fy, sz))
-    return bins
+            out[:, 2] = 1.0
+        return out
+    return np.asarray(
+        [(f[0], f[1], food_size(f)) for f in foods if f is not None and len(f) >= 2],
+        dtype=np.float64,
+    ).reshape(-1, 3)
+
+
+def _in_range(foods, mx, my, sense_range):
+    """Foods within sense_range -> (fx, fy, sz, dx, dy, d2) float64 arrays."""
+    arr = foods_xyz(foods)
+    fx, fy, sz = arr[:, 0], arr[:, 1], arr[:, 2]
+    dx = fx - mx
+    dy = fy - my
+    d2 = dx * dx + dy * dy
+    keep = d2 <= sense_range * sense_range
+    if not keep.all():
+        fx, fy, sz, dx, dy, d2 = (a[keep] for a in (fx, fy, sz, dx, dy, d2))
+    return fx, fy, sz, dx, dy, d2
+
+
+def _cell_groups(dx, dy, cell):
+    """Group in-range foods by cell.
+
+    Returns (bx, by, first, inv): per-food cell coords, the first food index
+    of each cell (cells numbered in first-occurrence order, the same order a
+    dict of cells would iterate in), and each food's cell number.
+    """
+    inv_cell = 1.0 / max(cell, 1e-6)
+    bx = np.floor(dx * inv_cell + 0.5).astype(np.int64)
+    by = np.floor(dy * inv_cell + 0.5).astype(np.int64)
+    if bx.size == 0:
+        return bx, by, np.empty(0, np.int64), np.empty(0, np.int64)
+    key = (bx - bx.min()) * (by.max() - by.min() + 1) + (by - by.min())
+    _uniq, first, inv = np.unique(key, return_index=True, return_inverse=True)
+    order = np.argsort(first, kind='stable')  # np.unique sorted by key value
+    rank = np.empty_like(order)
+    rank[order] = np.arange(order.size)
+    return bx, by, first[order], rank[inv]
+
+
+def _cell_components(cx, cy):
+    """8-connected components of occupied cells -> per-cell label.
+
+    Pure numpy: min-label hooking over the neighbour edges plus pointer
+    jumping until stable. Each component ends up labelled with its lowest
+    cell index, so sorting labels orders components by first cell.
+    """
+    k = cx.size
+    label = np.arange(k)
+    if k < 2:
+        return label
+    ox = cx - cx.min()
+    oy = cy - cy.min()
+    w = int(ox.max()) + 1
+    h = int(oy.max()) + 1
+    key = oy * w + ox
+    order = np.argsort(key)
+    skey = key[order]
+    us = []
+    vs = []
+    # Forward half of the 8-neighbourhood; each undirected edge found once.
+    for ddx, ddy in ((1, 0), (0, 1), (1, 1), (1, -1)):
+        nx = ox + ddx
+        ny = oy + ddy
+        ok = (nx >= 0) & (nx < w) & (ny >= 0) & (ny < h)
+        nkey = ny[ok] * w + nx[ok]
+        pos = np.minimum(np.searchsorted(skey, nkey), k - 1)
+        hit = skey[pos] == nkey
+        us.append(np.flatnonzero(ok)[hit])
+        vs.append(order[pos[hit]])
+    u = np.concatenate(us)
+    v = np.concatenate(vs)
+    if u.size == 0:
+        return label
+    while True:
+        prev = label
+        label = label.copy()
+        m = np.minimum(label[u], label[v])
+        np.minimum.at(label, u, m)
+        np.minimum.at(label, v, m)
+        label = label[label]
+        if np.array_equal(label, prev):
+            return label
 
 
 def cluster_foods(
@@ -302,16 +378,22 @@ def cluster_foods(
     sense_range: float = FOOD_SENSE_RANGE,
 ) -> List[Tuple[float, float, float, float]]:
     """Bin foods into cells. Returns (cx, cy, dist, mass) per occupied cell."""
+    fx, fy, sz, dx, dy, _d2 = _in_range(foods, mx, my, sense_range)
+    if fx.size == 0:
+        return []
+    _bx, _by, first, inv = _cell_groups(dx, dy, cell)
+    k = first.size
+    mass = np.bincount(inv, weights=sz, minlength=k)
+    accx = np.bincount(inv, weights=fx * sz, minlength=k)
+    accy = np.bincount(inv, weights=fy * sz, minlength=k)
     out = []
-    for mass, accx, accy, _pellets in _bin_foods(
-        foods, mx, my, cell=cell, sense_range=sense_range
-    ).values():
-        if mass <= 0.0:
+    for i in range(k):
+        m = float(mass[i])
+        if m <= 0.0:
             continue
-        cx = accx / mass
-        cy = accy / mass
-        dist = math.hypot(cx - mx, cy - my)
-        out.append((cx, cy, dist, mass))
+        cx = float(accx[i]) / m
+        cy = float(accy[i]) / m
+        out.append((cx, cy, math.hypot(cx - mx, cy - my), m))
     return out
 
 
@@ -324,37 +406,31 @@ def _iter_food_strings(
 ) -> List[Tuple[float, float, float, float]]:
     """8-connected cell components. Aim at the nearest pellet on each string.
 
-    Returns (aim_x, aim_y, aim_dist, total_mass) per component.
+    Returns (aim_x, aim_y, aim_dist, total_mass) per component, components
+    ordered by their first pellet. Nearest-pellet ties go to the lowest index.
     """
-    bins = _bin_foods(foods, mx, my, cell=cell, sense_range=sense_range)
-    visited = set()
+    fx, fy, sz, dx, dy, d2 = _in_range(foods, mx, my, sense_range)
+    if fx.size == 0:
+        return []
+    bx, by, first, inv = _cell_groups(dx, dy, cell)
+    label = _cell_components(bx[first], by[first])
+    _reps, cidx = np.unique(label, return_inverse=True)  # sorted = first-cell order
+    comp = cidx[inv]  # per food
+    n_comp = _reps.size
+    mass = np.bincount(comp, weights=sz, minlength=n_comp)
+    order = np.lexsort((d2, comp))
+    comp_sorted = comp[order]
+    starts = np.flatnonzero(np.r_[True, comp_sorted[1:] != comp_sorted[:-1]])
+    nearest = order[starts]  # one food index per component, in component order
     strings: List[Tuple[float, float, float, float]] = []
-    for start in bins:
-        if start in visited:
+    for ci in range(n_comp):
+        m = float(mass[ci])
+        if m <= 0.0:
             continue
-        stack = [start]
-        visited.add(start)
-        cells = []
-        while stack:
-            key = stack.pop()
-            cells.append(key)
-            bx, by = key
-            for dx, dy in _NEIGHBOR_8:
-                nb = (bx + dx, by + dy)
-                if nb in bins and nb not in visited:
-                    visited.add(nb)
-                    stack.append(nb)
-        pellets: List[Tuple[float, float, float]] = []
-        mass = 0.0
-        for key in cells:
-            rec = bins[key]
-            mass += rec[0]
-            pellets.extend(rec[3])
-        if mass <= 0.0 or not pellets:
-            continue
-        nearest = min(pellets, key=lambda p: (p[0] - mx) ** 2 + (p[1] - my) ** 2)
-        dist = math.hypot(nearest[0] - mx, nearest[1] - my)
-        strings.append((nearest[0], nearest[1], dist, mass))
+        i = nearest[ci]
+        nx = float(fx[i])
+        ny = float(fy[i])
+        strings.append((nx, ny, math.hypot(nx - mx, ny - my), m))
     return strings
 
 

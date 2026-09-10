@@ -33,6 +33,15 @@ class DDQNAgent:
 
         logger.info(f"Agent running on device: {self.device}")
 
+        if self.device.type == 'cuda':
+            # Observation shapes are fixed (batch size varies only with the
+            # number of live agents): let cuDNN benchmark conv kernels once
+            # per shape instead of using its heuristic pick every call.
+            torch.backends.cudnn.benchmark = True
+        # Pinned host buffer for shipping uint8 observation batches to the
+        # GPU in select_actions() (grown to the largest batch seen).
+        self._act_staging = None
+
         # Calculate input channels (3 base channels * frame_stack)
         self.input_channels = 3 * config.env.frame_stack
         self.input_size = config.env.resolution
@@ -170,41 +179,100 @@ class DDQNAgent:
         return stats
 
     def select_action(self, state, agent_id=0):
+        """Single-observation form of select_actions()."""
+        return self.select_actions([state], [agent_id])[0]
+
+    def select_actions(self, states, agent_ids=None):
         """
-        state: dict {'matrix': (12, H, W), 'sectors': (75,)} or numpy array (12, H, W) for legacy.
+        One action per observation, with a single batched forward pass.
+
+        states: list of dicts {'matrix': (12, H, W) uint8 or float32 [0, 1],
+        'sectors': (99,)}; the legacy (non-hybrid) model also accepts bare
+        (12, H, W) arrays. agent_ids, when given, must be one per state.
+        Reflexes and epsilon-random picks are resolved per agent on the CPU
+        (cheap numpy on the sector vector); only the agents that fall through
+        to the network are stacked, copied to the device as one batch and
+        read back with one sync — instead of one 1.2 MB copy + sync per agent.
+
         Note: steps_done is incremented externally by the trainer (once per batch step)
         to avoid N× decay with N parallel agents.
         """
-        # --- REFLEX LAYER ---
-        # Hardcoded survival reflexes that override the network when danger is imminent.
-        # The network still learns from the outcomes — reflexes just keep the bot alive
-        # long enough to generate useful training data.
-        stats = self._ensure_reflex_stats(agent_id)
-        stats['total_actions'] += 1
-
-        if isinstance(state, dict) and 'sectors' in state:
-            reflex_action, reflex_name = self._check_reflexes(state['sectors'])
-            if reflex_action is not None:
-                stats['reflex_actions'] += 1
-                if reflex_name in stats:
-                    stats[reflex_name] += 1
-                return reflex_action
-
+        n = len(states)
+        if agent_ids is None:
+            agent_ids = range(n)
+        else:
+            agent_ids = list(agent_ids)
+            if len(agent_ids) != n:
+                raise ValueError(
+                    f"select_actions: {n} states but {len(agent_ids)} agent_ids"
+                )
+        if self.use_hybrid and any(not isinstance(s, dict) for s in states):
+            raise ValueError(
+                "select_actions: the hybrid model needs dict observations with 'sectors'"
+            )
+        actions = [None] * n
+        net_idx = []
         eps_threshold = self.get_epsilon()
 
-        if random.random() > eps_threshold:
-            with torch.no_grad():
-                if self.use_hybrid:
-                    mat_t = torch.tensor(state['matrix'], dtype=torch.float32).unsqueeze(0).to(self.device)
-                    sec_t = torch.tensor(state['sectors'], dtype=torch.float32).unsqueeze(0).to(self.device)
-                    q_values = self.policy_net(mat_t, sec_t)
-                else:
-                    state_arr = state['matrix'] if isinstance(state, dict) else state
-                    state_t = torch.tensor(state_arr, dtype=torch.float32).unsqueeze(0).to(self.device)
-                    q_values = self.policy_net(state_t)
-                return q_values.max(1)[1].item()
-        else:
-            return random.randrange(ACTION_DIM)
+        for i, (state, agent_id) in enumerate(zip(states, agent_ids)):
+            # --- REFLEX LAYER ---
+            # Hardcoded survival reflexes that override the network when danger is imminent.
+            # The network still learns from the outcomes — reflexes just keep the bot alive
+            # long enough to generate useful training data.
+            stats = self._ensure_reflex_stats(agent_id)
+            stats['total_actions'] += 1
+
+            if isinstance(state, dict) and 'sectors' in state:
+                reflex_action, reflex_name = self._check_reflexes(state['sectors'])
+                if reflex_action is not None:
+                    stats['reflex_actions'] += 1
+                    if reflex_name in stats:
+                        stats[reflex_name] += 1
+                    actions[i] = reflex_action
+                    continue
+
+            if random.random() > eps_threshold:
+                net_idx.append(i)
+            else:
+                actions[i] = random.randrange(ACTION_DIM)
+
+        if net_idx:
+            for i, a in zip(net_idx, self._greedy_actions([states[i] for i in net_idx])):
+                actions[i] = a
+        return actions
+
+    def _greedy_actions(self, states):
+        """argmax_a Q(s, a) for a batch of observations: one forward, one sync."""
+        mats = [s['matrix'] if isinstance(s, dict) else s for s in states]
+        with torch.no_grad():
+            mat_t = self._matrices_to_device(np.stack(mats))
+            if self.use_hybrid:
+                secs = np.stack([np.asarray(s['sectors'], dtype=np.float32) for s in states])
+                q_values = self.policy_net(mat_t, torch.from_numpy(secs).to(self.device))
+            else:
+                q_values = self.policy_net(mat_t)
+            return q_values.argmax(1).tolist()
+
+    def _matrices_to_device(self, batch):
+        """(B, C, H, W) numpy batch -> float32 [0, 1] tensor on the device.
+
+        uint8 frames travel as uint8 (4x less host->device traffic; pinned
+        and async on CUDA) and are scaled on the device. Float input is
+        assumed to be in [0, 1] already.
+        """
+        if batch.dtype != np.uint8:
+            return torch.from_numpy(np.ascontiguousarray(batch, dtype=np.float32)).to(self.device)
+        src = torch.from_numpy(batch)
+        if self.device.type == 'cuda':
+            stage = self._act_staging
+            if stage is None or stage.shape[0] < src.shape[0] or stage.shape[1:] != src.shape[1:]:
+                stage = torch.empty(src.shape, dtype=torch.uint8, pin_memory=True)
+                self._act_staging = stage
+            # Safe to reuse every call: the caller syncs on the result before
+            # the next batch is written here.
+            src = stage[:src.shape[0]]
+            src.copy_(torch.from_numpy(batch))
+        return src.to(self.device, non_blocking=True).float().div_(255.0)
 
     def _check_reflexes(self, sectors):
         """
@@ -318,7 +386,10 @@ class DDQNAgent:
     @staticmethod
     def _quantize(frame):
         """[0, 1] float frame -> uint8. Clipped so an out-of-range value can
-        never wrap around during the cast."""
+        never wrap around during the cast. The env already emits uint8
+        frames; those pass through untouched."""
+        if frame.dtype == np.uint8:
+            return frame
         return np.clip(frame * 255.0, 0.0, 255.0).astype(np.uint8)
 
     def _store_stack(self, matrix):
