@@ -84,6 +84,9 @@ class WorkerSession:
             'enemy_dist': -1,
             'length': 0,
         }
+        getter = getattr(self.env, 'cdp_stats', None)
+        if callable(getter):
+            info.update(getter())
         info.update(extra)
         return info
 
@@ -168,6 +171,9 @@ class WorkerSession:
             if self._reset_thread.is_alive():
                 return (self._placeholder_obs(), 0.0, False, self._idle_info(spawning=True))
             obs = self._take_finished_reset()
+            if obs.get('spawning'):
+                # CDP not live yet — do not mark spawned (mixed-mode first frame).
+                return (obs, 0.0, False, self._idle_info(spawning=True))
             return (obs, 0.0, False, self._idle_info(spawned=True))
 
         with self._env_lock:

@@ -235,6 +235,7 @@ class SlitherEnv:
         self.invalid_frame_count = 0
         self.max_invalid_frames = 15
         self._death_writer = None
+        self._cdp_spawn_wait_t0 = None
 
     def _has_valid_coordinates(self, data):
         """Checks if the frame contains plausible coordinates (ignores dead status)."""
@@ -250,6 +251,10 @@ class SlitherEnv:
         # Basic sanity check for coordinates (reject 0,0 initialization glitch)
         # Map center is (21600, 21600), so (0,0) is far outside.
         if abs(mx) <= 1000 and abs(my) <= 1000:
+            return False
+        # CDP wrong-snake lock: parsed coords like 665762 / -548101.
+        # Playable map is ~0..43200.
+        if abs(mx) > 80000 or abs(my) > 80000:
             return False
         return True
 
@@ -511,6 +516,59 @@ class SlitherEnv:
 
         return penalty, cause
 
+    def cdp_stats(self):
+        getter = getattr(self.browser, 'cdp_stats', None)
+        if callable(getter):
+            return getter()
+        return {}
+
+    def _info(self, **kwargs):
+        info = dict(kwargs)
+        if self.backend == "websocket":
+            info.update(self.cdp_stats())
+        return info
+
+    def _spawning_obs(self):
+        """Reuse zero arrays for spawn-wait ticks (arrays are treated as read-only)."""
+        cached = getattr(self, '_cached_spawning_arrays', None)
+        if cached is None:
+            z = self._matrix_zeros()
+            cached = (z['matrix'], z['sectors'])
+            self._cached_spawning_arrays = cached
+        return {'matrix': cached[0], 'sectors': cached[1], 'spawning': True}
+
+    def _cdp_ready(self):
+        ready = getattr(self.browser, 'cdp_is_active', None)
+        return bool(callable(ready) and ready())
+
+    def _try_activate_cdp(self):
+        activate = getattr(self.browser, 'try_activate_cdp', None)
+        if callable(activate):
+            return activate()
+        return False
+
+    def _wait_for_playable_data(self, timeout=10.0):
+        """Poll until a playable frame exists. Websocket waits for CDP too."""
+        data = None
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.backend == "websocket":
+                self._try_activate_cdp()
+                if not self._cdp_ready():
+                    time.sleep(0.2)
+                    continue
+            data = self.browser.get_game_data()
+            if data and data.get('spawning'):
+                time.sleep(0.2)
+                continue
+            if self._is_valid_frame(data):
+                mx = data.get('self', {}).get('x', 0)
+                my = data.get('self', {}).get('y', 0)
+                if abs(mx) > 100 and abs(my) > 100:
+                    return data
+            time.sleep(0.2)
+        return data
+
     def reset(self):
         """Resets the game and returns initial matrix state."""
         self.browser.force_restart()
@@ -518,6 +576,7 @@ class SlitherEnv:
         self.invalid_frame_count = 0
         self.steps_in_episode = 0
         self.steps_since_food = 0
+        self._cdp_spawn_wait_t0 = time.time()
         # NAV debug separator
         with open("logs/nav_debug.log", "a") as _f:
             _f.write(f"\n{'='*140}\n  NEW EPISODE\n{'='*140}\n")
@@ -555,26 +614,27 @@ class SlitherEnv:
             self.browser.inject_view_plus_overlay()
         
         # Get initial state and set prev_length to actual starting length
-        # We enforce strict coordinate validation to avoid (0,0) starts
-        data = None
-        start_time = time.time()
-        while time.time() - start_time < 10.0: # 10 second timeout
-            data = self.browser.get_game_data()
-            if self._is_valid_frame(data):
-                mx = data.get('self', {}).get('x', 0)
-                my = data.get('self', {}).get('y', 0)
-                # Double check to be absolutely sure
-                if abs(mx) > 100 and abs(my) > 100:
-                    break
-            time.sleep(0.2)
+        # We enforce strict coordinate validation to avoid (0,0) starts.
+        # Websocket: do not return a playable obs until CDP is live.
+        data = self._wait_for_playable_data(10.0)
 
         # If still invalid, we might want to try force_restart again or just warn
-        if not data or not self._is_valid_frame(data):
+        if not data or not self._is_valid_frame(data) or (
+            self.backend == "websocket" and not self._cdp_ready()
+        ):
             print("WARNING: reset() failed to get valid coordinates after 10s. Trying again...")
             self.browser.force_restart()
             time.sleep(2.0)
-            # Try one more time quickly
-            data = self.browser.get_game_data()
+            data = self._wait_for_playable_data(10.0)
+
+        if self.backend == "websocket" and not (
+            self._cdp_ready() and self._is_valid_frame(data)
+        ):
+            self.last_matrix = self._spawning_obs()
+            self.last_valid_data = None
+            return self.last_matrix
+
+        self._cdp_spawn_wait_t0 = None
 
         if data and data.get('self'):
             self.prev_length = data['self'].get('len', 10)
@@ -637,6 +697,48 @@ class SlitherEnv:
             angle_change = 0.18
             boost = 1
 
+        # Websocket: do not play until CDP is armed. One backend per episode.
+        if self.backend == "websocket":
+            self._try_activate_cdp()
+            if not self._cdp_ready():
+                data = self.browser.get_game_data()
+                now = time.time()
+                if self._cdp_spawn_wait_t0 is None:
+                    self._cdp_spawn_wait_t0 = now
+                zeros = self._spawning_obs()
+                dead = bool(data and data.get('dead'))
+                timed_out = (now - self._cdp_spawn_wait_t0) > 8.0
+                if dead or timed_out:
+                    # Reconnect via WorkerSession reset; trainer ignores
+                    # spawning+done so this is not a mixed-mode 1-step death.
+                    self._cdp_spawn_wait_t0 = None
+                    return zeros, 0.0, True, self._info(
+                        spawning=True, cause="SpawnWait",
+                        food_eaten=0, pos=(0, 0), wall_dist=-1, enemy_dist=-1,
+                        length=0,
+                    )
+                return zeros, 0.0, False, self._info(
+                    spawning=True, food_eaten=0, pos=(0, 0),
+                    wall_dist=-1, enemy_dist=-1, length=0,
+                )
+            just_armed = self._cdp_spawn_wait_t0 is not None
+            self._cdp_spawn_wait_t0 = None
+            self._cached_data = None
+            if just_armed:
+                data = self.browser.get_game_data()
+                matrix = self._process_data_to_matrix(data)
+                sectors = self._compute_sectors(data)
+                obs = {'matrix': matrix, 'sectors': sectors}
+                self.last_matrix = obs
+                if self._is_valid_frame(data):
+                    self.last_valid_data = data
+                    if data.get('self'):
+                        self.prev_length = data['self'].get('len', 10)
+                return obs, 0.0, False, self._info(
+                    spawned=True, food_eaten=0, pos=(0, 0),
+                    wall_dist=-1, enemy_dist=-1, length=0,
+                )
+
         # Get current state before action (use cache from previous step if available)
         t_start = time.time()
         if self._cached_data is not None:
@@ -650,7 +752,7 @@ class SlitherEnv:
         # Robust check (Validation Logic from tsrgy0)
         if not data:
             zeros = self._matrix_zeros()
-            return zeros, -5, True, {"cause": "BrowserError"}
+            return zeros, -5, True, self._info(cause="BrowserError")
 
         # Check for valid coordinates regardless of dead status
         has_valid_coords = self._has_valid_coordinates(data)
@@ -658,9 +760,9 @@ class SlitherEnv:
         if not data.get('dead') and not has_valid_coords:
             self.invalid_frame_count += 1
             if self.invalid_frame_count >= self.max_invalid_frames:
-                return self.last_matrix, -5, True, {"cause": "InvalidFrame"}
+                return self.last_matrix, -5, True, self._info(cause="InvalidFrame")
             # Return last valid state
-            return self.last_matrix, 0.0, False, {"cause": "InvalidFrame"}
+            return self.last_matrix, 0.0, False, self._info(cause="InvalidFrame")
 
         self.invalid_frame_count = 0
 
@@ -691,12 +793,12 @@ class SlitherEnv:
             # But we have last_valid_data
 
             zeros = self._matrix_zeros()
-            return zeros, reward, True, {
-                "cause": cause,
-                "pos": (mx, my),
-                "wall_dist": dtw,
-                "enemy_dist": min_enemy_dist if min_enemy_dist != float('inf') else -1,
-            }
+            return zeros, reward, True, self._info(
+                cause=cause,
+                pos=(mx, my),
+                wall_dist=dtw,
+                enemy_dist=min_enemy_dist if min_enemy_dist != float('inf') else -1,
+            )
 
         my_snake = data.get('self', {})
         current_ang = my_snake.get('ang', 0)
@@ -746,8 +848,8 @@ class SlitherEnv:
         if data and not data.get('dead') and not self._is_valid_frame(data):
              self.invalid_frame_count += 1
              if self.invalid_frame_count >= self.max_invalid_frames:
-                 return self.last_matrix, -5, True, {"cause": "InvalidFrame"}
-             return self.last_matrix, 0.0, False, {"cause": "InvalidFrame"}
+                 return self.last_matrix, -5, True, self._info(cause="InvalidFrame")
+             return self.last_matrix, 0.0, False, self._info(cause="InvalidFrame")
 
         matrix = self._process_data_to_matrix(data)
         sectors = self._compute_sectors(data)
@@ -776,12 +878,12 @@ class SlitherEnv:
             debug_matrix = self._process_data_to_matrix(pre_action_data)
             self.save_death_packet(debug_matrix, reward, cause, pre_action_data)
 
-            return state, reward, True, {
-                "cause": cause,
-                "pos": (pmx, pmy),
-                "wall_dist": dtw,
-                "enemy_dist": min_enemy_dist if min_enemy_dist != float('inf') else -1,
-            }
+            return state, reward, True, self._info(
+                cause=cause,
+                pos=(pmx, pmy),
+                wall_dist=dtw,
+                enemy_dist=min_enemy_dist if min_enemy_dist != float('inf') else -1,
+            )
 
         # === REWARD CALCULATION ===
         reward = 0
@@ -940,17 +1042,17 @@ class SlitherEnv:
         # Cache post-action data for next step's pre-action read
         self._cached_data = data
 
-        return state, reward, False, {
-            "length": new_len,
-            "food_eaten": food_eaten,
-            "cause": None,
-            "pos": (new_x, new_y),
-            "wall_dist": new_dist_to_wall,
-            "enemy_dist": min_enemy_dist if min_enemy_dist != float('inf') else -1,
-            "nearby_food_mass": nearby_food_mass,
-            "server_id": data.get('server_id', ''),
-            "latency_ms": latency_ms,
-        }
+        return state, reward, False, self._info(
+            length=new_len,
+            food_eaten=food_eaten,
+            cause=None,
+            pos=(new_x, new_y),
+            wall_dist=new_dist_to_wall,
+            enemy_dist=min_enemy_dist if min_enemy_dist != float('inf') else -1,
+            nearby_food_mass=nearby_food_mass,
+            server_id=data.get('server_id', ''),
+            latency_ms=latency_ms,
+        )
 
     def _get_state(self):
         data = self.browser.get_game_data()

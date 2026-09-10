@@ -35,6 +35,9 @@ class SlitherBrowser:
         self.base_url = base_url
         self._use_cdp = use_cdp
         self._cdp = None  # CDPInterceptor instance (if use_cdp=True)
+        self._cdp_rearm_t0 = None
+        self._cdp_rearm_ms = None
+        self._cdp_fallback_ticks = 0
         self.options = Options()
 
         if headless:
@@ -91,7 +94,7 @@ class SlitherBrowser:
         """Initialize CDP connection and enable Network monitoring (before login)."""
         try:
             from cdp_intercept import CDPInterceptor
-            self._cdp = CDPInterceptor(self.driver)
+            self._cdp = CDPInterceptor(self.driver, nickname=self.nickname)
             self._cdp.start()
             log("[CDP] Early monitoring started (waiting for game WS)")
         except Exception as e:
@@ -274,26 +277,55 @@ class SlitherBrowser:
             log(f"[LOGIN] Error: {e}")
             return False
 
-    def _start_cdp_if_enabled(self):
-        """Wait for CDP interceptor to detect game WS and become active."""
+    def cdp_is_active(self):
+        """True when the websocket backend is armed and has a live game state."""
+        return bool(self._use_cdp and self._cdp and self._cdp.active)
+
+    def cdp_stats(self):
+        return {
+            'cdp_active': self.cdp_is_active(),
+            'rearm_ms': getattr(self, '_cdp_rearm_ms', None),
+            'fallback_ticks': getattr(self, '_cdp_fallback_ticks', 0),
+        }
+
+    def _mark_cdp_rearm_done(self):
+        if self._cdp_rearm_ms is None and self._cdp_rearm_t0 is not None:
+            self._cdp_rearm_ms = (time.time() - self._cdp_rearm_t0) * 1000
+
+    def try_activate_cdp(self):
+        """One-shot activate. Returns immediately if frames/init are not ready."""
+        if not self._use_cdp or not self._cdp:
+            return False
+        if self._cdp.active:
+            self._mark_cdp_rearm_done()
+            return True
+        ok = self._cdp.try_activate()
+        if ok:
+            self._mark_cdp_rearm_done()
+        return ok
+
+    def _cdp_unarmed_data(self):
+        """Sentinel while CDP is required but not playing. Never selenium."""
+        if self._cdp is not None and getattr(self._cdp.state, 'dead', False):
+            return {"dead": True}
+        return {"dead": False, "spawning": True}
+
+    def _begin_cdp_rearm(self):
+        """Drop stale parsed state before connect(); keep Network intercept running."""
         if not self._use_cdp or not self._cdp:
             return
-        # Give CDP time to receive frames, then try to identify our snake
-        for i in range(30):  # Up to 3 seconds
-            if self._cdp._frames_received > 10:
-                if self._cdp.try_activate():
-                    return
-            time.sleep(0.1)
-        log(f"[CDP] Not yet active — frames={self._cdp._frames_received} "
-            f"ws_detected={self._cdp._game_ws_request_id is not None} "
-            f"snakes={len(self._cdp.state.snakes)} init={self._cdp._init_received.is_set()}")
+        self._cdp.reset(clear_ws_id=True)
+        self._cdp_rearm_t0 = time.time()
+        self._cdp_rearm_ms = None
+
+    def _start_cdp_if_enabled(self):
+        """Try to activate CDP once. Waiting for frames is env.reset()'s job."""
+        self.try_activate_cdp()
 
     def _rearm_cdp(self):
-        """Clear stale WS request ids and activate intercept once after respawn."""
-        if not self._use_cdp or not self._cdp:
-            return
-        self._cdp.reset()
-        self._start_cdp_if_enabled()
+        """Activate intercept once after respawn. Do not reset — that would wipe
+        the game WS id that connect() already bound."""
+        self.try_activate_cdp()
 
     def inject_override_script(self):
         """
@@ -1048,11 +1080,13 @@ class SlitherBrowser:
         return getGameState();
         """
         try:
-            # CDP path: read from Python memory (instant, no Selenium round-trip).
-            # Do not try_activate() here — that is a Selenium execute_script on
-            # every tick after death. Re-arm once on respawn via _rearm_cdp().
-            if self._cdp and self._cdp.active:
-                return self._cdp.get_game_data()
+            # Websocket backend: one backend per episode. Never fall back to
+            # selenium execute_script — that is a different world model and the
+            # slow path. Unarmed ticks are spawning; WS-close while playing is dead.
+            if self._use_cdp:
+                if self._cdp and self._cdp.active:
+                    return self._cdp.get_game_data()
+                return self._cdp_unarmed_data()
             # Use fast injected function if available (~30 bytes vs ~8KB of JS)
             if getattr(self, '_fast_getstate_injected', False):
                 result = self.driver.execute_script("return window._botGetState();")
@@ -1092,9 +1126,9 @@ class SlitherBrowser:
         boost: 0 or 1
         """
         try:
-            # CDP interceptor path (WebSocket-based)
-            if self._cdp and self._cdp.active:
-                self._cdp.send_action(angle, boost)
+            if self._use_cdp:
+                if self._cdp and self._cdp.active:
+                    self._cdp.send_action(angle, boost)
                 return
 
             # Set xm/ym directly — game computes wang = atan2(ym, xm)
@@ -1111,9 +1145,10 @@ class SlitherBrowser:
         # Periodic health check (every 100 steps or 5 minutes)
         self._periodic_health_check()
 
-        # CDP interceptor path: instant
-        if self._cdp and self._cdp.active:
-            return self._cdp.send_action_get_data(angle, boost)
+        if self._use_cdp:
+            if self._cdp and self._cdp.active:
+                return self._cdp.send_action_get_data(angle, boost)
+            return self._cdp_unarmed_data()
 
         # Send steering + read state
         self.send_action(angle, boost)
@@ -1141,6 +1176,11 @@ class SlitherBrowser:
         Resets the game state.
         """
         try:
+            # Reset parsed CDP state BEFORE connect so leftover frames from the
+            # previous game WS are ignored. Do not reset after connect() — that
+            # wipes the request id Network.webSocketCreated just bound.
+            self._begin_cdp_rearm()
+
             is_playing = self.driver.execute_script("""
                 return (window.slither !== undefined && window.slither !== null) &&
                        (!window.dead_mtm || window.dead_mtm === -1)
@@ -1158,13 +1198,14 @@ class SlitherBrowser:
             self._canvas_center = None   # Reset cached center
             self.inject_override_script()
             self.inject_fast_getstate()
-            # Re-arm CDP once on respawn (not on every get_game_data tick).
+            # One-shot activate if init+frames already arrived during the sleep.
             self._rearm_cdp()
 
         except Exception as e:
             log(f"[RESTART] Error: {e}. Refreshing page...")
             self._canvas_element = None
             self._canvas_center = None
+            self._begin_cdp_rearm()
             self.driver.refresh()
             time.sleep(3)
             self._handle_login(wait_cdp=False)

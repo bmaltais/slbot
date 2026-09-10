@@ -73,6 +73,17 @@ class TestSlitherEnv(unittest.TestCase):
         self.assertEqual(self.env.map_center_x, 21600)
         self.assertEqual(self.env.map_center_y, 21600)
 
+    def test_has_valid_coordinates_rejects_cdp_wrong_snake_garbage(self):
+        self.assertFalse(self.env._has_valid_coordinates({
+            'self': {'x': 665762, 'y': 296448},
+        }))
+        self.assertFalse(self.env._has_valid_coordinates({
+            'self': {'x': -548101, 'y': 716830},
+        }))
+        self.assertTrue(self.env._has_valid_coordinates({
+            'self': {'x': 21600, 'y': 21600},
+        }))
+
     def test_invalid_frame_returns_last_matrix(self):
         self.env.browser.send_action = MagicMock()
         self.env.last_matrix = np.ones((3, self.env.matrix_size, self.env.matrix_size), dtype=np.float32)

@@ -187,6 +187,35 @@ class TestWorkerSession(unittest.TestCase):
             self.session.reset_sync()
         self.assertIn("reset exploded", str(ctx.exception))
 
+    def test_reset_obs_with_spawning_does_not_mark_spawned(self):
+        """Issue #16: mixed-mode first frame if we mark spawned before CDP is live."""
+        orig_reset = self.env.reset
+
+        def spawning_reset():
+            obs = orig_reset()
+            obs = dict(obs)
+            obs['spawning'] = True
+            return obs
+
+        self.env.reset = spawning_reset
+        self.session.step(99)
+        self.assertTrue(self.env.reset_started.wait(timeout=1))
+        self.env.reset_release.set()
+        saw_spawned = False
+        saw_spawning = False
+        for _ in range(50):
+            obs, reward, done, info = self.session.step(0)
+            if info.get('spawned'):
+                saw_spawned = True
+                break
+            if info.get('spawning') and self.env.reset_count:
+                saw_spawning = True
+                break
+            time.sleep(0.01)
+        self.assertTrue(saw_spawning)
+        self.assertFalse(saw_spawned)
+        self.assertTrue(obs.get('spawning'))
+
 
 class TestDeathPacketNonBlocking(unittest.TestCase):
     def test_submit_returns_while_write_is_blocked(self):

@@ -614,13 +614,15 @@ class SlitherWSClient:
 
             self.state.snakes[snake_id] = snake
 
-            # Detect if this is our snake (first snake added after login)
+            # Detect if this is our snake (name match, or first snake after login
+            # on a native WS where we do not see other players first).
             if self.state.my_id == -1 and name == self.nickname:
                 self.state.my_id = snake_id
                 self.state.dead = False
                 self._spawn_received.set()
                 logger.info(f"[WS] My snake spawned: id={snake_id} pos=({snake_x:.0f},{snake_y:.0f})")
-            elif self.state.my_id == -1 and not self._spawn_received.is_set():
+            elif (self.state.my_id == -1 and not self._spawn_received.is_set()
+                  and getattr(self, '_assume_first_snake', True)):
                 # If we haven't identified our snake yet, this might be it
                 # (some servers don't echo the name back)
                 self.state.my_id = snake_id
