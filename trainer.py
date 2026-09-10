@@ -1098,6 +1098,10 @@ class ResourceMonitor:
             ram_down_threshold = 500
             ram_up_threshold = 2000
 
+        # No playing-tick samples yet (all spawning) — do not treat 0ms as idle capacity.
+        if step_ms <= 1:
+            return 0
+
         # Scale DOWN: any critical threshold breached
         if cpu > 90 or ram_free < ram_down_threshold or step_ms > step_down_threshold:
             if now - self.last_scale_time >= self.cooldown_down:

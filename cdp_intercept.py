@@ -93,6 +93,7 @@ class CDPInterceptor:
         self.driver = driver
         self.state = GameState()
         self._lock = threading.Lock()
+        self._io_lock = threading.Lock()
         self._cdp_ws = None
         self._listener_thread = None
         self._running = False
@@ -214,18 +215,23 @@ class CDPInterceptor:
         msg_id = self._next_id()
         msg = {'id': msg_id, 'method': method, 'params': params or {}}
         try:
-            self._cdp_ws.send(json.dumps(msg))
-            # Read response (with timeout)
-            self._cdp_ws.settimeout(5.0)
-            while True:
-                resp = json.loads(self._cdp_ws.recv())
-                if resp.get('id') == msg_id:
-                    return resp.get('result')
-                # It's an event — process it
-                self._handle_cdp_event(resp)
+            with self._io_lock:
+                self._cdp_ws.send(json.dumps(msg))
+                self._cdp_ws.settimeout(5.0)
+                while True:
+                    resp = json.loads(self._cdp_ws.recv())
+                    if resp.get('id') == msg_id:
+                        return resp.get('result')
+                    self._handle_cdp_event(resp)
         except Exception as e:
             logger.debug(f"[CDP] Send error: {e}")
             return None
+        finally:
+            try:
+                if self._cdp_ws:
+                    self._cdp_ws.settimeout(0.1)
+            except Exception:
+                pass
 
     def _cdp_send_fire_and_forget(self, method, params=None):
         """Send a CDP command without waiting for response."""
@@ -234,7 +240,8 @@ class CDPInterceptor:
         msg_id = self._next_id()
         msg = {'id': msg_id, 'method': method, 'params': params or {}}
         try:
-            self._cdp_ws.send(json.dumps(msg))
+            with self._io_lock:
+                self._cdp_ws.send(json.dumps(msg))
         except Exception:
             pass
 
@@ -243,7 +250,10 @@ class CDPInterceptor:
         self._cdp_ws.settimeout(0.1)
         while self._running:
             try:
-                raw = self._cdp_ws.recv()
+                with self._io_lock:
+                    if not self._cdp_ws:
+                        break
+                    raw = self._cdp_ws.recv()
                 if raw:
                     msg = json.loads(raw)
                     self._handle_cdp_event(msg)
@@ -267,17 +277,10 @@ class CDPInterceptor:
             rid = msg['params'].get('requestId', '')
             # Detect the game WebSocket (port 444 or /slither path)
             if '/slither' in url or ':444' in url:
-                with self._lock:
-                    old_connected = self.state.connected
-                    self.state = GameState()
-                    self.state.connected = old_connected
-                    self._packet_handler.state = self.state
-                    self._game_ws_request_id = rid
-                    self._frames_received = 0
-                self._init_received.clear()
-                spawn_ev = getattr(self._packet_handler, '_spawn_received', None)
-                if spawn_ev is not None:
-                    spawn_ev.clear()
+                # Bind the new id only. Do not wipe playing/my_id — Chrome may
+                # already have spawned, and env.reset waits on that gate.
+                self._game_ws_request_id = rid
+                self._frames_received = 0
                 log(f"[CDP] Game WebSocket detected: {url} (rid={rid})")
 
         elif method == 'Network.webSocketFrameReceived':
@@ -324,41 +327,38 @@ class CDPInterceptor:
         # Track that init has been received (snake identification happens on main thread)
 
     def try_activate(self):
-        """Try to activate game state by identifying our snake. Call from main thread.
+        """Activate when Chrome actually has a live snake.
 
-        Returns immediately if init/frames are not ready — do not poll-sleep here.
+        Packet parse is not trustworthy (wrong snake / garbage coords), so do
+        not wait on init/frames or position-match parsed snakes. One-shot JS.
         """
-        if self.state.playing:
+        if self.state.playing and not self.state.dead:
             return True
-        if not self._init_received.is_set() or self._frames_received < 10:
-            return False
-
-        # Always match Chrome's snake. Trusting packet my_id / first SNAKE_ADD
-        # locks onto a random other snake (coords like -548101,716830), then
-        # wall-reflex u-turns forever with food=0.
         try:
             result = self.driver.execute_script(
-                "if(!window.slither) return null;"
-                "return {x: window.slither.xx, y: window.slither.yy};"
+                "if(!window.slither || typeof window.slither.xx !== 'number') return null;"
+                "return {x: window.slither.xx, y: window.slither.yy, id: window.slither.id};"
             )
-            if result and result.get('x') is not None:
-                sx, sy = float(result['x']), float(result['y'])
-                with self._lock:
-                    best_id, best_dist = -1, float('inf')
-                    for sid, snake in self.state.snakes.items():
-                        d = (snake.x - sx) ** 2 + (snake.y - sy) ** 2
-                        if d < best_dist:
-                            best_dist = d
-                            best_id = sid
-                    if best_id != -1 and best_dist < 10000:  # Within 100 units
-                        self.state.my_id = best_id
-                        self.state.dead = False
-                        self.state.playing = True
-                        self.state.connected = True
-                        log(f"[CDP] Game state active — snake id={best_id} "
-                            f"(dist={best_dist**.5:.1f}, {len(self.state.snakes)} snakes, "
-                            f"{self._frames_received} frames)")
-                        return True
+            if not result or result.get('x') is None:
+                return False
+            sx, sy = float(result['x']), float(result['y'])
+            if abs(sx) <= 1000 and abs(sy) <= 1000:
+                return False
+            if abs(sx) > 80000 or abs(sy) > 80000:
+                return False
+            sid = result.get('id')
+            with self._lock:
+                if sid is not None:
+                    try:
+                        self.state.my_id = int(sid)
+                    except (TypeError, ValueError):
+                        pass
+                self.state.dead = False
+                self.state.playing = True
+                self.state.connected = True
+            log(f"[CDP] Game state active — chrome snake id={sid} "
+                f"pos=({sx:.0f},{sy:.0f}) frames={self._frames_received}")
+            return True
         except Exception as e:
             logger.debug(f"[CDP] Could not identify snake: {e}")
         return False
@@ -367,17 +367,28 @@ class CDPInterceptor:
 
     @property
     def active(self):
-        """True if interceptor is running, receiving frames, and has valid game state."""
-        return (self._running and
-                self._game_ws_request_id is not None and
-                self._frames_received > 0 and
-                self.state.playing)
+        """True when DevTools is up and Chrome's snake is live."""
+        return bool(self._running and self.state.playing and not self.state.dead)
+
+    def _js_game_data(self):
+        """Read Chrome game state via CDP Runtime.evaluate (not Selenium)."""
+        result = self._cdp_send('Runtime.evaluate', {
+            'expression': 'window._botGetState ? window._botGetState() : null',
+            'returnByValue': True,
+        })
+        if not result:
+            return None
+        inner = result.get('result', result) if isinstance(result, dict) else None
+        if not isinstance(inner, dict):
+            return None
+        value = inner.get('value')
+        return value if isinstance(value, dict) else None
 
     def get_game_data(self):
-        """
-        Returns game state in browser_engine-compatible dict format.
-        Instant: reads from Python memory, no Selenium round-trip.
-        """
+        """Prefer Chrome JS state via CDP. Packet parse is a last resort."""
+        js = self._js_game_data()
+        if js:
+            return js
         with self._lock:
             return self._packet_handler._build_game_data()
 

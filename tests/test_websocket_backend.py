@@ -173,11 +173,14 @@ class TestCdpRearm(unittest.TestCase):
     def test_get_game_data_uses_cdp_when_active(self):
         browser = self._bare_browser()
         browser._cdp.active = True
-        browser._cdp.get_game_data.return_value = {"dead": False, "self": {}}
+        browser._cdp.get_game_data.return_value = {
+            "dead": False, "self": {"x": 21600, "y": 21600},
+        }
         data = browser.get_game_data()
         self.assertEqual(data["dead"], False)
         browser._cdp.try_activate.assert_not_called()
         browser.driver.execute_script.assert_not_called()
+        browser._cdp.get_game_data.assert_called_once()
 
     def test_send_action_does_not_selenium_when_unarmed(self):
         browser = self._bare_browser()
@@ -276,6 +279,17 @@ class TestWebsocketAutoscale(unittest.TestCase):
         }
         self.assertEqual(monitor.recommend(1, metrics, backend="websocket"), 1)
 
+    def test_does_not_scale_up_on_zero_ms_spawning_ticks(self):
+        monitor = ResourceMonitor(check_interval=0, cooldown_up=0, cooldown_down=0)
+        monitor.last_check = 0
+        metrics = {
+            'cpu_percent': 4,
+            'ram_free_mb': 65000,
+            'ram_percent': 10,
+            'avg_step_ms': 0,
+        }
+        self.assertEqual(monitor.recommend(1, metrics, backend="websocket"), 0)
+
 
 class TestCdpInterceptorReset(unittest.TestCase):
     def test_reset_preserves_game_ws_id_by_default(self):
@@ -302,46 +316,40 @@ class TestCdpInterceptorReset(unittest.TestCase):
         self.assertEqual(cdp._game_ws_request_id, 'ws-new')
         self.assertEqual(cdp._frames_received, 0)
 
-    def test_try_activate_does_not_lock_packet_my_id_without_position(self):
+    def test_try_activate_uses_chrome_snake_even_if_packets_are_garbage(self):
         from ws_engine import Snake
         cdp = CDPInterceptor(MagicMock())
         cdp._running = True
-        cdp._game_ws_request_id = 'ws-1'
-        cdp._init_received.set()
-        cdp._frames_received = 20
         cdp.state.my_id = 7
         cdp.state.snakes[7] = Snake(id=7, x=-548101, y=716830)
-        cdp.driver.execute_script.return_value = {'x': 21600, 'y': 21600}
-        self.assertFalse(cdp.try_activate())
-        self.assertFalse(cdp.state.playing)
-        self.assertEqual(cdp.state.my_id, 7)
-
-    def test_try_activate_matches_browser_position_not_first_snake(self):
-        from ws_engine import Snake
-        cdp = CDPInterceptor(MagicMock())
-        cdp._running = True
-        cdp._game_ws_request_id = 'ws-1'
-        cdp._init_received.set()
-        cdp._frames_received = 20
-        cdp.state.my_id = 7
-        cdp.state.snakes[7] = Snake(id=7, x=-548101, y=716830)
-        cdp.state.snakes[9] = Snake(id=9, x=21610, y=21590)
-        cdp.driver.execute_script.return_value = {'x': 21600, 'y': 21600}
+        cdp.driver.execute_script.return_value = {
+            'x': 21600, 'y': 21600, 'id': 42,
+        }
         self.assertTrue(cdp.try_activate())
-        self.assertEqual(cdp.state.my_id, 9)
+        self.assertEqual(cdp.state.my_id, 42)
         self.assertTrue(cdp.state.playing)
         self.assertTrue(cdp.active)
+
+    def test_try_activate_false_when_chrome_has_no_snake(self):
+        cdp = CDPInterceptor(MagicMock())
+        cdp._running = True
+        cdp.driver.execute_script.return_value = None
+        self.assertFalse(cdp.try_activate())
+        self.assertFalse(cdp.state.playing)
 
     def test_cdp_does_not_assume_first_snake_add(self):
         cdp = CDPInterceptor(MagicMock())
         self.assertFalse(cdp._packet_handler._assume_first_snake)
 
-    def test_try_activate_returns_false_until_frames(self):
+    def test_try_activate_does_not_wait_on_packet_frames(self):
         cdp = CDPInterceptor(MagicMock())
-        cdp._init_received.set()
-        cdp._frames_received = 3
-        self.assertFalse(cdp.try_activate())
-        cdp.driver.execute_script.assert_not_called()
+        cdp._running = True
+        cdp._frames_received = 0
+        cdp.driver.execute_script.return_value = {
+            'x': 25000, 'y': 18000, 'id': 3,
+        }
+        self.assertTrue(cdp.try_activate())
+        self.assertTrue(cdp.active)
 
 
 class TestCdpSpawnGate(unittest.TestCase):
