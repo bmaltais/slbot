@@ -20,6 +20,8 @@ class DDQNAgent:
     def __init__(self, config: Config):
         self.config = config
         self.reflex5_enabled = False  # Body encirclement reflex (off by default)
+        self.saved_best_fitness = None
+        self.saved_best_avg_reward = None
 
         # Device selection: CUDA -> MPS -> CPU
         if torch.cuda.is_available():
@@ -92,6 +94,14 @@ class DDQNAgent:
         # N-step returns
         self.n_step = 3
         self.n_step_buffers = {}  # per-agent buffers: {agent_id: deque}
+
+        # Frame dedup: each env step stores one new frame in the replay
+        # buffer; a stacked state is `frame_stack` frame sequence numbers.
+        # Per agent: the next_state object seen last and its frame seqs, so
+        # the following remember_nstep() call can extend the stack by one
+        # frame instead of storing all of them again.
+        self.frame_stack = config.env.frame_stack
+        self._stack_tracker = {}  # agent_id -> (next_state_obj, [seq] * frame_stack)
 
         # Reward Normalization Stats
         self.reward_mean = 0.0
@@ -290,31 +300,59 @@ class DDQNAgent:
 
         return None, None  # No reflex triggered — let the network decide
 
+    # --- replay storage helpers -------------------------------------------
+
+    @staticmethod
+    def _obs_parts(obs):
+        """obs -> (matrix (k*C,H,W) float32, sectors float32 or None)."""
+        if isinstance(obs, dict):
+            sec = obs.get('sectors')
+            return obs['matrix'], (None if sec is None else np.asarray(sec, dtype=np.float32))
+        return obs, None
+
+    def _split_stack(self, matrix):
+        """(k*C, H, W) stacked matrix -> list of k (C, H, W) views, oldest first."""
+        c = matrix.shape[0] // self.frame_stack
+        return [matrix[i * c:(i + 1) * c] for i in range(self.frame_stack)]
+
+    @staticmethod
+    def _quantize(frame):
+        return (frame * 255).astype(np.uint8)
+
+    def _store_stack(self, matrix):
+        """Store every frame of a stack. Identical consecutive frames (the
+        reset-filled stack at episode start) are stored once."""
+        seqs = []
+        prev = None
+        for fr in self._split_stack(matrix):
+            if prev is not None and np.array_equal(fr, prev):
+                seqs.append(seqs[-1])
+            else:
+                seqs.append(self.memory.push_frame(self._quantize(fr)))
+            prev = fr
+        return seqs
+
+    def _extend_stack(self, seqs, next_matrix):
+        """Stack after one env step: drop the oldest seq, store the newest frame."""
+        newest = self._split_stack(next_matrix)[-1]
+        return seqs[1:] + [self.memory.push_frame(self._quantize(newest))]
+
     def remember(self, state, action, reward, next_state, done, gamma=None):
         """
-        Stores transition with compression.
-        state/next_state: dict {'matrix': (12,H,W) float32, 'sectors': (75,) float32}
-        Stored as: (matrix_u8, sectors_f32) tuple for memory efficiency.
+        Stores a single transition from full stacked observations.
+        state/next_state: dict {'matrix': (12,H,W) float32, 'sectors': (99,) float32}
+        or a bare matrix (legacy). Every frame of both stacks is stored, so
+        prefer remember_nstep(), which stores one frame per env step.
         gamma: the gamma used to compute n-step return (stored for consistency across stage changes).
         """
         if gamma is None:
             gamma = self.current_gamma
 
-        if isinstance(state, dict):
-            state_compressed = (
-                (state['matrix'] * 255).astype(np.uint8),
-                state['sectors'].astype(np.float32),
-            )
-            next_compressed = (
-                (next_state['matrix'] * 255).astype(np.uint8),
-                next_state['sectors'].astype(np.float32),
-            )
-        else:
-            # Legacy: plain numpy array
-            state_compressed = (state * 255).astype(np.uint8)
-            next_compressed = (next_state * 255).astype(np.uint8)
-
-        self.memory.push(state_compressed, action, reward, next_compressed, done, gamma)
+        s_mat, s_sec = self._obs_parts(state)
+        n_mat, n_sec = self._obs_parts(next_state)
+        s_seq = self._store_stack(s_mat)
+        n_seq = self._store_stack(n_mat)
+        self.memory.push(s_seq, s_sec, action, reward, n_seq, n_sec, done, gamma)
 
     def set_gamma(self, gamma):
         """Set gamma for current curriculum stage."""
@@ -330,11 +368,30 @@ class DDQNAgent:
             self.n_step_buffers[agent_id] = deque(maxlen=self.n_step)
 
         buf = self.n_step_buffers[agent_id]
-        buf.append((state, action, reward, next_state, done))
+        s_mat, s_sec = self._obs_parts(state)
+        n_mat, n_sec = self._obs_parts(next_state)
+
+        # The trainer passes the previous call's next_state object back as
+        # this call's state while an episode runs. If that chain breaks (new
+        # episode, respawned/re-added agent), the partial trajectory in the
+        # n-step buffer cannot be extended: flush it as truncated (bootstrapped)
+        # transitions and store the new stack in full.
+        tracked = self._stack_tracker.get(agent_id)
+        if tracked is not None and tracked[0] is state:
+            s_seq = tracked[1]
+        else:
+            if buf:
+                self._flush_nstep(agent_id)
+            s_seq = self._store_stack(s_mat)
+        n_seq = self._extend_stack(s_seq, n_mat)
+        self._stack_tracker[agent_id] = (next_state, n_seq)
+
+        buf.append((s_seq, s_sec, action, reward, n_seq, n_sec, done))
 
         if done:
             # Flush all remaining transitions in buffer
             self._flush_nstep(agent_id)
+            self._stack_tracker.pop(agent_id, None)
         elif len(buf) == self.n_step:
             # Buffer full: compute n-step return for oldest transition
             self._push_nstep_transition(agent_id)
@@ -346,23 +403,25 @@ class DDQNAgent:
             return
 
         # Oldest transition provides (state, action)
-        state_0, action_0, _, _, _ = buf[0]
+        s_seq_0, s_sec_0, action_0, _, _, _, _ = buf[0]
 
         # Snapshot gamma at write time — stored in PER for consistency
         gamma_used = self.current_gamma
 
         # Compute n-step discounted return: R = r1 + gamma*r2 + gamma^2*r3
         R = 0.0
-        last_next_state = None
+        last_n_seq = None
+        last_n_sec = None
         last_done = False
-        for i, (_, _, r, ns, d) in enumerate(buf):
+        for i, (_, _, _, r, n_seq, n_sec, d) in enumerate(buf):
             R += (gamma_used ** i) * r
-            last_next_state = ns
+            last_n_seq = n_seq
+            last_n_sec = n_sec
             last_done = d
             if d:
                 break
 
-        self.remember(state_0, action_0, R, last_next_state, last_done, gamma=gamma_used)
+        self.memory.push(s_seq_0, s_sec_0, action_0, R, last_n_seq, last_n_sec, last_done, gamma_used)
 
     def _flush_nstep(self, agent_id):
         """Flush all remaining transitions at episode end."""
@@ -375,17 +434,15 @@ class DDQNAgent:
         if len(self.memory) < self.config.opt.batch_size:
             return None
 
-        # Sample
-        transitions, idxs, is_weights = self.memory.sample(self.config.opt.batch_size)
+        # Sample: contiguous uint8 / float32 arrays gathered from the replay store
+        batch, idxs, is_weights = self.memory.sample(self.config.opt.batch_size)
+        dev = self.device
 
-        # Unzip (6-element tuples: state, action, reward, next_state, done, gamma)
-        batch_state, batch_action, batch_reward, batch_next, batch_done, batch_gamma = zip(*transitions)
-
-        action_batch = torch.tensor(batch_action, dtype=torch.long).unsqueeze(1).to(self.device)
-        reward_batch = torch.tensor(batch_reward, dtype=torch.float32).to(self.device)
-        done_batch = torch.tensor(batch_done, dtype=torch.float32).to(self.device)
-        weights_batch = torch.tensor(is_weights, dtype=torch.float32).to(self.device)
-        gamma_batch = torch.tensor(batch_gamma, dtype=torch.float32).to(self.device)
+        action_batch = torch.from_numpy(batch['action']).to(dev).unsqueeze(1)
+        reward_batch = torch.from_numpy(batch['reward']).to(dev)
+        done_batch = torch.from_numpy(batch['done']).to(dev)
+        weights_batch = torch.from_numpy(is_weights).to(dev)
+        gamma_batch = torch.from_numpy(batch['gamma']).to(dev)
 
         # Reward scaling (scale=1.0 preserves signal; clamp wide enough for S5/S6 long episodes)
         # Q-values in S5+ can legitimately reach ~200 (survival escalation + food over 4000 steps)
@@ -393,12 +450,16 @@ class DDQNAgent:
         reward_scale = max(self.config.opt.reward_scale, 1.0)
         norm_rewards = torch.clamp(reward_batch / reward_scale, -500.0, 500.0)
 
+        # Ship matrices as uint8 from the buffer's pinned staging tensors (4x
+        # less host->device traffic, async copy) and convert on the device.
+        # Converting to float32 on the CPU first was ~95% of this method's
+        # wall time (157 MB per batch at 160x160x12).
+        s_matrices = batch['s_mat'].to(dev, non_blocking=True).float().div_(255.0)
+        n_matrices = batch['n_mat'].to(dev, non_blocking=True).float().div_(255.0)
+
         if self.use_hybrid:
-            # Unpack tuples: (matrix_u8, sectors_f32)
-            s_matrices = torch.tensor(np.array([s[0] for s in batch_state]), dtype=torch.float32).to(self.device) / 255.0
-            s_sectors = torch.tensor(np.array([s[1] for s in batch_state]), dtype=torch.float32).to(self.device)
-            n_matrices = torch.tensor(np.array([s[0] for s in batch_next]), dtype=torch.float32).to(self.device) / 255.0
-            n_sectors = torch.tensor(np.array([s[1] for s in batch_next]), dtype=torch.float32).to(self.device)
+            s_sectors = torch.from_numpy(batch['s_sec']).to(dev)
+            n_sectors = torch.from_numpy(batch['n_sec']).to(dev)
 
             q_values = self.policy_net(s_matrices, s_sectors).gather(1, action_batch)
 
@@ -410,15 +471,12 @@ class DDQNAgent:
                 gamma_n = gamma_batch ** self.n_step
                 expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
         else:
-            # Legacy: plain uint8 arrays
-            state_batch = torch.tensor(np.array(batch_state), dtype=torch.float32).to(self.device) / 255.0
-            next_batch = torch.tensor(np.array(batch_next), dtype=torch.float32).to(self.device) / 255.0
-
-            q_values = self.policy_net(state_batch).gather(1, action_batch)
+            # Legacy: matrix-only model
+            q_values = self.policy_net(s_matrices).gather(1, action_batch)
 
             with torch.no_grad():
-                next_actions = self.policy_net(next_batch).max(1)[1].unsqueeze(1)
-                next_q_values = self.target_net(next_batch).gather(1, next_actions).squeeze(1)
+                next_actions = self.policy_net(n_matrices).max(1)[1].unsqueeze(1)
+                next_q_values = self.target_net(n_matrices).gather(1, next_actions).squeeze(1)
                 next_q_values = torch.clamp(next_q_values, -500.0, 500.0)
                 gamma_n = gamma_batch ** self.n_step
                 expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
@@ -467,7 +525,7 @@ class DDQNAgent:
         missing, unexpected = model.load_state_dict(filtered, strict=False)
         return missing, unexpected, skipped
 
-    def save_checkpoint(self, filepath, episode, max_steps=None, supervisor_state=None, run_uid=None, parent_uid=None):
+    def save_checkpoint(self, filepath, episode, max_steps=None, supervisor_state=None, run_uid=None, parent_uid=None, best_fitness=None, best_avg_reward=None):
         checkpoint = {
             'episode': episode,
             'steps_done': self.steps_done,
@@ -480,6 +538,8 @@ class DDQNAgent:
             'supervisor_state': supervisor_state,
             'run_uid': run_uid,
             'parent_uid': parent_uid,
+            'best_fitness': best_fitness,
+            'best_avg_reward': best_avg_reward,
         }
         torch.save(checkpoint, filepath)
 
@@ -506,4 +566,6 @@ class DDQNAgent:
 
         max_steps = checkpoint.get('max_steps', 200)  # Default to 200 for old checkpoints
         run_uid = checkpoint.get('run_uid', None)
+        self.saved_best_fitness = checkpoint.get('best_fitness')
+        self.saved_best_avg_reward = checkpoint.get('best_avg_reward')
         return checkpoint['episode'], max_steps, checkpoint.get('supervisor_state'), run_uid
