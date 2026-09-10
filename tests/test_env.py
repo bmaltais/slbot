@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from food_sense import CLUSTER_EAT_MASS_CAP, squash_mass
-from slither_env import SlitherEnv
+from slither_env import ACTION_BOOST, SlitherEnv
 from coord_transform import world_to_grid
 
 
@@ -259,7 +259,7 @@ class TestSlitherEnv(unittest.TestCase):
         post['foods'] = pile
         post['self'] = dict(pre['self'])
         post['self']['x'] = 21630.0
-        _state, reward, done, _info = self._step_frames(pre, post, action=11)
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
         self.assertFalse(done)
         expected = 0.4 * squash_mass(16.0, CLUSTER_EAT_MASS_CAP) * (1.0 - 180.0 / 400.0)
         self.assertAlmostEqual(reward, expected)
@@ -272,7 +272,7 @@ class TestSlitherEnv(unittest.TestCase):
         post = self._alive_frame()
         post['self'] = dict(pre['self'])
         post['self']['x'] = 21630.0
-        _state, reward, done, _info = self._step_frames(pre, post, action=11)
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
         self.assertFalse(done)
         self.assertAlmostEqual(reward, -0.04)
 
@@ -288,9 +288,21 @@ class TestSlitherEnv(unittest.TestCase):
         post['foods'] = food
         post['self'] = dict(pre['self'])
         post['self']['x'] = 21630.0
-        _state, reward, done, _info = self._step_frames(pre, post, action=11)
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
         self.assertFalse(done)
         self.assertAlmostEqual(reward, -0.04)
+
+    def test_negative_boost_penalty_rewards_empty_boost(self):
+        self._quiet_rewards()
+        self.env.boost_penalty = -0.2
+        self.env.boost_cluster_reward = 0.0
+        pre = self._alive_frame()
+        post = self._alive_frame()
+        post['self'] = dict(pre['self'])
+        post['self']['x'] = 21630.0
+        _state, reward, done, _info = self._step_frames(pre, post, action=ACTION_BOOST)
+        self.assertFalse(done)
+        self.assertAlmostEqual(reward, 0.2)
 
 if __name__ == '__main__':
     unittest.main()

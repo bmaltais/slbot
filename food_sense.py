@@ -282,14 +282,14 @@ def _iter_food_strings(
     my: float,
     cell: float = FOOD_CLUSTER_CELL,
     sense_range: float = FOOD_SENSE_RANGE,
-) -> List[Tuple[float, float, float, float, List[Tuple[float, float, float]]]]:
+) -> List[Tuple[float, float, float, float]]:
     """8-connected cell components. Aim at the nearest pellet on each string.
 
-    Returns (aim_x, aim_y, aim_dist, total_mass, pellets) per component.
+    Returns (aim_x, aim_y, aim_dist, total_mass) per component.
     """
     bins = _bin_foods(foods, mx, my, cell=cell, sense_range=sense_range)
     visited = set()
-    strings: List[Tuple[float, float, float, float, List[Tuple[float, float, float]]]] = []
+    strings: List[Tuple[float, float, float, float]] = []
     for start in bins:
         if start in visited:
             continue
@@ -315,7 +315,7 @@ def _iter_food_strings(
             continue
         nearest = min(pellets, key=lambda p: (p[0] - mx) ** 2 + (p[1] - my) ** 2)
         dist = math.hypot(nearest[0] - mx, nearest[1] - my)
-        strings.append((nearest[0], nearest[1], dist, mass, pellets))
+        strings.append((nearest[0], nearest[1], dist, mass))
     return strings
 
 
@@ -346,9 +346,8 @@ def best_food_target(
     Aim point is the nearest pellet on that string, not the centroid.
     Returns (cx, cy, dist, mass) or None.
     """
-    strings = _iter_food_strings(foods, mx, my, cell=cell, sense_range=sense_range)
     return _best_from_clusters(
-        [(cx, cy, dist, mass) for cx, cy, dist, mass, _pellets in strings],
+        _iter_food_strings(foods, mx, my, cell=cell, sense_range=sense_range),
         sense_range,
     )
 
@@ -362,28 +361,25 @@ def locked_food_target(
     cell: float = FOOD_CLUSTER_CELL,
     lock_radius: float = FOOD_LOCK_RADIUS,
 ) -> Optional[Tuple[float, float, float, float]]:
-    """Keep the previous string while any pellet is still nearby; else pick a new best.
+    """Keep the previous string while its aim point is still nearby; else pick a new best.
 
-    Matching is by world-space pellets, not cell index, so the lock slides
-    along a trail as the near end is eaten. lock_radius <= 0 disables
-    hysteresis and always returns best_food_target.
+    The lock is the previous nearest pellet. Each step the aim slides to the
+    new near end, which stays inside lock_radius as pellets are eaten.
+    lock_radius <= 0 disables hysteresis and always returns best_food_target.
     """
     strings = _iter_food_strings(foods, mx, my, cell=cell, sense_range=sense_range)
     if locked is not None and lock_radius > 0:
         lx, ly = float(locked[0]), float(locked[1])
         best_match = None
         best_d = lock_radius
-        for cx, cy, dist, mass, pellets in strings:
-            d = min(math.hypot(px - lx, py - ly) for px, py, _sz in pellets)
+        for cx, cy, dist, mass in strings:
+            d = math.hypot(cx - lx, cy - ly)
             if d <= best_d:
                 best_d = d
                 best_match = (cx, cy, dist, mass)
         if best_match is not None:
             return best_match
-    return _best_from_clusters(
-        [(cx, cy, dist, mass) for cx, cy, dist, mass, _pellets in strings],
-        sense_range,
-    )
+    return _best_from_clusters(strings, sense_range)
 
 
 def idle_food_cost(

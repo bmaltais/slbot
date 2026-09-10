@@ -34,6 +34,9 @@ from food_sense import (
 )
 
 ACTION_DIM = 14
+ACTION_BOOST = 11
+ACTION_BOOST_LEFT = 12
+ACTION_BOOST_RIGHT = 13
 
 
 def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
@@ -739,11 +742,11 @@ class SlitherEnv:
         elif action == 8:  angle_change =  0.96  # ~55 deg
         elif action == 9:  angle_change = -1.57  # ~90 deg
         elif action == 10: angle_change =  1.57  # ~90 deg
-        elif action == 11: boost = 1
-        elif action == 12:
+        elif action == ACTION_BOOST: boost = 1
+        elif action == ACTION_BOOST_LEFT:
             angle_change = -0.18
             boost = 1
-        elif action == 13:
+        elif action == ACTION_BOOST_RIGHT:
             angle_change = 0.18
             boost = 1
 
@@ -1115,7 +1118,8 @@ class SlitherEnv:
             )
             if cluster_boost > 0:
                 reward += cluster_boost
-            elif self.boost_penalty > 0:
+            else:
+                # Positive = spam cost; negative = S6-style boost reward; 0 disables.
                 reward -= self.boost_penalty
 
         # 9. Starvation penalty: escalating penalty for not eating
