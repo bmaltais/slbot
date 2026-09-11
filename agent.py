@@ -600,7 +600,7 @@ class DDQNAgent:
         missing, unexpected = model.load_state_dict(filtered, strict=False)
         return missing, unexpected, skipped
 
-    def save_checkpoint(self, filepath, episode, max_steps=None, supervisor_state=None, run_uid=None, parent_uid=None, best_fitness=None, best_fitness_stage=None, best_avg_reward=None, best_avg_reward_stage=None):
+    def save_checkpoint(self, filepath, episode, *, max_steps=None, supervisor_state=None, run_uid=None, parent_uid=None, best_fitness=None, best_fitness_stage=None, best_avg_reward=None, best_avg_reward_stage=None):
         checkpoint = {
             'episode': episode,
             'steps_done': self.steps_done,

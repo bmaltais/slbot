@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent import DDQNAgent
 from config import Config
+from trainer import resolve_best_bar
 
 RES = 64  # smallest size the hybrid net's four conv layers accept
 
@@ -59,3 +60,22 @@ def test_old_checkpoint_without_stage_tag_loads_as_unknown(tmp_path):
     assert loader.saved_best_fitness_stage is None
     assert loader.saved_best_avg_reward == 5.0
     assert loader.saved_best_avg_reward_stage is None
+
+
+# --- resolve_best_bar: the stage-mismatch decision trainer.py restores with ---
+
+def test_resolve_best_bar_restores_on_matching_stage():
+    assert resolve_best_bar(1234.5, 3, current_stage=3, label="fitness") == 1234.5
+
+
+def test_resolve_best_bar_discards_on_stage_mismatch():
+    assert resolve_best_bar(1234.5, 5, current_stage=1, label="fitness") == -float('inf')
+
+
+def test_resolve_best_bar_restores_untagged_checkpoint_best_effort():
+    """No stage tag (pre-fix checkpoint) means we can't verify it, so trust it."""
+    assert resolve_best_bar(1234.5, None, current_stage=1, label="fitness") == 1234.5
+
+
+def test_resolve_best_bar_with_no_saved_value_starts_fresh():
+    assert resolve_best_bar(None, None, current_stage=1, label="fitness") == -float('inf')
