@@ -2442,7 +2442,7 @@ def train(args):
                 persist(backup_path)
                 try:
                     from cleanup_data import prune_backups
-                    prune_backups(keep=cfg.opt.keep_backups)
+                    prune_backups(keep=cfg.opt.keep_backups, backup_dir=backup_dir)
                 except Exception as e:
                     logger.warning(f"  Backup prune failed: {e}")
                 logger.info(f"  >> New Best Fitness: {fitness:.1f} (steps={avg_steps:.1f}, food={avg_food:.1f}, peak_len={avg_peak_length:.1f}). Saved: {backup_name}")
