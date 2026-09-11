@@ -2225,16 +2225,25 @@ def train(args):
         def _say(msg):
             logger.info(msg)
             print(msg, flush=True)
+        from pretrain_view import PretrainMonitor, demo_table_lines
         _say(
             f"[Demos] {summary['episodes']} episode(s), {summary['transitions']} transitions "
             f"from {demo_dir} (skipped {summary['skipped']} below min_score={cfg.demo.min_score}; "
             f"best peak length {summary['peak_length']}); batch ratio {cfg.demo.ratio}"
         )
+        for line in demo_table_lines(summary):
+            _say(line)
         if summary['transitions'] == 0:
             raise SystemExit("--demos: every episode was filtered out; lower --demo-min-score")
         if cfg.demo.pretrain_steps > 0:
-            _say(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations (batch {cfg.opt.batch_size})...")
-            agent.pretrain_from_demos(cfg.demo.pretrain_steps, on_progress=print)
+            _say(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations "
+                 f"(batch {cfg.opt.batch_size}, target sync every {cfg.demo.pretrain_target_every})...")
+            with PretrainMonitor() as monitor:
+                agent.pretrain_from_demos(cfg.demo.pretrain_steps, on_progress=monitor.update)
+            final = monitor.last
+            if final and final.get('agreement'):
+                _say(f"[Demos] Final agreement with your play: {final['agreement']['agreement']:.0%} "
+                     f"of {final['agreement']['n']} demo states; margin loss {final['metrics']['margin_loss']:.4f}")
             # A pretrained policy is worth acting on: don't start from eps=1.0.
             agent.boost_exploration(target_eps=cfg.demo.start_eps)
             persist(checkpoint_path)

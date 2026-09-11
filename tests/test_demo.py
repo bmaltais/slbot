@@ -377,3 +377,93 @@ def test_record_episode_ctrl_c_returns_partial_episode():
     env = _Interrupting([_step_result(3, seed=400), _step_result(4, seed=401)])
     ep, cause, truncated, interrupted = record_episode(env, max_steps=50)
     assert len(ep) == 2 and truncated and interrupted
+
+
+# --- pretraining terminal view ----------------------------------------------
+
+def _update(step=200, steps=1000, agree=0.5):
+    return {
+        'step': step, 'steps': steps, 'elapsed': 12.0, 'eta': 48.0, 'lr': 5e-5,
+        'metrics': {'loss': 0.5 / step, 'margin_loss': 0.2 / step, 'td_error_mean': 0.3,
+                    'q_mean': 1.5, 'q_max': 3.0, 'grad_norm': 0.4, 'demo_frac': 1.0},
+        'agreement': {'agreement': agree, 'n': 64,
+                      'human_counts': np.bincount([0] * 50 + [2] * 10 + [11] * 4, minlength=ACTION_DIM),
+                      'policy_counts': np.bincount([0] * 60 + [2] * 4, minlength=ACTION_DIM)},
+    }
+
+
+def test_sparkline_and_helpers():
+    from pretrain_view import action_mix, fmt_duration, progress_bar, sparkline
+    assert sparkline([]) == ""
+    assert sparkline([1, 1, 1]) == "▄▄▄"
+    s = sparkline([0, 1, 2, 3, 4, 5, 6, 7])
+    assert s[0] == "▁" and s[-1] == "█" and len(s) == 8
+    assert len(sparkline(range(100), width=10)) == 10
+    assert fmt_duration(5) == "5s" and fmt_duration(65) == "1m05s" and fmt_duration(3700) == "1h01m"
+    assert progress_bar(0.5, width=4) == "██░░"
+    mix = action_mix(np.bincount([0] * 8 + [11] * 2, minlength=ACTION_DIM))
+    assert mix.startswith("FWD 80%") and "BST 20%" in mix
+    assert action_mix(np.zeros(ACTION_DIM)) == "-"
+
+
+def test_progress_line_mentions_the_numbers_that_matter():
+    from pretrain_view import progress_line
+    line = progress_line(_update(step=250, steps=1000, agree=0.73))
+    assert "250/1000 (25%)" in line and "agree 73%" in line
+    assert "margin" in line and "left" in line
+
+
+def test_monitor_plain_mode_prints_one_line_per_update():
+    import io
+    from pretrain_view import PretrainMonitor
+    out = io.StringIO()
+    with PretrainMonitor(use_rich=False, stream=out) as mon:
+        mon.update(_update(step=100))
+        mon.update(_update(step=200, agree=0.9))
+    lines = out.getvalue().strip().splitlines()
+    assert len(lines) == 2 and lines[1].startswith("[Pretrain] 200/1000")
+    assert mon.agree_hist == [0.5, 0.9] and len(mon.loss_hist) == 2
+
+
+def test_monitor_rich_panel_renders_agreement_and_mixes():
+    pytest.importorskip("rich")
+    import io
+    from rich.console import Console
+    from pretrain_view import PretrainMonitor
+    console = Console(file=io.StringIO(), width=120, force_terminal=False)
+    with PretrainMonitor(use_rich=True, console=console) as mon:
+        mon.update(_update(step=300, agree=0.66))
+    console.print(mon.render())
+    text = console.file.getvalue()
+    assert "Demo pretraining" in text and "66%" in text
+    assert "your actions" in text and "policy picks" in text
+    assert "FWD 78%" in text and "300/1000" in text
+
+
+def test_demo_table_lines_show_episode_outcomes(agent, tmp_path):
+    from pretrain_view import demo_table_lines
+    _write_demo(tmp_path, steps=5, peak_length=40, seed=50)
+    _write_demo(tmp_path, steps=6, peak_length=3, seed=60, done=False)
+    summary = agent.load_demos(list_demos(str(tmp_path)), min_score=10)
+    lines = demo_table_lines(summary)
+    assert len(lines) == 2
+    assert "5 steps" in lines[0] and "peak   40" in lines[0]
+    assert "skipped" in lines[1]
+
+
+def test_demo_agreement_reaches_one_after_pretraining(agent, tmp_path):
+    torch.manual_seed(1)
+    ep = DemoEpisode(_obs(7))
+    for t in range(12):
+        ep.add(4, 0.0, _obs(7), done=(t == 11), length=1)
+    ep.save(str(tmp_path))
+    agent.load_demos(list_demos(str(tmp_path)))
+    before = agent.demo_agreement(8)
+    assert before['n'] == 8 and before['human_counts'][4] == 8
+    assert before['policy_counts'].sum() == 8
+    updates = []
+    agent.pretrain_from_demos(60, log_every=20, on_progress=updates.append)
+    assert [u['step'] for u in updates] == [20, 40, 60]
+    assert set(updates[0]) >= {'step', 'steps', 'elapsed', 'eta', 'lr', 'metrics', 'agreement'}
+    assert updates[-1]['agreement']['agreement'] == 1.0
+    assert agent.demo_agreement(12)['agreement'] == 1.0

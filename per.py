@@ -308,6 +308,18 @@ class PrioritizedReplayBuffer:
 
         return self.store.gather(slots, self.frames), idxs, is_weight.astype(np.float32)
 
+    def sample_uniform(self, n):
+        """n distinct transitions drawn uniformly, ignoring priorities.
+
+        For evaluation (no IS weights, no priority bookkeeping). Same batch
+        dict as sample(); the matrix tensors are reused by the next gather.
+        """
+        if self.frames is None or self.store is None or len(self) == 0:
+            raise ValueError("replay buffer is empty")
+        n = min(int(n), len(self))
+        slots = np.random.choice(len(self), size=n, replace=False)
+        return self.store.gather(slots, self.frames)
+
     def update_priorities(self, idxs, errors):
         for idx, error in zip(idxs, errors):
             p = (error + self.priority_eps) ** self.alpha

@@ -550,6 +550,21 @@ class DDQNAgent:
             'steps': n_steps,
             'transitions': 0,
             'peak_length': max((d['meta'].get('peak_length', 0) for d in demos), default=0),
+            'min_score': min_score,
+            # One row per kept episode, for the trainer's loading table.
+            'episode_rows': [
+                {
+                    'file': os.path.basename(p),
+                    'steps': len(d['actions']),
+                    'peak_length': d['meta'].get('peak_length', 0),
+                    'total_reward': d['meta'].get('total_reward', float(np.sum(d['rewards']))),
+                    'cause': d['meta'].get('cause'),
+                    'truncated': bool(d['meta'].get('truncated', not bool(d['dones'][-1]))),
+                    'action_counts': np.bincount(d['actions'], minlength=ACTION_DIM),
+                }
+                for p, d in zip(kept, demos)
+            ],
+            'skipped_files': [os.path.basename(p) for p in skipped],
         }
         if n_steps == 0:
             self.demo_memory = None
@@ -595,20 +610,47 @@ class DDQNAgent:
     def _forward(self, net, matrices, sectors):
         return net(matrices, sectors) if self.use_hybrid else net(matrices)
 
-    def pretrain_from_demos(self, steps, log_every=200, on_progress=None):
+    def demo_agreement(self, n=256):
+        """How often the greedy policy picks the human's action on demo states.
+
+        Draws n demo transitions uniformly and compares argmax Q with the
+        recorded label. Returns agreement in [0, 1], the sample size, and
+        per-action counts for the human labels and the policy's picks.
+        """
+        if self.demo_memory is None or len(self.demo_memory) == 0:
+            raise RuntimeError("no demonstrations loaded; call load_demos() first")
+        batch = self.demo_memory.sample_uniform(n)
+        dev = self.device
+        with torch.no_grad():
+            mats = batch['s_mat'].to(dev, non_blocking=True).float().div_(255.0)
+            secs = torch.from_numpy(batch['s_sec']).to(dev) if self.use_hybrid else None
+            greedy = self._forward(self.policy_net, mats, secs).argmax(1).cpu().numpy()
+        human = batch['action']
+        return {
+            'agreement': float(np.mean(greedy == human)),
+            'n': int(len(human)),
+            'human_counts': np.bincount(human, minlength=ACTION_DIM),
+            'policy_counts': np.bincount(greedy, minlength=ACTION_DIM),
+        }
+
+    def pretrain_from_demos(self, steps, log_every=200, on_progress=None, eval_states=256):
         """Gradient steps on demonstrations alone, before any live play.
 
         Returns the last metrics dict. Syncs the target net every
         config.demo.pretrain_target_every steps and once at the end.
-        on_progress(msg) is called every log_every steps with a one-line
-        status (the logger only writes to files; the trainer prints it).
+        Every log_every steps (and at the end) on_progress(update) is called
+        with a dict: step, steps, elapsed, eta, lr, metrics (the last
+        optimize_model dict) and agreement (see demo_agreement, computed on
+        eval_states sampled demo states). The logger only writes to files;
+        the trainer turns these updates into a terminal view.
         """
         if self.demo_memory is None or len(self.demo_memory) == 0:
             raise RuntimeError("no demonstrations loaded; call load_demos() first")
+        steps = int(steps)
         sync_every = max(1, int(self.config.demo.pretrain_target_every))
         metrics = None
         t0 = time.time()
-        for i in range(1, int(steps) + 1):
+        for i in range(1, steps + 1):
             m = self.optimize_model(demo_only=True)
             if m is not None:
                 metrics = m
@@ -616,15 +658,24 @@ class DDQNAgent:
                 self.update_target()
             if log_every and (i % log_every == 0 or i == steps) and metrics:
                 elapsed = time.time() - t0
-                eta = elapsed / i * (steps - i)
-                msg = (
-                    f"[Pretrain] step {i}/{steps} loss={metrics['loss']:.4f} "
+                update = {
+                    'step': i,
+                    'steps': steps,
+                    'elapsed': elapsed,
+                    'eta': elapsed / i * (steps - i),
+                    'lr': float(self.optimizer.param_groups[0]['lr']),
+                    'metrics': dict(metrics),
+                    'agreement': self.demo_agreement(eval_states) if eval_states else None,
+                }
+                agree = update['agreement']
+                logger.info(
+                    f"  [Pretrain] step {i}/{steps} loss={metrics['loss']:.4f} "
                     f"margin={metrics['margin_loss']:.4f} q_mean={metrics['q_mean']:.2f} "
-                    f"({elapsed:.0f}s, ~{eta:.0f}s left)"
+                    + (f"agree={agree['agreement']:.0%} " if agree else "")
+                    + f"({elapsed:.0f}s, ~{update['eta']:.0f}s left)"
                 )
-                logger.info("  " + msg)
                 if on_progress:
-                    on_progress(msg)
+                    on_progress(update)
         self.update_target()
         return metrics
 

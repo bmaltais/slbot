@@ -447,6 +447,14 @@ on, and saves the checkpoint. After that, normal RL continues with
 best-fitness bar still decides when a model file is written; a human game is
 never compared with the bot's, it is only ever a dataset.
 
+**Watching it.** Pretraining runs before the TUI exists, so it has its own
+terminal view (`pretrain_view.py`): the loaded episodes as a table, then a
+live panel with a progress bar and ETA, loss / margin loss / Q numbers with
+sparkline trends, and *agreement*, the share of sampled demo states where the
+network's greedy action now matches yours, next to your action mix and the
+policy's. Margin loss falling toward zero and agreement rising is what "the
+demos took" looks like. Without a terminal it prints one line per update.
+
 Demos are scored under one stage's rewards and stored with that stage's
 gamma, so record with the `--stage` you plan to train on. Tunables live in
 `DemoConfig` in `config.py` (margin 0.8, margin weight 1.0, target sync every
