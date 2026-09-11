@@ -228,7 +228,6 @@ def cleanup_events(days_to_keep=3):
 
 if __name__ == "__main__":
     print(f"--- Data Cleanup Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---")
-    cleanup_checkpoints(keep_top=configured_keep_backups())
-    prune_backups()
+    prune_backups(keep=configured_keep_backups())
     prune_events()
     print("--- Cleanup Finished ---")
