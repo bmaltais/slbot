@@ -15,6 +15,9 @@ plt.switch_backend('Agg')
 
 # Add parent directory to path to import browser_engine
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from typing import Optional
+
+from browser_backend import Backend
 from coord_transform import world_to_grid
 from death_cause import Cause
 from food_sense import (
@@ -308,7 +311,7 @@ class _DeathPacketWriter:
 
 
 class SlitherEnv:
-    def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url="", browser=None):
+    def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url="", browser: Optional[Backend] = None):
         """`browser`, if given, must satisfy browser_backend.Backend and is used
         as-is instead of building one (see browser_backend.FakeBackend for tests).
         `backend` still selects websocket-vs-selenium runtime behaviour below,

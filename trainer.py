@@ -156,7 +156,15 @@ def cause_cell(cause):
     `cause` is a Cause once an agent has died, or the initial "—" sentinel
     before its first episode ends — handle both without truncating a
     string to compare it, which is how this used to silently never match.
+    A plain string equal to one of Cause's values (e.g. "SnakeCollision"
+    loaded from an old source) is normalized to the matching Cause so it
+    still gets its short form, not just its correct colour.
     """
+    if not isinstance(cause, Cause):
+        try:
+            cause = Cause(cause)
+        except ValueError:
+            pass  # not a recognized cause (e.g. the "—" sentinel) — pass through as-is
     style = "red" if cause == Cause.WALL else "yellow" if cause == Cause.SNAKE_COLLISION else "dim"
     text = cause.short if isinstance(cause, Cause) else cause
     return style, text

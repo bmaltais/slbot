@@ -72,6 +72,17 @@ class TestDashboardCauseStyling(unittest.TestCase):
         self.assertEqual(style, "dim")
         self.assertEqual(text, '—')
 
+    def test_plain_string_cause_still_gets_its_short_form(self):
+        # A raw "SnakeCollision" string (e.g. from a source that predates
+        # Cause) must still render "Snake", not the full string.
+        style, text = cause_cell("SnakeCollision")
+        self.assertEqual(style, "yellow")
+        self.assertEqual(text, "Snake")
+
+        style, text = cause_cell("Wall")
+        self.assertEqual(style, "red")
+        self.assertEqual(text, "Wall")
+
 
 if __name__ == '__main__':
     unittest.main()
