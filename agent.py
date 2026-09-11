@@ -595,11 +595,13 @@ class DDQNAgent:
     def _forward(self, net, matrices, sectors):
         return net(matrices, sectors) if self.use_hybrid else net(matrices)
 
-    def pretrain_from_demos(self, steps, log_every=200):
+    def pretrain_from_demos(self, steps, log_every=200, on_progress=None):
         """Gradient steps on demonstrations alone, before any live play.
 
         Returns the last metrics dict. Syncs the target net every
         config.demo.pretrain_target_every steps and once at the end.
+        on_progress(msg) is called every log_every steps with a one-line
+        status (the logger only writes to files; the trainer prints it).
         """
         if self.demo_memory is None or len(self.demo_memory) == 0:
             raise RuntimeError("no demonstrations loaded; call load_demos() first")
@@ -613,11 +615,16 @@ class DDQNAgent:
             if i % sync_every == 0:
                 self.update_target()
             if log_every and (i % log_every == 0 or i == steps) and metrics:
-                logger.info(
-                    f"  [Pretrain] step {i}/{steps} loss={metrics['loss']:.4f} "
+                elapsed = time.time() - t0
+                eta = elapsed / i * (steps - i)
+                msg = (
+                    f"[Pretrain] step {i}/{steps} loss={metrics['loss']:.4f} "
                     f"margin={metrics['margin_loss']:.4f} q_mean={metrics['q_mean']:.2f} "
-                    f"({time.time() - t0:.0f}s)"
+                    f"({elapsed:.0f}s, ~{eta:.0f}s left)"
                 )
+                logger.info("  " + msg)
+                if on_progress:
+                    on_progress(msg)
         self.update_target()
         return metrics
 

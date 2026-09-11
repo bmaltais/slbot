@@ -2220,7 +2220,12 @@ def train(args):
     # stage gamma, and before the loop so the first batches already mix them.
     if demo_paths:
         summary = agent.load_demos(demo_paths, min_score=cfg.demo.min_score)
-        logger.info(
+        # The dashboard is not up yet and the logger only writes to files,
+        # so this phase reports to the terminal directly.
+        def _say(msg):
+            logger.info(msg)
+            print(msg, flush=True)
+        _say(
             f"[Demos] {summary['episodes']} episode(s), {summary['transitions']} transitions "
             f"from {demo_dir} (skipped {summary['skipped']} below min_score={cfg.demo.min_score}; "
             f"best peak length {summary['peak_length']}); batch ratio {cfg.demo.ratio}"
@@ -2228,12 +2233,12 @@ def train(args):
         if summary['transitions'] == 0:
             raise SystemExit("--demos: every episode was filtered out; lower --demo-min-score")
         if cfg.demo.pretrain_steps > 0:
-            logger.info(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations...")
-            agent.pretrain_from_demos(cfg.demo.pretrain_steps)
+            _say(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations (batch {cfg.opt.batch_size})...")
+            agent.pretrain_from_demos(cfg.demo.pretrain_steps, on_progress=print)
             # A pretrained policy is worth acting on: don't start from eps=1.0.
             agent.boost_exploration(target_eps=cfg.demo.start_eps)
             persist(checkpoint_path)
-            logger.info(f"[Demos] Pretraining done; checkpoint saved to {checkpoint_path}")
+            _say(f"[Demos] Pretraining done (eps -> {agent.get_epsilon():.2f}); checkpoint saved to {checkpoint_path}")
 
     # Metrics tracking
     total_steps = agent.steps_done
