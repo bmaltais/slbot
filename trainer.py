@@ -74,6 +74,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import Config
 from agent import DDQNAgent
+from death_cause import Cause
 from styles import STYLES
 from worker_process import READY_MSG, worker
 from worker_session import spawning_obs, spawning_step_result
@@ -147,6 +148,18 @@ def rolling_steps_per_sec(step_times, now, window=SPS_WINDOW_S, started_at=None)
     if elapsed <= 0:
         return 0.0
     return len(step_times) / elapsed
+
+
+def cause_cell(cause):
+    """Style + display text for one agent's "Last Death" cell.
+
+    `cause` is a Cause once an agent has died, or the initial "—" sentinel
+    before its first episode ends — handle both without truncating a
+    string to compare it, which is how this used to silently never match.
+    """
+    style = "red" if cause == Cause.WALL else "yellow" if cause == Cause.SNAKE_COLLISION else "dim"
+    text = cause.short if isinstance(cause, Cause) else cause
+    return style, text
 
 
 class TrainingDashboard:
@@ -721,12 +734,13 @@ class TrainingDashboard:
             causes_count = {}
             for c in death_causes:
                 causes_count[c] = causes_count.get(c, 0) + 1
-            for cause_name in ["Wall", "SnakeCollision", "MaxSteps", "InvalidFrame", "BrowserError"]:
+            for cause_name in (Cause.WALL, Cause.SNAKE_COLLISION, Cause.MAX_STEPS,
+                                Cause.INVALID_FRAME, Cause.BROWSER_ERROR):
                 cnt = causes_count.get(cause_name, 0)
                 pct = cnt / total * 100
                 if cnt > 0:
-                    color = "red" if cause_name == "Wall" else "yellow" if cause_name == "SnakeCollision" else "dim"
-                    death_table.add_row(cause_name[:10], f"[{color}]{pct:5.1f}% {self._bar(pct, 8)}[/]")
+                    color, cause_short = cause_cell(cause_name)
+                    death_table.add_row(cause_short, f"[{color}]{pct:5.1f}% {self._bar(pct, 8)}[/]")
         mid_layout["deaths"].update(Panel(death_table, title="[bold]Deaths (100ep)", border_style="red"))
 
         # Model trends (epsilon, loss, Q-mean, TD error)
@@ -936,7 +950,7 @@ class TrainingDashboard:
                 reward_val = a.get('reward', 0)
                 rw_style = "green" if reward_val > 0 else "red" if reward_val < 0 else "dim"
                 cause = a.get('last_cause', '—')
-                cause_style = "red" if cause == "Wall" else "yellow" if cause == "Snake" else "dim"
+                cause_style, cause_text = cause_cell(cause)
                 size_val = a.get('length', 0)
                 size_style = "bold green" if size_val >= 100 else "green" if size_val >= 30 else "dim"
                 sps_val = a.get('sps', 0.0)
@@ -961,7 +975,7 @@ class TrainingDashboard:
                     f"[{sps_style}]{sps_val:.1f}[/]",
                     time_str,
                     str(a.get('total_eps', 0)),
-                    f"[{cause_style}]{cause}[/]",
+                    f"[{cause_style}]{cause_text}[/]",
                     short_srv,
                 )
         else:
@@ -1147,7 +1161,7 @@ class CurriculumManager:
         else:
             return self.style_config["stages"][self.current_stage]["max_steps"]
 
-    def record_episode(self, food_eaten, steps, cause="SnakeCollision", peak_length=0):
+    def record_episode(self, food_eaten, steps, cause=Cause.SNAKE_COLLISION, peak_length=0):
         """Record episode metrics for promotion check."""
         self.episode_food_history.append(food_eaten)
         self.episode_steps_history.append(steps)
@@ -1233,7 +1247,7 @@ class CurriculumManager:
             wall_death_max = cfg.get("promote_wall_death_max")
             if wall_death_max is not None and len(self.episode_cause_history) >= window:
                 recent_causes = list(self.episode_cause_history)[-window:]
-                wall_deaths = sum(1 for c in recent_causes if c == "Wall")
+                wall_deaths = sum(1 for c in recent_causes if c == Cause.WALL)
                 wall_ratio = wall_deaths / len(recent_causes)
                 if wall_ratio > wall_death_max:
                     if len(self.episode_steps_history) % 50 == 0:
@@ -1313,8 +1327,8 @@ class SuperPatternOptimizer:
         if len(self.causes) < self.cfg.opt.super_pattern_window:
             return None
 
-        wall_ratio = self.causes.count("Wall") / len(self.causes)
-        snake_ratio = self.causes.count("SnakeCollision") / len(self.causes)
+        wall_ratio = self.causes.count(Cause.WALL) / len(self.causes)
+        snake_ratio = self.causes.count(Cause.SNAKE_COLLISION) / len(self.causes)
         avg_food_ratio = sum(self.food_ratios) / len(self.food_ratios)
 
         updated = dict(self.current_stage_cfg)
@@ -1662,7 +1676,7 @@ class SubprocVecEnv:
         obs = self._make_dummy_obs()
         return (obs, 0.0, True, {
             'terminal_observation': obs,
-            'cause': 'BrowserError',
+            'cause': Cause.BROWSER_ERROR,
             'food_eaten': 0,
             'pos': (0, 0),
             'wall_dist': -1,
@@ -2183,7 +2197,10 @@ def train(args):
     last_metrics = {'loss': 0, 'q_mean': 0, 'q_max': 0, 'td_error_mean': 0, 'grad_norm': 0}
 
     # Death Counters
-    death_stats = {"Wall": 0, "SnakeCollision": 0, "InvalidFrame": 0, "BrowserError": 0, "MaxSteps": 0}
+    death_stats = {
+        Cause.WALL: 0, Cause.SNAKE_COLLISION: 0, Cause.INVALID_FRAME: 0,
+        Cause.BROWSER_ERROR: 0, Cause.MAX_STEPS: 0,
+    }
 
     # Per-agent board tracking
     AGENT_NAMES = ["Picard", "Riker", "Data", "Worf", "Troi", "LaForge",
@@ -2357,21 +2374,21 @@ def train(args):
         lr = agent.optimizer.param_groups[0]['lr']
 
         if force_done_flag:
-            cause_label = "MaxSteps"
+            cause_label = Cause.MAX_STEPS
         else:
-            cause_label = cause if cause else "SnakeCollision"
+            cause_label = cause if cause else Cause.SNAKE_COLLISION
 
         # Update death stats
         if cause_label in death_stats:
             death_stats[cause_label] += 1
         else:
-            death_stats["SnakeCollision"] += 1
+            death_stats[Cause.SNAKE_COLLISION] += 1
 
         pos = infos[agent_index].get('pos', (0, 0))
         wall_dist = infos[agent_index].get('wall_dist', -1)
         # MODIFIED: Use enemy_dist from HEAD logic
         enemy_dist = infos[agent_index].get('enemy_dist', -1)
-        close_enemy_death = int(cause_label == "SnakeCollision" and enemy_dist >= 0 and enemy_dist < 120)
+        close_enemy_death = int(cause_label == Cause.SNAKE_COLLISION and enemy_dist >= 0 and enemy_dist < 120)
         reflex_total = reflex_stats.get('total_actions', 0)
         reflex_used = reflex_stats.get('reflex_actions', 0)
         reflex_rate = (reflex_used / reflex_total) if reflex_total else 0.0
@@ -2541,7 +2558,7 @@ def train(args):
 
         # Per-agent board tracking
         agent_total_eps[agent_index] += 1
-        agent_last_cause[agent_index] = cause_label[:10]
+        agent_last_cause[agent_index] = cause_label
         agent_ep_start[agent_index] = time.time()
 
         episode_rewards[agent_index] = 0
@@ -2655,7 +2672,7 @@ def train(args):
                     finalize_episode(
                         agent_index=i,
                         terminal_state=terminal_state,
-                        cause=infos[i].get('cause', 'SnakeCollision'),
+                        cause=infos[i].get('cause', Cause.SNAKE_COLLISION),
                         force_done_flag=force_done and not dones[i]
                     )
                     agent_spawning[i] = True

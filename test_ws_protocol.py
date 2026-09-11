@@ -140,26 +140,33 @@ class TestDecode:
 # ─── Encode tests ────────────────────────────────────────────────────────
 
 class TestEncode:
+    # encode_angle returns exactly one wire byte, not [type, value]: per its
+    # own docstring, the mouse angle steals the unreserved byte range
+    # [0, 250] (251=ping, 252=keyboard/precise, 253=boost_start,
+    # 254=boost_stop are reserved elsewhere in the protocol), and
+    # ws_engine.SlitherWSClient.send_angle ships that single byte as the
+    # entire binary WS frame. encode_angle_precise (packet 252) is the one
+    # that carries an explicit leading packet-type byte.
     def test_encode_angle_zero(self):
         data = encode_angle(0.0)
-        assert data[0] == 251  # Packet type
-        assert data[1] == 0    # Angle byte
+        assert len(data) == 1
+        assert data[0] == 0
 
     def test_encode_angle_pi(self):
         data = encode_angle(math.pi)
-        assert data[0] == 251
-        assert data[1] == 128  # pi → 128
+        assert len(data) == 1
+        assert data[0] == 125  # floor(251 * pi / 2pi) = floor(125.5) = 125
 
     def test_encode_angle_half_pi(self):
         data = encode_angle(math.pi / 2)
-        assert data[0] == 251
-        assert data[1] == 64  # pi/2 → 64
+        assert len(data) == 1
+        assert data[0] == 62  # floor(251 * 0.25) = 62
 
     def test_encode_angle_negative_wraps(self):
-        # -pi/2 should wrap to 3*pi/2 → 192
+        # -pi/2 wraps to 3*pi/2 → floor(251 * 0.75) = 188
         data = encode_angle(-math.pi / 2)
-        assert data[0] == 251
-        assert data[1] == 192
+        assert len(data) == 1
+        assert data[0] == 188
 
     def test_encode_angle_precise(self):
         data = encode_angle_precise(math.pi)
@@ -167,26 +174,36 @@ class TestEncode:
         val = struct.unpack('>H', data[1:3])[0]
         assert val == 32768  # pi → 32768
 
-    def test_encode_decode_angle_roundtrip(self):
-        """Encode then decode should be close to original (within quantization)."""
-        for angle in [0.0, math.pi / 4, math.pi / 2, math.pi, 3 * math.pi / 2]:
-            encoded = encode_angle(angle)
-            decoded = decode_angle(encoded[1])
-            # uint8 quantization error is up to TWO_PI/256 ≈ 0.0245
-            assert abs(decoded - (angle % TWO_PI)) < 0.03, f"Roundtrip failed for {angle}"
+    def test_encode_angle_never_collides_with_reserved_bytes(self):
+        # 251-254 are ping/keyboard/boost_start/boost_stop; encode_angle's
+        # own byte must stay clear of them across the full angle range.
+        for i in range(360):
+            angle = TWO_PI * i / 360
+            data = encode_angle(angle)
+            assert data[0] <= 250, f"encode_angle({angle}) collided with a reserved byte"
 
     def test_encode_login(self):
+        # Reverse-engineered from the game JS's ws.onopen (see encode_login's
+        # docstring): [type][fixed byte][client_version hi/lo][20-byte
+        # password][skin_id][nick_len][nick][0][0xFF] — not a bare
+        # [type][version][skin][name] envelope.
         data = encode_login("TestBot", skin_id=5)
-        assert data[0] == 115   # Login packet type
-        assert data[1] == 11    # Protocol version
-        assert data[2] == 5     # Skin ID
-        assert data[3:].decode('utf-8') == "TestBot"
+        assert data[0] == 115   # Login packet type ('s')
+        assert data[1] == 30    # Fixed byte from game JS
+        assert struct.unpack('>H', data[2:4])[0] == 291  # CLIENT_VERSION
+        assert len(data[4:24]) == 20                     # CLIENT_PASSWORD
+        assert data[24] == 5                              # Skin ID
+        assert data[25] == len("TestBot")                 # Nickname length
+        nick_end = 26 + len("TestBot")
+        assert data[26:nick_end].decode('utf-8') == "TestBot"
+        assert data[nick_end:] == bytes([0, 0xFF])         # Terminator + end marker
 
     def test_encode_login_truncates_long_name(self):
         long_name = "A" * 50
         data = encode_login(long_name)
-        # Name should be truncated to 24 bytes
-        assert len(data) == 3 + 24
+        # Name is truncated to 24 bytes: fixed 28-byte envelope + 24 name bytes.
+        assert len(data) == 28 + 24
+        assert data[25] == 24
 
     def test_encode_boost_start(self):
         assert encode_boost_start() == bytes([253])

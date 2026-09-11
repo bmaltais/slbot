@@ -16,6 +16,7 @@ plt.switch_backend('Agg')
 # Add parent directory to path to import browser_engine
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from coord_transform import world_to_grid
+from death_cause import Cause
 from food_sense import (
     BOOST_CLUSTER_MIN_MASS,
     BOOST_CLUSTER_RANGE,
@@ -307,9 +308,14 @@ class _DeathPacketWriter:
 
 
 class SlitherEnv:
-    def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url=""):
+    def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url="", browser=None):
+        """`browser`, if given, must satisfy browser_backend.Backend and is used
+        as-is instead of building one (see browser_backend.FakeBackend for tests).
+        `backend` still selects websocket-vs-selenium runtime behaviour below,
+        independent of which browser adapter is actually injected.
+        """
         self.backend = backend
-        self.browser = _create_browser(backend, headless, nickname, base_url, ws_server_url)
+        self.browser = browser if browser is not None else _create_browser(backend, headless, nickname, base_url, ws_server_url)
         # Fixed Map Constants (Standard Slither.io)
         self.MAP_RADIUS = 21600
         self.MAP_CENTER_X = 21600
@@ -660,38 +666,38 @@ class SlitherEnv:
         COLLISION_BUFFER = 120   # doubled for frame_skip=8
         WALL_BUFFER = 240       # doubled for frame_skip=8
 
-        cause = "SnakeCollision"
+        cause = Cause.SNAKE_COLLISION
         penalty = self.death_snake_penalty
 
         # Priority 1: Strictly outside map (Absolute Wall Death)
         if dist_to_wall_py < -50:
-             cause = "Wall"
+             cause = Cause.WALL
              penalty = self.death_wall_penalty
 
         # Priority 2: Near wall AND no close enemy → Wall death
         elif dist_to_wall_py <= (head_radius + WALL_BUFFER) and (min_enemy_dist == float('inf') or min_enemy_dist > 500):
-             cause = "Wall"
+             cause = Cause.WALL
              penalty = self.death_wall_penalty
 
         # Priority 3: High confidence Enemy Collision (close enemy)
         elif min_enemy_dist != float('inf') and min_enemy_dist <= (head_radius + COLLISION_BUFFER):
-            cause = "SnakeCollision"
+            cause = Cause.SNAKE_COLLISION
             penalty = self.death_snake_penalty
 
         # Priority 4: Near wall with nearby enemy — heuristic: if wall < 200 and enemy > 500, prefer Wall
         elif dist_to_wall_py < 200 and (min_enemy_dist == float('inf') or min_enemy_dist > 500):
-             cause = "Wall"
+             cause = Cause.WALL
              penalty = self.death_wall_penalty
 
         # Priority 5: No enemy detected at all + within 600 of wall → likely Wall
         # (covers map_radius inaccuracy — up to ~600 units of error)
         elif min_enemy_dist == float('inf') and dist_to_wall_py < 600:
-             cause = "Wall"
+             cause = Cause.WALL
              penalty = self.death_wall_penalty
 
         # Priority 6: Default → SnakeCollision
         else:
-            cause = "SnakeCollision"
+            cause = Cause.SNAKE_COLLISION
             penalty = self.death_snake_penalty
 
         min_enemy_display = min_enemy_dist if min_enemy_dist != float('inf') else -1
@@ -917,7 +923,7 @@ class SlitherEnv:
                     # spawning+done so this is not a mixed-mode 1-step death.
                     self._cdp_spawn_wait_t0 = None
                     return zeros, 0.0, True, self._info(
-                        spawning=True, cause="SpawnWait",
+                        spawning=True, cause=Cause.SPAWN_WAIT,
                         food_eaten=0, pos=(0, 0), wall_dist=-1, enemy_dist=-1,
                         length=0,
                     )
@@ -957,7 +963,7 @@ class SlitherEnv:
         # Robust check (Validation Logic from tsrgy0)
         if not data:
             zeros = self._matrix_zeros()
-            return zeros, -5, True, self._info(cause="BrowserError")
+            return zeros, -5, True, self._info(cause=Cause.BROWSER_ERROR)
 
         # Check for valid coordinates regardless of dead status
         has_valid_coords = self._has_valid_coordinates(data)
@@ -965,9 +971,9 @@ class SlitherEnv:
         if not data.get('dead') and not has_valid_coords:
             self.invalid_frame_count += 1
             if self.invalid_frame_count >= self.max_invalid_frames:
-                return self.last_matrix, -5, True, self._info(cause="InvalidFrame")
+                return self.last_matrix, -5, True, self._info(cause=Cause.INVALID_FRAME)
             # Return last valid state
-            return self.last_matrix, 0.0, False, self._info(cause="InvalidFrame")
+            return self.last_matrix, 0.0, False, self._info(cause=Cause.INVALID_FRAME)
 
         self.invalid_frame_count = 0
 
@@ -1063,8 +1069,8 @@ class SlitherEnv:
         if data and not data.get('dead') and not self._is_valid_frame(data):
              self.invalid_frame_count += 1
              if self.invalid_frame_count >= self.max_invalid_frames:
-                 return self.last_matrix, -5, True, self._info(cause="InvalidFrame")
-             return self.last_matrix, 0.0, False, self._info(cause="InvalidFrame")
+                 return self.last_matrix, -5, True, self._info(cause=Cause.INVALID_FRAME)
+             return self.last_matrix, 0.0, False, self._info(cause=Cause.INVALID_FRAME)
 
         matrix = self._process_data_to_matrix(data)
         sectors = self._compute_sectors(data)

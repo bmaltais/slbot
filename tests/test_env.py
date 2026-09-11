@@ -2,10 +2,11 @@ import sys
 import os
 import unittest
 import numpy as np
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from browser_backend import FakeBackend
 from food_sense import CLUSTER_EAT_MASS_CAP, squash_mass
 from slither_env import ACTION_BOOST, SlitherEnv
 from coord_transform import world_to_grid
@@ -13,11 +14,10 @@ from coord_transform import world_to_grid
 
 class TestSlitherEnv(unittest.TestCase):
     def setUp(self):
-        self.patcher = patch('slither_env._create_browser', return_value=MagicMock())
-        self.patcher.start()
-        self.addCleanup(self.patcher.stop)
-        self.env = SlitherEnv(headless=True, nickname="TestBot", matrix_size=84, view_plus=False)
-        self.env.browser = MagicMock()
+        self.env = SlitherEnv(
+            headless=True, nickname="TestBot", matrix_size=84, view_plus=False,
+            browser=FakeBackend(),
+        )
         self.env.browser.get_game_data = MagicMock(return_value={})
 
     def test_radial_rendering(self):

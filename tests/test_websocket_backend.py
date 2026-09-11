@@ -15,6 +15,8 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from browser_backend import FakeBackend
+from death_cause import Cause
 from browser_engine import SlitherBrowser
 from cdp_intercept import CDPInterceptor, steering_js
 from slither_env import SlitherEnv
@@ -381,21 +383,12 @@ class TestCdpSpawnGate(unittest.TestCase):
         }
 
     def _env(self):
-        with patch('slither_env._create_browser', return_value=MagicMock()):
-            env = SlitherEnv(headless=True, nickname="TestBot", backend="websocket")
-        env.browser = MagicMock()
-        env.browser.force_restart = MagicMock()
-        env.browser.try_activate_cdp = MagicMock(return_value=False)
-        env.browser.cdp_is_active = MagicMock(return_value=False)
-        env.browser.get_game_data = MagicMock(
-            return_value={'dead': False, 'spawning': True},
+        backend = FakeBackend(
+            frames=[{'dead': False, 'spawning': True}], cdp_active=False,
         )
-        env.browser.send_action = MagicMock()
-        env.browser.cdp_stats = MagicMock(return_value={
-            'cdp_active': False, 'rearm_ms': None, 'fallback_ticks': 0,
-        })
-        env.browser.update_view_plus_overlay = MagicMock()
-        return env
+        return SlitherEnv(
+            headless=True, nickname="TestBot", backend="websocket", browser=backend,
+        )
 
     def test_reset_returns_spawning_until_cdp_ready(self):
         env = self._env()
@@ -404,14 +397,11 @@ class TestCdpSpawnGate(unittest.TestCase):
         )
         obs = env.reset()
         self.assertTrue(obs.get('spawning'))
-        self.assertEqual(env.browser.force_restart.call_count, 2)
+        self.assertEqual(env.browser.restart_count, 2)
 
     def test_reset_returns_playable_when_cdp_ready(self):
         env = self._env()
-        env.browser.cdp_is_active.return_value = True
-        env.browser.cdp_stats.return_value = {
-            'cdp_active': True, 'rearm_ms': 120.0, 'fallback_ticks': 0,
-        }
+        env.browser.cdp_active = True
         env._wait_for_playable_data = MagicMock(return_value=self._alive())
         obs = env.reset()
         self.assertFalse(obs.get('spawning', False))
@@ -431,17 +421,17 @@ class TestCdpSpawnGate(unittest.TestCase):
         self.assertTrue(info.get('spawning'))
         self.assertFalse(done)
         self.assertEqual(reward, 0.0)
-        env.browser.send_action.assert_not_called()
+        self.assertEqual(env.browser.actions, [])
         self.assertTrue(obs.get('spawning'))
 
     def test_step_reconnects_on_unarmed_dead_or_timeout(self):
         env = self._env()
-        env.browser.get_game_data.return_value = {'dead': True}
+        env.browser.set_frame({'dead': True})
         obs, reward, done, info = env.step(0)
         self.assertTrue(done)
         self.assertTrue(info.get('spawning'))
-        self.assertEqual(info.get('cause'), 'SpawnWait')
-        env.browser.send_action.assert_not_called()
+        self.assertEqual(info.get('cause'), Cause.SPAWN_WAIT)
+        self.assertEqual(env.browser.actions, [])
 
         env2 = self._env()
         env2._cdp_spawn_wait_t0 = time.time() - 9
@@ -452,35 +442,27 @@ class TestCdpSpawnGate(unittest.TestCase):
     def test_step_emits_spawned_when_cdp_just_armed(self):
         env = self._env()
         env._cdp_spawn_wait_t0 = time.time()
-        env.browser.cdp_is_active.return_value = True
-        env.browser.try_activate_cdp.return_value = True
-        env.browser.cdp_stats.return_value = {
-            'cdp_active': True, 'rearm_ms': 80.0, 'fallback_ticks': 0,
-        }
-        env.browser.get_game_data.return_value = self._alive()
+        env.browser.cdp_active = True
+        env.browser.set_frame(self._alive())
         obs, reward, done, info = env.step(0)
         self.assertFalse(done)
         self.assertTrue(info.get('spawned'))
         self.assertFalse(info.get('spawning', False))
-        env.browser.send_action.assert_not_called()
+        self.assertEqual(env.browser.actions, [])
         self.assertIsNone(env._cdp_spawn_wait_t0)
 
     def test_step_plays_when_cdp_active(self):
         env = self._env()
-        env.browser.cdp_is_active.return_value = True
-        env.browser.try_activate_cdp.return_value = True
-        env.browser.cdp_stats.return_value = {
-            'cdp_active': True, 'rearm_ms': 80.0, 'fallback_ticks': 0,
-        }
+        env.browser.cdp_active = True
         alive = self._alive()
-        env.browser.get_game_data.return_value = alive
+        env.browser.set_frame(alive)
         env.frame_skip = 0
         with patch('slither_env.time.sleep'):
             obs, reward, done, info = env.step(0)
         self.assertFalse(done)
         self.assertFalse(info.get('spawning', False))
         self.assertTrue(info.get('cdp_active'))
-        env.browser.send_action.assert_called_once()
+        self.assertEqual(len(env.browser.actions), 1)
 
 
 class TestPreyPacketIds(unittest.TestCase):
