@@ -1273,13 +1273,20 @@ class CurriculumManager:
         self.episode_length_history.clear()
 
     def get_state(self):
-        """Serialize for checkpoint."""
+        """Serialize for checkpoint.
+
+        cause_history holds Cause values plain-stringified: torch.load()
+        defaults to weights_only=True (PyTorch >= 2.6), which refuses to
+        unpickle a non-builtin class like Cause. Cause == str comparisons
+        work in either direction, so callers of load_state() don't need to
+        know whether an entry came back as a Cause or a plain str.
+        """
         return {
             "stage": self.current_stage,
             "food_history": list(self.episode_food_history),
             "steps_history": list(self.episode_steps_history),
             "food_ratio_history": list(self.episode_food_ratio_history),
-            "cause_history": list(self.episode_cause_history),
+            "cause_history": [str(c) for c in self.episode_cause_history],
             "length_history": list(self.episode_length_history),
         }
 

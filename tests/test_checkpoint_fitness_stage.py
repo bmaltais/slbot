@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent import DDQNAgent
 from config import Config
-from trainer import resolve_best_bar
+from death_cause import Cause
+from trainer import CurriculumManager, resolve_best_bar
 
 RES = 64  # smallest size the hybrid net's four conv layers accept
 
@@ -60,6 +61,49 @@ def test_old_checkpoint_without_stage_tag_loads_as_unknown(tmp_path):
     assert loader.saved_best_fitness_stage is None
     assert loader.saved_best_avg_reward == 5.0
     assert loader.saved_best_avg_reward_stage is None
+
+
+# --- supervisor_state must survive torch.load's weights_only=True default ---
+# (PyTorch >= 2.6): a Cause instance pickled into the checkpoint (e.g. via
+# CurriculumManager.get_state()'s cause_history) would otherwise make
+# load_checkpoint() raise UnpicklingError on any checkpoint saved mid-episode.
+
+def test_checkpoint_with_curriculum_state_loads_with_weights_only_default(tmp_path):
+    path = str(tmp_path / "ckpt.pth")
+    curriculum = CurriculumManager()
+    curriculum.record_episode(food_eaten=3, steps=120, cause=Cause.WALL, peak_length=20)
+    curriculum.record_episode(food_eaten=5, steps=200, cause=Cause.SNAKE_COLLISION, peak_length=30)
+
+    saver = _agent()
+    saver.save_checkpoint(path, episode=7, supervisor_state=curriculum.get_state())
+
+    loader = _agent()
+    # No map_location override here: this exercises agent.load_checkpoint's
+    # real torch.load call, weights_only default included.
+    episode, _max_steps, supervisor_state, _run_uid = loader.load_checkpoint(path)
+    assert episode == 7
+    assert supervisor_state["cause_history"] == ["Wall", "SnakeCollision"]
+    # Every entry is a plain str, not a pickled Cause instance.
+    assert all(type(c) is str for c in supervisor_state["cause_history"])
+
+
+def test_old_checkpoint_with_pickled_cause_still_loads(tmp_path):
+    """A checkpoint saved before get_state() plain-stringified cause_history
+    has a raw Cause instance pickled in. agent.py registers Cause as a torch
+    safe global specifically so these keep loading under weights_only=True
+    instead of raising UnpicklingError, the way a real checkpoint saved on
+    this branch before that fix did."""
+    path = str(tmp_path / "old_format_ckpt.pth")
+    saver = _agent()
+    saver.save_checkpoint(
+        path, episode=9,
+        supervisor_state={"stage": 2, "cause_history": [Cause.WALL, Cause.MAX_STEPS]},
+    )
+
+    loader = _agent()
+    episode, _max_steps, supervisor_state, _run_uid = loader.load_checkpoint(path)
+    assert episode == 9
+    assert supervisor_state["cause_history"] == [Cause.WALL, Cause.MAX_STEPS]
 
 
 # --- resolve_best_bar: the stage-mismatch decision trainer.py restores with ---

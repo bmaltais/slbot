@@ -10,11 +10,20 @@ import logging
 from collections import deque
 
 from config import Config
+from death_cause import Cause
 from model import DuelingDQN, HybridDuelingDQN
 from per import PrioritizedReplayBuffer
 
 logger = logging.getLogger("slitherbot")
 ACTION_DIM = 14
+
+# torch.load() defaults to weights_only=True (PyTorch >= 2.6), which refuses
+# to unpickle any non-builtin class. CurriculumManager.get_state() no longer
+# saves Cause instances (it plain-stringifies cause_history), but a
+# checkpoint saved before that fix can still have one pickled into it —
+# allowlist Cause so those old checkpoints keep loading under the secure
+# default instead of raising UnpicklingError.
+torch.serialization.add_safe_globals([Cause])
 
 class DDQNAgent:
     def __init__(self, config: Config):
