@@ -2121,10 +2121,23 @@ def train(args):
     episodes_since_improvement = 0
     if not getattr(args, "reset_best", False):
         saved_fit = getattr(agent, "saved_best_fitness", None)
+        saved_fit_stage = getattr(agent, "saved_best_fitness_stage", None)
         saved_rw = getattr(agent, "saved_best_avg_reward", None)
         if saved_fit is not None:
-            best_fitness = float(saved_fit)
-            logger.info(f"  Restored best fitness bar: {best_fitness:.1f}")
+            # Fitness (mainly avg_steps) isn't comparable across curriculum
+            # stages — max_steps varies non-monotonically per stage — so a
+            # bar earned in a different stage would be either trivially beaten
+            # or impossible to beat here. Only restore it when the stage
+            # matches; checkpoints from before this fix have no stage tag and
+            # are restored as before (best effort).
+            if saved_fit_stage is not None and saved_fit_stage != curriculum.current_stage:
+                logger.info(
+                    f"  Best fitness bar from stage {saved_fit_stage} discarded "
+                    f"(resuming into stage {curriculum.current_stage}); next window can save a new best"
+                )
+            else:
+                best_fitness = float(saved_fit)
+                logger.info(f"  Restored best fitness bar: {best_fitness:.1f} (stage {curriculum.current_stage})")
         if saved_rw is not None:
             best_avg_reward = float(saved_rw)
     else:
@@ -2134,7 +2147,8 @@ def train(args):
         agent.save_checkpoint(
             path, start_episode, max_steps_per_episode,
             curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid,
-            best_fitness=best_fitness, best_avg_reward=best_avg_reward,
+            best_fitness=best_fitness, best_fitness_stage=curriculum.current_stage,
+            best_avg_reward=best_avg_reward,
         )
 
     # Metrics tracking
@@ -2478,6 +2492,16 @@ def train(args):
             env.set_stage(stage_cfg)
             agent.set_gamma(stage_cfg.get('gamma', cfg.opt.gamma))
             super_pattern.reset_stage(stage_cfg)
+            # Fitness (mainly avg_steps) is scaled by the stage's max_steps,
+            # which isn't monotonic across stages — a bar earned under the
+            # old stage isn't comparable here. Reset the bar and the rolling
+            # windows that feed it so the new stage earns its own best.
+            best_fitness = -float('inf')
+            reward_window.clear()
+            food_window.clear()
+            steps_window.clear()
+            length_window.clear()
+            logger.info(f"  Best fitness bar reset for stage {curriculum.current_stage}")
             # Save checkpoint on promotion
             persist(checkpoint_path)
             if dashboard:
