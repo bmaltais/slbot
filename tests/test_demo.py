@@ -467,3 +467,11 @@ def test_demo_agreement_reaches_one_after_pretraining(agent, tmp_path):
     assert set(updates[0]) >= {'step', 'steps', 'elapsed', 'eta', 'lr', 'metrics', 'agreement'}
     assert updates[-1]['agreement']['agreement'] == 1.0
     assert agent.demo_agreement(12)['agreement'] == 1.0
+
+
+def test_trainer_does_not_shadow_resource_monitor():
+    """The pretraining view must not be bound to `monitor`, which the main
+    loop uses for the ResourceMonitor (regression: AttributeError record_step)."""
+    import re
+    src = open(os.path.join(os.path.dirname(__file__), '..', 'trainer.py')).read()
+    assert not re.search(r"PretrainMonitor\(\)\s+as\s+monitor\b", src)

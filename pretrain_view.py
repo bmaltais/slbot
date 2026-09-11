@@ -157,9 +157,9 @@ class PretrainMonitor:
         head = Text.assemble(
             ("Pretraining on demonstrations  ", "bold"),
             (progress_bar(frac), "cyan"),
-            f"  {u['step']}/{u['steps']} ({frac:.0%})   ",
-            f"{fmt_duration(u['elapsed'])} elapsed, ~{fmt_duration(u['eta'])} left",
+            f"  {u['step']}/{u['steps']} ({frac:.0%})",
         )
+        timing = Text(f"{fmt_duration(u['elapsed'])} elapsed, about {fmt_duration(u['eta'])} left", style="dim")
 
         t = Table.grid(padding=(0, 2))
         t.add_column(style="dim", justify="right")
@@ -184,4 +184,4 @@ class PretrainMonitor:
             "reproduces your choices, not just the reward.",
             style="dim",
         )
-        return Panel(Group(head, Text(""), t, Text(""), note), title="Demo pretraining", border_style="cyan")
+        return Panel(Group(head, timing, Text(""), t, Text(""), note), title="Demo pretraining", border_style="cyan")

@@ -2238,9 +2238,10 @@ def train(args):
         if cfg.demo.pretrain_steps > 0:
             _say(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations "
                  f"(batch {cfg.opt.batch_size}, target sync every {cfg.demo.pretrain_target_every})...")
-            with PretrainMonitor() as monitor:
-                agent.pretrain_from_demos(cfg.demo.pretrain_steps, on_progress=monitor.update)
-            final = monitor.last
+            # Not `monitor`: that name is the ResourceMonitor used by the loop.
+            with PretrainMonitor() as pretrain_view:
+                agent.pretrain_from_demos(cfg.demo.pretrain_steps, on_progress=pretrain_view.update)
+            final = pretrain_view.last
             if final and final.get('agreement'):
                 _say(f"[Demos] Final agreement with your play: {final['agreement']['agreement']:.0%} "
                      f"of {final['agreement']['n']} demo states; margin loss {final['metrics']['margin_loss']:.4f}")
