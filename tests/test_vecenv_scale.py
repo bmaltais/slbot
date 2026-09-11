@@ -9,6 +9,8 @@ from multiprocessing import Pipe
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from sector_layout import SECTOR_DIM
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from worker_process import READY_MSG, delayed_echo_worker, echo_worker, run_worker_loop
@@ -239,7 +241,7 @@ class TestSubprocVecEnvScale(unittest.TestCase):
 
             def step_wait(self):
                 self.assert_async = self.async_called
-                obs = {'matrix': self.mat, 'sectors': np.zeros(99, dtype=np.float32)}
+                obs = {'matrix': self.mat, 'sectors': np.zeros(SECTOR_DIM, dtype=np.float32)}
                 info = {
                     'food_eaten': 0,
                     'pos': (0, 0),
@@ -271,7 +273,7 @@ class TestSubprocVecEnvScale(unittest.TestCase):
                 self.num_agents += 1
                 return {
                     'matrix': np.zeros((3, 4, 4), dtype=np.float32),
-                    'sectors': np.zeros(99, dtype=np.float32),
+                    'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
                     'spawning': True,
                 }
 

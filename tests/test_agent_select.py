@@ -8,6 +8,8 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sector_layout import SECTOR_DIM
+
 from agent import ACTION_DIM, DDQNAgent
 from config import Config
 
@@ -30,7 +32,7 @@ def greedy():
 
 
 def _calm_sectors():
-    s = np.zeros(99, dtype=np.float32)
+    s = np.zeros(SECTOR_DIM, dtype=np.float32)
     s[48:72] = -1.0
     s[96] = 1.0  # far from wall
     return s

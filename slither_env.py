@@ -23,6 +23,8 @@ from food_sense import (
     FOOD_LOCK_RADIUS,
     FOOD_SENSE_RANGE,
     FOOD_SECTOR_LOG_CAP,
+    FOOD_SECTOR_MASS_CAP,
+    FOOD_TOTAL_LOG_CAP,
     boost_cluster_bonus,
     cluster_eat_bonus,
     eaten_food_mass,
@@ -31,6 +33,29 @@ from food_sense import (
     idle_food_cost,
     locked_food_target,
     squash_mass,
+    squash_mass_array,
+)
+from sector_layout import (
+    ENEMY_APPROACH,
+    ENEMY_SIZE,
+    FOOD_DIST,
+    FOOD_MASS,
+    FOOD_SCORE,
+    G_BOOST,
+    G_FOOD_TOTAL,
+    G_LENGTH,
+    G_SPEED,
+    G_TARGET_COS,
+    G_TARGET_DIST,
+    G_TARGET_MASS,
+    G_TARGET_SIN,
+    G_WALL_DIST,
+    NUM_SECTORS,
+    OBSTACLE_SCORE,
+    OBSTACLE_TYPE,
+    SECTOR_DIM,
+    WALL_DIST,
+    sector_band,
 )
 
 ACTION_DIM = 14
@@ -42,6 +67,9 @@ ACTION_BOOST_RIGHT = 13
 # render is quantized once here — the replay buffer stores uint8 anyway, and
 # shipping uint8 across the worker pipe is 4x less pickle traffic.
 FRAME_DTYPE = np.uint8
+# Normal cruise speed is ~5.8 units/tick and boost ~14; anything at or past
+# this reads as boosting for the G_BOOST sector flag.
+BOOST_SPEED_THRESHOLD = 9.0
 
 
 def quantize_frame(frame):
@@ -1308,30 +1336,36 @@ class SlitherEnv:
     def _matrix_zeros(self):
         return {
             'matrix': np.zeros((3, self.matrix_size, self.matrix_size), dtype=FRAME_DTYPE),
-            'sectors': np.zeros(99, dtype=np.float32),
+            'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
         }
 
     def _compute_sectors(self, data):
         """
-        Compute 75-float sector vector (egocentric).
-        24 sectors × 15° covering 360°. Sector 0 = straight ahead.
+        Egocentric radar vector (see sector_layout.py for every index).
+        24 sectors × 15° covering 360°. Sector 0 = straight ahead, clockwise.
 
-        Layout (99 floats):
-          [0..23]  food_score[i]      — log-compressed food mass in sector
-          [24..47] obstacle_score[i]  — closest enemy/wall per sector
-          [48..71] obstacle_type[i]   — -1=none, 0=body/wall, 1=head
-          [72..95] enemy_approach[i]  — +1=heading toward me, -1=away, 0=none
-          [96]     wall_dist_norm     — dist_to_wall / scope
-          [97]     snake_length_norm  — length / 500
-          [98]     speed_norm         — speed / 20
+        Legacy block [0..98] (unchanged since alpha-5):
+          food_score      — distance-weighted pellet mass, log-squashed
+          obstacle_score  — closest enemy/wall per sector (1 = touching)
+          obstacle_type   — -1 none, 0 body/wall, 1 enemy head
+          enemy_approach  — closing rate of the sector's enemy head
+          wall_dist_norm, snake_length_norm, speed_norm
+
+        Added bands:
+          food_mass  — total pellet mass in the sector, no distance weighting
+          food_dist  — closeness of the sector's mass-weighted food centroid
+          wall_dist  — closeness of the wall along the sector's centre ray
+          enemy_size — scale of the closest enemy in the sector
+        Added globals: boosting flag, total food mass in range, and the
+        locked food target's distance / mass / bearing (sin, cos).
         """
-        NUM_SECTORS = 24
+        NS = NUM_SECTORS
         SCOPE = FOOD_SENSE_RANGE
-        SECTOR_ANGLE = 2 * math.pi / NUM_SECTORS  # 15° in radians
+        SECTOR_ANGLE = 2 * math.pi / NS
+        TWO_PI = 2.0 * math.pi
 
-        sectors = np.zeros(99, dtype=np.float32)
-        # Initialize obstacle types to -1 (no obstacle)
-        sectors[48:72] = -1.0
+        sectors = np.zeros(SECTOR_DIM, dtype=np.float32)
+        sectors[sector_band(OBSTACLE_TYPE)] = -1.0
 
         if not data or data.get('dead'):
             return sectors
@@ -1349,31 +1383,34 @@ class SlitherEnv:
         sin_a = math.sin(ang)
         cos_a = math.cos(ang)
 
-        def to_ego_angle_dist(dx, dy):
-            """World-relative (dx,dy) -> egocentric (angle, dist).
-            Returns angle in [0, 2*pi) where 0=ahead, clockwise."""
-            # Egocentric rotation (same as _ego_raw)
+        def ego_angles(dx, dy):
+            """World-relative offsets (arrays) -> egocentric bearing in [0, 2pi).
+            0 = ahead, clockwise (same rotation as _ego_raw)."""
             rx = -sin_a * dx + cos_a * dy
             ry = -cos_a * dx - sin_a * dy
-            # In ego frame: ahead = -ry direction (up in matrix)
-            # Convert to angle: 0=ahead(up), clockwise
-            # atan2 with ahead=-y: angle = atan2(rx, -ry)
+            angle = np.arctan2(rx, -ry)
+            return np.where(angle < 0.0, angle + TWO_PI, angle)
+
+        def to_ego_angle_dist(dx, dy):
+            """Scalar twin of ego_angles() for the per-enemy head loop."""
+            rx = -sin_a * dx + cos_a * dy
+            ry = -cos_a * dx - sin_a * dy
             angle = math.atan2(rx, -ry)
             if angle < 0:
-                angle += 2 * math.pi
-            dist = math.hypot(dx, dy)
-            return angle, dist
+                angle += TWO_PI
+            return angle, math.hypot(dx, dy)
 
         def sector_index(angle):
-            idx = int(angle / SECTOR_ANGLE) % NUM_SECTORS
-            return idx
+            return int(angle / SECTOR_ANGLE) % NS
 
         def score_distance(d):
             return max(0.0, 1.0 - d / SCOPE)
 
-        # --- Food scores (sum mass in sector, then log-squash so piles beat crumbs) ---
-        # Vectorized: same per-food math as to_ego_angle_dist/sector_index/
-        # score_distance above, but as array ops instead of a Python loop.
+        obstacle = sectors[sector_band(OBSTACLE_SCORE)]   # views into `sectors`
+        obs_type = sectors[sector_band(OBSTACLE_TYPE)]
+        approach = sectors[sector_band(ENEMY_APPROACH)]
+
+        # --- Food: weighted score (legacy), raw mass, and mean distance per sector ---
         foods = data.get('foods', [])
         arr = self._foods_array(foods)
         if arr.shape[0]:
@@ -1384,24 +1421,29 @@ class SlitherEnv:
             within = dist <= SCOPE
             if np.any(within):
                 dx_w, dy_w, dist_w, sz_w = dx[within], dy[within], dist[within], f_sz[within]
-                rx = -sin_a * dx_w + cos_a * dy_w
-                ry = -cos_a * dx_w - sin_a * dy_w
-                angle = np.arctan2(rx, -ry)
-                angle = np.where(angle < 0.0, angle + 2.0 * math.pi, angle)
-                si = (angle / SECTOR_ANGLE).astype(np.int64) % NUM_SECTORS
-                score = np.maximum(0.0, 1.0 - dist_w / SCOPE) * sz_w
-                food_sums = np.bincount(si, weights=score, minlength=NUM_SECTORS)
-                sectors[:NUM_SECTORS] = food_sums[:NUM_SECTORS]
-        for si in range(NUM_SECTORS):
-            sectors[si] = squash_mass(float(sectors[si]), FOOD_SECTOR_LOG_CAP)
+                si = (ego_angles(dx_w, dy_w) / SECTOR_ANGLE).astype(np.int64) % NS
+                weighted = np.maximum(0.0, 1.0 - dist_w / SCOPE) * sz_w
+                food_sums = np.bincount(si, weights=weighted, minlength=NS)[:NS]
+                mass_sums = np.bincount(si, weights=sz_w, minlength=NS)[:NS]
+                dist_sums = np.bincount(si, weights=sz_w * dist_w, minlength=NS)[:NS]
+                sectors[sector_band(FOOD_SCORE)] = squash_mass_array(food_sums, FOOD_SECTOR_LOG_CAP)
+                sectors[sector_band(FOOD_MASS)] = squash_mass_array(mass_sums, FOOD_SECTOR_MASS_CAP)
+                has = mass_sums > 0.0
+                closeness = np.zeros(NS, dtype=np.float64)
+                closeness[has] = 1.0 - (dist_sums[has] / mass_sums[has]) / SCOPE
+                sectors[sector_band(FOOD_DIST)] = np.clip(closeness, 0.0, 1.0)
+                sectors[G_FOOD_TOTAL] = squash_mass(float(mass_sums.sum()), FOOD_TOTAL_LOG_CAP)
 
-        # --- Obstacle scores (enemies) ---
+        # --- Enemies: obstacle score/type/approach (legacy) + size of the nearest one ---
+        enemy_best = np.zeros(NS, dtype=np.float64)  # closeness of nearest enemy part, enemies only
+        enemy_size = np.zeros(NS, dtype=np.float64)
         enemies = data.get('enemies', [])
         for e in enemies:
             ex, ey = e.get('x', 0), e.get('y', 0)
-            e_sc = e.get('sc', 1.0)
+            e_sc = e.get('sc', 1.0) or 1.0
             e_ang = e.get('ang', 0)
             half_width = e_sc * 29.0 * 0.5  # body half-width
+            size_norm = min(1.0, e_sc / 6.0)
 
             # Head
             dx, dy = ex - mx, ey - my_
@@ -1410,9 +1452,9 @@ class SlitherEnv:
             if effective_dist < SCOPE:
                 si = sector_index(angle)
                 sc = score_distance(effective_dist)
-                if sc > sectors[24 + si]:
-                    sectors[24 + si] = sc
-                    sectors[48 + si] = 1.0  # head type
+                if sc > obstacle[si]:
+                    obstacle[si] = sc
+                    obs_type[si] = 1.0  # head type
 
                     # Enemy approach: dot product of RELATIVE velocity toward us
                     # Enemy heading vector (slither: ang=0 → East, Y-down)
@@ -1424,17 +1466,20 @@ class SlitherEnv:
                     # Relative velocity (enemy vs us)
                     rel_vx = e_vx - m_vx
                     rel_vy = e_vy - m_vy
-                    
+
                     # Vector from enemy to us
                     to_us_x, to_us_y = mx - ex, my_ - ey
                     to_us_len = max(dist, 1.0)
                     # Dot product: positive = they are closing in on our head fast
-                    approach = (rel_vx * to_us_x + rel_vy * to_us_y) / to_us_len
-                    sectors[72 + si] = max(-1.0, min(1.0, approach))
+                    closing = (rel_vx * to_us_x + rel_vy * to_us_y) / to_us_len
+                    approach[si] = max(-1.0, min(1.0, closing))
+                if sc > enemy_best[si]:
+                    enemy_best[si] = sc
+                    enemy_size[si] = size_norm
 
-            # Body points — vectorized form of the per-point loop above:
-            # a sector takes the closest body point's score when that beats
-            # what is already there (head/earlier enemies) and becomes body type.
+            # Body points — a sector takes the closest body point's score when
+            # that beats what is already there (head/earlier enemies) and
+            # becomes body type.
             pts = _pts_xy(e.get('pts', []))
             if pts.shape[0]:
                 bdx = pts[:, 0] - mx
@@ -1443,62 +1488,58 @@ class SlitherEnv:
                 eff = np.maximum(0.0, bdist - half_width)
                 within = eff < SCOPE
                 if np.any(within):
-                    rx = -sin_a * bdx[within] + cos_a * bdy[within]
-                    ry = -cos_a * bdx[within] - sin_a * bdy[within]
-                    angle = np.arctan2(rx, -ry)
-                    angle = np.where(angle < 0.0, angle + 2.0 * math.pi, angle)
-                    si = (angle / SECTOR_ANGLE).astype(np.int64) % NUM_SECTORS
-                    body_best = np.full(NUM_SECTORS, -1.0)
+                    si = (ego_angles(bdx[within], bdy[within]) / SECTOR_ANGLE).astype(np.int64) % NS
+                    body_best = np.full(NS, -1.0)
                     np.maximum.at(body_best, si, 1.0 - eff[within] / SCOPE)
-                    better = body_best > sectors[24:48]
-                    sectors[24:48][better] = body_best[better]
-                    sectors[48:72][better] = 0.0  # body type
+                    better = body_best > obstacle
+                    obstacle[better] = body_best[better]
+                    obs_type[better] = 0.0  # body type
+                    nearer = body_best > enemy_best
+                    enemy_best[nearer] = body_best[nearer]
+                    enemy_size[nearer] = size_norm
+        sectors[sector_band(ENEMY_SIZE)] = enemy_size
 
-        # --- Wall per sector (ray-circle intersection) ---
-        # Map is circle centered at (map_center_x, map_center_y) with radius map_radius
-        # Snake at (mx, my_). For each sector, cast ray and find intersection distance.
-        for si in range(NUM_SECTORS):
-            # Ray direction in ego frame: sector center angle
-            ego_angle = si * SECTOR_ANGLE + SECTOR_ANGLE / 2
-            # ego direction: ahead=up=-y, clockwise
-            # rx = sin(ego_angle), ry = -cos(ego_angle)
-            ray_rx = math.sin(ego_angle)
-            ray_ry = -math.cos(ego_angle)
-
-            # Convert ray direction from ego to world
-            # Inverse rotation: dx = -sin(ang)*rx - cos(ang)*ry
-            #                   dy = cos(ang)*rx - sin(ang)*ry
-            ray_dx = -sin_a * ray_rx - cos_a * ray_ry
-            ray_dy = cos_a * ray_rx - sin_a * ray_ry
-
-            # Ray-circle intersection
-            # Ray: P = (mx, my_) + t * (ray_dx, ray_dy)
-            # Circle: |P - C|^2 = R^2
-            # (mx + t*rdx - cx)^2 + (my_ + t*rdy - cy)^2 = R^2
-            ocx = mx - self.map_center_x
-            ocy = my_ - self.map_center_y
-            a = ray_dx * ray_dx + ray_dy * ray_dy  # always 1 for unit vector but keep general
-            b = 2.0 * (ocx * ray_dx + ocy * ray_dy)
-            c = ocx * ocx + ocy * ocy - self.map_radius * self.map_radius
-
-            discriminant = b * b - 4.0 * a * c
-            if discriminant >= 0:
-                sqrt_disc = math.sqrt(discriminant)
-                t1 = (-b - sqrt_disc) / (2.0 * a)
-                t2 = (-b + sqrt_disc) / (2.0 * a)
-                # We want the positive t (forward along ray)
-                # t2 is always the exit point; t1 may be behind us if we're inside circle
-                wall_t = t2 if t2 > 0 else t1
-                if wall_t > 0 and wall_t < SCOPE:
-                    wall_sc = score_distance(wall_t)
-                    if wall_sc > sectors[24 + si]:
-                        sectors[24 + si] = wall_sc
-                        sectors[48 + si] = 0.0  # wall = body type (solid obstacle)
+        # --- Wall per sector: ray from the head along each sector's centre
+        # against the circular boundary, all 24 rays at once ---
+        ego_angle = (np.arange(NS, dtype=np.float64) + 0.5) * SECTOR_ANGLE
+        ray_rx = np.sin(ego_angle)           # ego: ahead = up = -y, clockwise
+        ray_ry = -np.cos(ego_angle)
+        ray_dx = -sin_a * ray_rx - cos_a * ray_ry   # inverse of _ego_raw
+        ray_dy = cos_a * ray_rx - sin_a * ray_ry
+        ocx = mx - self.map_center_x
+        ocy = my_ - self.map_center_y
+        b = 2.0 * (ocx * ray_dx + ocy * ray_dy)     # a == 1 for unit rays
+        c = ocx * ocx + ocy * ocy - self.map_radius * self.map_radius
+        disc = b * b - 4.0 * c
+        sqrt_disc = np.sqrt(np.maximum(disc, 0.0))
+        t1 = (-b - sqrt_disc) / 2.0
+        t2 = (-b + sqrt_disc) / 2.0
+        # t2 is the exit point when we are inside the circle; t1 only matters outside
+        wall_t = np.where(t2 > 0.0, t2, t1)
+        hit = (disc >= 0.0) & (wall_t > 0.0) & (wall_t < SCOPE)
+        wall_sc = np.where(hit, 1.0 - wall_t / SCOPE, 0.0)
+        sectors[sector_band(WALL_DIST)] = wall_sc
+        better = wall_sc > obstacle
+        obstacle[better] = wall_sc[better]
+        obs_type[better] = 0.0  # wall = body type (solid obstacle)
 
         # --- Global features ---
-        sectors[96] = min(1.0, self.last_dist_to_wall / SCOPE)
-        sectors[97] = min(1.0, snake_len / 500.0)
-        sectors[98] = min(1.0, spd / 20.0) if spd else 0.0
+        sectors[G_WALL_DIST] = min(1.0, self.last_dist_to_wall / SCOPE)
+        sectors[G_LENGTH] = min(1.0, snake_len / 500.0)
+        sectors[G_SPEED] = min(1.0, spd / 20.0) if spd else 0.0
+        sectors[G_BOOST] = 1.0 if (spd or 0.0) >= BOOST_SPEED_THRESHOLD else 0.0
+
+        # Locked food target: the same pile the reward shaping and the matrix
+        # compass follow, so the network can tie the shaping signal to a
+        # direction. Set by _process_data_to_matrix(), which always runs first.
+        target = self._matrix_food_target
+        if target:
+            tx, ty, tdist, tmass = target
+            sectors[G_TARGET_DIST] = score_distance(float(tdist))
+            sectors[G_TARGET_MASS] = squash_mass(float(tmass), FOOD_SECTOR_MASS_CAP)
+            bearing, _ = to_ego_angle_dist(tx - mx, ty - my_)
+            sectors[G_TARGET_SIN] = math.sin(bearing)
+            sectors[G_TARGET_COS] = math.cos(bearing)
 
         return sectors
 
@@ -1517,10 +1558,12 @@ class SlitherEnv:
         matrix = np.zeros((3, self.matrix_size, self.matrix_size), dtype=np.float32)
 
         if not data or data.get('dead'):
+            self._matrix_food_target = None
             return quantize_frame(matrix)
 
         my_snake = data.get('self')
         if not my_snake:
+            self._matrix_food_target = None
             return quantize_frame(matrix)
 
         mx, my = my_snake['x'], my_snake['y']
@@ -1613,7 +1656,13 @@ class SlitherEnv:
                     t = min(tx, ty)
                     ex = cx + t * ndx
                     ey = cy + t * ndy
-                    self._draw_discs(matrix, 0, ex, ey, 1.5, 0.8, blend='max')
+                    # Brighter and bigger for a richer pile, so an off-crop
+                    # dead snake reads differently from an off-crop crumb.
+                    richness = squash_mass(float(cluster[3]), FOOD_SECTOR_MASS_CAP)
+                    self._draw_discs(
+                        matrix, 0, ex, ey, 1.5 + 1.5 * richness, 0.4 + 0.6 * richness,
+                        blend='max',
+                    )
 
         # 2. Enemies (Channel 1)
         enemies = data.get('enemies', [])
@@ -1690,10 +1739,11 @@ class SlitherEnv:
         # We always check wall distance in Python now
         dist_to_wall_py = self._calc_dist_to_wall(mx, my)
 
-        # Only draw if wall is potentially visible on the grid
-        # Max view distance ~ view_size.
-        # If dist > view_size, we probably don't see it.
-        if dist_to_wall_py < self.view_size * 1.5:
+        # Only rasterize when the wall can reach the grid. The grid spans
+        # CONSTANT_VIEW_RANGE to each side (corner at ~1.41x), independent of
+        # the game camera's view_size (~400 at spawn, which used to hide the
+        # wall until it was 600 units away even though the grid shows 1000).
+        if dist_to_wall_py < self.CONSTANT_VIEW_RANGE * 1.5:
              # Standard Circular Wall
              y_grid, x_grid = np.ogrid[:self.matrix_size, :self.matrix_size]
 

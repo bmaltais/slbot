@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Tuple
 
+from sector_layout import NUM_SECTORS, SECTOR_DIM
+
 @dataclass
 class EnvironmentConfig:
     frame_stack: int = 4
@@ -19,9 +21,9 @@ class ModelConfig:
     negative_slope: float = 0.01
     fc_units: int = 512
     input_channels: int = 3
-    sector_dim: int = 99
+    sector_dim: int = SECTOR_DIM
     sector_scope: float = 2000.0
-    num_sectors: int = 24
+    num_sectors: int = NUM_SECTORS
 
 @dataclass
 class OptimizationConfig:
@@ -36,6 +38,8 @@ class OptimizationConfig:
     target_update_freq: int = 10000 # Increased for stability with 10 agents
     max_episodes: int = 5000000
     checkpoint_every: int = 50
+    keep_backups: int = 10
+    keep_events: int = 40
     reward_scale: float = 1.0
 
     # Autonomy / Stabilization

@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from trainer import TrainingDashboard
+import trainer
+from trainer import CTRL_E, TrainingDashboard
 
 
 class TestDashboardEvents(unittest.TestCase):
@@ -99,6 +100,18 @@ class TestDashboardEvents(unittest.TestCase):
         self.assertNotIn("msg 0", text)
         self.assertIsNotNone(layout["bottom_bar"].size)
         self.assertLessEqual(layout["bottom_bar"].size, self.dash._max_bottom_height(50))
+        footer = str(layout["footer"].renderable.renderable)
+        self.assertIn("Ctrl+E", footer)
+
+    def test_ctrl_e_requests_graceful_shutdown(self):
+        prev = trainer._shutdown_requested
+        trainer._shutdown_requested = False
+        try:
+            self.dash._on_key(CTRL_E)
+            self.assertTrue(trainer._shutdown_requested)
+            self.assertTrue(any("Ctrl+E" in e for e in self.dash.events))
+        finally:
+            trainer._shutdown_requested = prev
 
 
 if __name__ == "__main__":

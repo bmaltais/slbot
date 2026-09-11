@@ -8,13 +8,15 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sector_layout import SECTOR_DIM
+
 from worker_session import WorkerSession
 
 
 def _obs(fill):
     return {
         'matrix': np.full((3, 8, 8), fill, dtype=np.float32),
-        'sectors': np.full(99, fill, dtype=np.float32),
+        'sectors': np.full(SECTOR_DIM, fill, dtype=np.float32),
     }
 
 
@@ -338,7 +340,7 @@ class TestVecFrameStackSpawn(unittest.TestCase):
     def test_death_keeps_live_frames_until_spawned(self):
         dead = {
             'matrix': np.zeros((3, 4, 4), dtype=np.float32),
-            'sectors': np.zeros(99, dtype=np.float32),
+            'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
         }
         self.venv.payload = (
             [dead],
@@ -353,7 +355,7 @@ class TestVecFrameStackSpawn(unittest.TestCase):
             np.testing.assert_array_equal(frame, self.live_mat)
 
         spawned_mat = np.full((3, 4, 4), 2.0, dtype=np.float32)
-        spawned = {'matrix': spawned_mat, 'sectors': np.full(99, 2.0, dtype=np.float32)}
+        spawned = {'matrix': spawned_mat, 'sectors': np.full(SECTOR_DIM, 2.0, dtype=np.float32)}
         self.venv.payload = ([spawned], [0.0], [False], [{'spawned': True}])
         self.stack.step([0])
         for frame in self.stack.frames[0]:
@@ -363,7 +365,7 @@ class TestVecFrameStackSpawn(unittest.TestCase):
         zeros = np.zeros((3, 4, 4), dtype=np.float32)
         self.venv.reset_obs = {
             'matrix': zeros,
-            'sectors': np.zeros(99, dtype=np.float32),
+            'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
             'spawning': True,
         }
         self.stack.reset_one(0)

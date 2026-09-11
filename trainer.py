@@ -15,6 +15,14 @@ import logging
 import psutil
 import threading
 import signal
+import select
+
+try:
+    import termios
+    import tty
+    _TTY_KEYS = True
+except ImportError:
+    _TTY_KEYS = False
 
 # Rich TUI Dashboard (optional)
 try:
@@ -28,8 +36,38 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
-# Global graceful shutdown flag (set by Ctrl+E listener)
+# Global graceful shutdown flag (set by Ctrl+E / SIGUSR1 / STOP file)
 _shutdown_requested = False
+CTRL_E = b'\x05'
+
+
+def _tail_csv_rows(path, n):
+    """Last up to `n` data rows of a CSV (oldest first), header excluded.
+
+    Reads backward in chunks instead of the whole file — training_stats.csv
+    accumulates across every run and can reach 100k+ rows.
+    """
+    try:
+        with open(path, 'rb') as f:
+            f.seek(0, os.SEEK_END)
+            pos = f.tell()
+            block = 65536
+            data = b''
+            newline_target = n + 2  # + header/partial-line cushion
+            while pos > 0 and data.count(b'\n') <= newline_target:
+                read_size = min(block, pos)
+                pos -= read_size
+                f.seek(pos)
+                data = f.read(read_size) + data
+        lines = data.decode('utf-8', errors='ignore').splitlines()
+        if pos > 0 and lines:
+            lines = lines[1:]  # first line may be a partial line from mid-file
+        if lines and lines[0].startswith('UID,'):
+            lines = lines[1:]
+        rows = [ln.split(',') for ln in lines if ln.strip()]
+        return rows[-n:]
+    except Exception:
+        return []
 
 # Add gen2 to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -39,6 +77,7 @@ from agent import DDQNAgent
 from styles import STYLES
 from worker_process import READY_MSG, worker
 from worker_session import spawning_obs, spawning_step_result
+from cleanup_data import compute_fitness
 
 # Setup logging
 os.makedirs("logs", exist_ok=True)
@@ -93,7 +132,7 @@ class TrainingDashboard:
     FOOTER_HEIGHT = 3
     BODY_UPPER_MIN_HEIGHT = 14
     EVENTS_PANEL_CHROME = 2  # Panel top+bottom borders
-    EVENTS_STORE_MAX = 80
+    EVENTS_STORE_MAX = 40
     EVENTS_MAX_VISIBLE = 20
     AGENTS_BOARD_MIN_H = 6
     AGENTS_BOARD_MAX_H = 14
@@ -103,6 +142,10 @@ class TrainingDashboard:
         self.live = None
         self.start_time = time.time()
         self._key_thread = None
+        self._tty_fd = None
+        self._tty_old = None
+        self._input_lock = threading.Lock()
+        self._reset_best_pending = False
         # Rolling data
         self.reward_history = deque(maxlen=100)
         self.steps_history = deque(maxlen=100)
@@ -148,6 +191,7 @@ class TrainingDashboard:
         if not RICH_AVAILABLE:
             return
         self.start_time = time.time()
+        self._save_tty()
         self.live = Live(console=self.console,
                          refresh_per_second=2, screen=True,
                          get_renderable=self._build_layout)
@@ -155,19 +199,72 @@ class TrainingDashboard:
         self._start_key_listener()
 
     def stop(self):
-        if self.live:
-            self.live.stop()
-            self.live = None
+        live = self.live
+        self.live = None
+        if live is not None:
+            try:
+                live.stop()
+            except Exception:
+                pass
+        t = self._key_thread
+        if t is not None:
+            t.join(timeout=1.0)
+            self._key_thread = None
+        self._restore_tty()
+
+    def _save_tty(self):
+        self._tty_fd = None
+        self._tty_old = None
+        if not _TTY_KEYS:
+            return
+        try:
+            if not sys.stdin.isatty():
+                return
+            self._tty_fd = sys.stdin.fileno()
+            self._tty_old = termios.tcgetattr(self._tty_fd)
+        except Exception:
+            self._tty_fd = None
+            self._tty_old = None
+
+    def _restore_tty(self):
+        if self._tty_fd is None or self._tty_old is None:
+            return
+        try:
+            termios.tcsetattr(self._tty_fd, termios.TCSADRAIN, self._tty_old)
+        except Exception:
+            pass
+        self._tty_old = None
+
+    def request_reset_best(self):
+        with self._input_lock:
+            self._reset_best_pending = True
+
+    def take_reset_best(self):
+        with self._input_lock:
+            pending = self._reset_best_pending
+            self._reset_best_pending = False
+            return pending
+
+    def _on_key(self, ch):
+        """Handle one stdin byte. Ctrl+E = graceful stop, b = reset best."""
+        global _shutdown_requested
+        if ch == CTRL_E:
+            if not _shutdown_requested:
+                _shutdown_requested = True
+                self.log_event("Ctrl+E: Graceful shutdown — finishing current episodes...")
+            return
+        if ch in (b'b', b'B'):
+            self.request_reset_best()
 
     def _start_key_listener(self):
-        """Background thread watching for graceful shutdown signal.
-        Two methods: SIGUSR1 signal, or touch file 'STOP' in script dir.
-        Usage: kill -USR1 <pid>  OR  touch STOP
+        """Watch Ctrl+E on the TTY, SIGUSR1, and a STOP file.
+
+        Ctrl+C still raises KeyboardInterrupt (force quit). Ctrl+E drains
+        in-flight episodes then saves.
         """
         global _shutdown_requested
         _stop_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'STOP')
 
-        # Register SIGUSR1 handler
         def _sigusr1_handler(signum, frame):
             global _shutdown_requested
             _shutdown_requested = True
@@ -175,12 +272,20 @@ class TrainingDashboard:
         try:
             signal.signal(signal.SIGUSR1, _sigusr1_handler)
         except (OSError, AttributeError):
-            pass  # SIGUSR1 not available on Windows
+            pass
 
-        # File watcher thread: check for STOP file every 0.5s
         def _watch():
             global _shutdown_requested
-            while self.live and not _shutdown_requested:
+            fd = self._tty_fd
+            use_keys = (
+                _TTY_KEYS and fd is not None and self._tty_old is not None
+            )
+            if use_keys:
+                try:
+                    tty.setcbreak(fd)
+                except Exception:
+                    use_keys = False
+            while self.live is not None and not _shutdown_requested:
                 if os.path.exists(_stop_file):
                     _shutdown_requested = True
                     try:
@@ -189,9 +294,23 @@ class TrainingDashboard:
                         pass
                     self.log_event("STOP file detected: Graceful shutdown — finishing current episodes...")
                     break
-                time.sleep(0.5)
+                if use_keys:
+                    try:
+                        ready, _, _ = select.select([sys.stdin], [], [], 0.2)
+                    except (OSError, ValueError):
+                        time.sleep(0.2)
+                        continue
+                    if ready:
+                        try:
+                            ch = os.read(fd, 1)
+                        except OSError:
+                            ch = b''
+                        if ch:
+                            self._on_key(ch)
+                else:
+                    time.sleep(0.5)
 
-        self._key_thread = threading.Thread(target=_watch, daemon=True)
+        self._key_thread = threading.Thread(target=_watch, daemon=True, name="tui-keys")
         self._key_thread.start()
 
     def log_event(self, msg):
@@ -199,6 +318,43 @@ class TrainingDashboard:
         self.events.append(f"{ts} {msg}")
         # Live auto-refresh paints this; never rebuild the layout on the
         # training thread (agent step latency is the priority).
+
+    def seed_history(self, stats_file):
+        """Pre-fill rolling history from training_stats.csv.
+
+        The Survival Stats / trend panels are in-memory only, so a `--resume`
+        restart used to reset them to empty and the trend needed 40 fresh
+        episodes to say anything besides "—". Seeding from the CSV (which
+        already persists every episode across restarts) keeps them warm.
+        """
+        try:
+            with open(stats_file, 'r') as f:
+                header = f.readline().strip().split(',')
+            idx = {name: i for i, name in enumerate(header)}
+            cols = (idx['Steps'], idx['Reward'], idx['Food'], idx['PeakLength'])
+        except (OSError, KeyError):
+            return
+        need = max(cols) + 1
+        for row in _tail_csv_rows(stats_file, self.long_steps.maxlen):
+            if len(row) < need:
+                continue
+            try:
+                steps, reward, food, peak = (float(row[i]) for i in cols)
+            except ValueError:
+                continue
+            self.reward_history.append(reward)
+            self.steps_history.append(steps)
+            self.food_history.append(food)
+            self.food_ratio_history.append(food / max(steps, 1))
+            self.length_history.append(peak)
+            self.long_steps.append(steps)
+            self.long_reward.append(reward)
+            self.long_food.append(food)
+            self.long_length.append(peak)
+            sma_window = min(20, len(self.long_steps))
+            self.long_survival_sma.append(sum(list(self.long_steps)[-sma_window:]) / sma_window)
+            self.long_reward_sma.append(sum(list(self.long_reward)[-sma_window:]) / sma_window)
+            self.long_length_sma.append(sum(list(self.long_length)[-sma_window:]) / sma_window)
 
     def update(self, episode, stage, stage_name, epsilon, lr, loss, q_mean, q_max,
                td_error, grad_norm, reward, steps, food, cause, action_pcts, num_agents,
@@ -701,12 +857,15 @@ class TrainingDashboard:
 
         # Footer
         footer_text = Text()
-        footer_text.append("  Ctrl+C", style="bold red")
+        footer_text.append("  Ctrl+E", style="bold yellow")
+        footer_text.append(" Graceful stop  │  ", style="dim")
+        footer_text.append("Ctrl+C", style="bold red")
         footer_text.append(" Force quit  │  ", style="dim")
-        footer_text.append("touch STOP", style="bold yellow")
-        footer_text.append(" or ", style="dim")
-        footer_text.append("kill -USR1 " + str(os.getpid()), style="bold yellow")
-        footer_text.append(" Graceful shutdown", style="dim")
+        footer_text.append("b", style="bold magenta")
+        footer_text.append(" Reset best  │  ", style="dim")
+        footer_text.append("touch STOP", style="yellow")
+        footer_text.append(" / ", style="dim")
+        footer_text.append("kill -USR1 " + str(os.getpid()), style="dim")
         layout["footer"].update(Panel(footer_text, style="dim"))
 
         # ── BOTTOM BAR: Agents Board + Events ──
@@ -907,8 +1066,11 @@ def select_style_and_model(args):
                 list_idx += 1
 
         try:
-            choice = input(f"\nSelect Model (0-{len(all_models)}, default 0): ").strip()
-            if choice and choice != '0':
+            default_choice = '1' if all_models else '0'
+            choice = input(f"\nSelect Model (0-{len(all_models)}, default {default_choice}): ").strip()
+            if not choice:
+                choice = default_choice
+            if choice != '0':
                 sel_idx = int(choice) - 1
                 if 0 <= sel_idx < len(all_models):
                     model_path = all_models[sel_idx]
@@ -1279,7 +1441,7 @@ class ResourceMonitor:
 class VecFrameStack:
     """
     Wraps SubprocVecEnv to stack frames.
-    Observations are dicts: {'matrix': (3,H,W) uint8, 'sectors': (99,) float32}.
+    Observations are dicts: {'matrix': (3,H,W) uint8, 'sectors': (SECTOR_DIM,) float32}.
     Only matrices get stacked (4 frames -> 12 channels, still uint8).
     Sectors are passed through from the current frame (no stacking).
     """
@@ -1781,6 +1943,12 @@ def train(args):
     if getattr(args, "max_foods", None) is not None:
         cfg.env.max_foods = args.max_foods
     os.environ["SLBOT_MAX_FOODS"] = str(int(cfg.env.max_foods))
+    if getattr(args, "keep_backups", None) is not None:
+        cfg.opt.keep_backups = args.keep_backups
+    if getattr(args, "keep_events", None) is not None:
+        cfg.opt.keep_events = args.keep_events
+    os.environ["SLBOT_KEEP_BACKUPS"] = str(int(cfg.opt.keep_backups))
+    os.environ["SLBOT_KEEP_EVENTS"] = str(int(cfg.opt.keep_events))
     import food_sense
     food_sense.MAX_FOODS = food_sense.configured_max_foods()
 
@@ -1794,6 +1962,22 @@ def train(args):
     backup_dir = os.path.join(base_dir, 'backup_models')
     os.makedirs(backup_dir, exist_ok=True)
     stats_file = os.path.join(base_dir, 'training_stats.csv')
+
+    # --keep-backups/--keep-events only get enforced when a new best model is
+    # saved or a new death event is written. Sweep once at startup too, so an
+    # existing pile from before the limit was set (or was raised) gets
+    # trimmed immediately instead of waiting for the next trigger.
+    try:
+        from cleanup_data import prune_backups, prune_events
+        removed_backups = prune_backups(keep=cfg.opt.keep_backups, backup_dir=backup_dir)
+        removed_events = prune_events(keep=cfg.opt.keep_events, events_dir=os.path.join(base_dir, 'events'))
+        if removed_backups or removed_events:
+            logger.info(
+                f"[Cleanup] Startup sweep: removed {removed_backups} old backup(s), "
+                f"{removed_events} old event file(s)"
+            )
+    except Exception as e:
+        logger.warning(f"  Startup cleanup sweep failed: {e}")
 
     # Initialize Curriculum/Style Manager
     curriculum = CurriculumManager(style_name=style_name, start_stage=args.stage if args.stage > 0 else 1)
@@ -1848,7 +2032,17 @@ def train(args):
 
     # Resume / Load Model
     start_episode = 0
-    load_path = model_path if model_path else (checkpoint_path if args.resume else None)
+    if getattr(args, "resume_best", False) and not model_path:
+        from cleanup_data import find_best_backup
+        best_path = find_best_backup(backup_dir)
+        if best_path:
+            load_path = best_path
+            logger.info(f"  --resume-best: loading {os.path.basename(best_path)}")
+        else:
+            load_path = checkpoint_path if args.resume else None
+            logger.warning("  --resume-best: no scored backups found")
+    else:
+        load_path = model_path if model_path else (checkpoint_path if args.resume else None)
 
     if load_path and os.path.exists(load_path):
         start_episode, _, supervisor_state, checkpoint_uid = agent.load_checkpoint(load_path)
@@ -1877,6 +2071,7 @@ def train(args):
             curriculum.episode_steps_history.clear()
             curriculum.episode_food_ratio_history.clear()
             curriculum.episode_cause_history.clear()
+            curriculum.episode_length_history.clear()
 
         logger.info(f"Resumed from episode {start_episode}")
         if curriculum.mode == 'curriculum':
@@ -1924,6 +2119,23 @@ def train(args):
     best_avg_reward = -float('inf')
     best_fitness = -float('inf')
     episodes_since_improvement = 0
+    if not getattr(args, "reset_best", False):
+        saved_fit = getattr(agent, "saved_best_fitness", None)
+        saved_rw = getattr(agent, "saved_best_avg_reward", None)
+        if saved_fit is not None:
+            best_fitness = float(saved_fit)
+            logger.info(f"  Restored best fitness bar: {best_fitness:.1f}")
+        if saved_rw is not None:
+            best_avg_reward = float(saved_rw)
+    else:
+        logger.info("  --reset-best: fitness bar cleared; next window can save a new best")
+
+    def persist(path):
+        agent.save_checkpoint(
+            path, start_episode, max_steps_per_episode,
+            curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid,
+            best_fitness=best_fitness, best_avg_reward=best_avg_reward,
+        )
 
     # Metrics tracking
     total_steps = agent.steps_done
@@ -1967,6 +2179,7 @@ def train(args):
         dashboard.num_agents = cfg.env.num_agents
         dashboard.stage = curriculum.current_stage
         dashboard.stage_name = curriculum.get_config()['name']
+        dashboard.seed_history(stats_file)
         dashboard.start()
 
     # AI Supervisor & Styles Reload Vars
@@ -2205,10 +2418,11 @@ def train(args):
             avg_steps = sum(steps_window) / len(steps_window)
             avg_peak_length = sum(length_window) / len(length_window)
 
-            # Fitness: peak_length is the primary composite metric
-            # It naturally combines eating + survival + play duration
-            # Steps and food kept as secondary signals
-            fitness = avg_peak_length * 3 + avg_steps + avg_food * 5
+            # Fitness: peak_length is the primary metric (mass actually
+            # gained), weighted so it dominates; steps and food are secondary
+            # signals. Weights live in cleanup_data so backup-name scoring
+            # (--resume-best) stays consistent with this gate.
+            fitness = compute_fitness(avg_peak_length, avg_steps, avg_food)
 
             # Scheduler step
             agent.step_scheduler(avg_reward)
@@ -2220,12 +2434,17 @@ def train(args):
             else:
                 episodes_since_improvement += 1
 
-            # Save BEST model based on fitness (steps + food), not raw reward
+            # Save BEST model based on fitness (length + steps + food), not raw reward
             if fitness > best_fitness:
                 best_fitness = fitness
                 backup_name = f"best_model_{run_uid}_ep{start_episode}_s{int(avg_steps)}_f{int(avg_food)}_pk{int(avg_peak_length)}.pth"
                 backup_path = os.path.join(backup_dir, backup_name)
-                agent.save_checkpoint(backup_path, start_episode, max_steps_per_episode, curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid)
+                persist(backup_path)
+                try:
+                    from cleanup_data import prune_backups
+                    prune_backups(keep=cfg.opt.keep_backups)
+                except Exception as e:
+                    logger.warning(f"  Backup prune failed: {e}")
                 logger.info(f"  >> New Best Fitness: {fitness:.1f} (steps={avg_steps:.1f}, food={avg_food:.1f}, peak_len={avg_peak_length:.1f}). Saved: {backup_name}")
                 if dashboard:
                     dashboard.log_event(f"New best fitness: {fitness:.1f} (s={avg_steps:.0f} f={avg_food:.0f} pk={avg_peak_length:.0f}) — saved {backup_name}")
@@ -2260,12 +2479,12 @@ def train(args):
             agent.set_gamma(stage_cfg.get('gamma', cfg.opt.gamma))
             super_pattern.reset_stage(stage_cfg)
             # Save checkpoint on promotion
-            agent.save_checkpoint(checkpoint_path, start_episode, max_steps_per_episode, curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid)
+            persist(checkpoint_path)
             if dashboard:
                 dashboard.log_event(f"STAGE UP -> S{curriculum.current_stage}: {stage_cfg['name']}")
 
         if start_episode % cfg.opt.checkpoint_every == 0:
-            agent.save_checkpoint(checkpoint_path, start_episode, max_steps_per_episode, curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid)
+            persist(checkpoint_path)
 
         # AI Supervisor: notify episode and check for new config
         if ai_supervisor:
@@ -2327,6 +2546,12 @@ def train(args):
                     train._last_loss = metrics['loss']
             finally:
                 next_states, rewards, dones, infos = env.step_wait()
+            if dashboard and dashboard.take_reset_best():
+                best_fitness = -float('inf')
+                best_avg_reward = -float('inf')
+                episodes_since_improvement = 0
+                dashboard.log_event("Best fitness reset — next window can save a new best model")
+                logger.info("[Autonomy] Best fitness reset from TUI (b)")
             if monitor:
                 # Don't let death/respawn latency look like "system too slow" (or
                 # all-spawning ~1ms steps look like idle capacity to scale up).
@@ -2506,14 +2731,14 @@ def train(args):
                 dashboard.log_event("Saving checkpoint and shutting down...")
                 dashboard._refresh()
             logger.info("[Shutdown] Graceful shutdown via Ctrl+E. Saving checkpoint.")
-            agent.save_checkpoint(checkpoint_path, start_episode, max_steps_per_episode, curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid)
+            persist(checkpoint_path)
 
     except KeyboardInterrupt:
         if dashboard:
             dashboard.stop()
         logger.info("[Shutdown] KeyboardInterrupt. Saving checkpoint.")
         print("Interrupted. Saving...")
-        agent.save_checkpoint(checkpoint_path, start_episode, max_steps_per_episode, curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid)
+        persist(checkpoint_path)
     finally:
         if ai_supervisor:
             ai_supervisor.stop()
@@ -2528,6 +2753,10 @@ if __name__ == "__main__":
     parser.add_argument("--view", action="store_true", help="View first agent")
     parser.add_argument("--view-plus", action="store_true", help="View first agent with bot vision overlay grid")
     parser.add_argument("--resume", action="store_true", help="Resume")
+    parser.add_argument("--resume-best", action="store_true", help="Load the highest-fitness backup_models/*.pth instead of checkpoint.pth")
+    parser.add_argument("--reset-best", action="store_true", help="Clear the best-fitness bar so the next window can save a new best model")
+    parser.add_argument("--keep-backups", type=int, default=None, help="Newest best-model backups to keep (default: 10)")
+    parser.add_argument("--keep-events", type=int, default=None, help="Newest death-event packets to keep (default: 40)")
     parser.add_argument("--stage", type=int, default=0, help="Force start at specific stage (1-6)")
     parser.add_argument("--style-name", type=str, help="Learning style name (e.g. 'Aggressive')")
     parser.add_argument("--model-path", type=str, help="Path to model checkpoint to load")

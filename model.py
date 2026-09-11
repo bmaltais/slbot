@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from sector_layout import SECTOR_DIM
+
 class DuelingDQN(nn.Module):
     """
     Dueling DQN architecture.
@@ -69,9 +71,10 @@ class HybridDuelingDQN(nn.Module):
     """
     Hybrid CNN + Sector Vector architecture.
     CNN branch processes spatial matrix (food/enemies/self).
-    Sector branch processes 99-float vector with precise distances + enemy approach.
+    Sector branch processes the sector_layout radar vector (per-sector food
+    mass/distance, obstacles, walls, enemy size, plus a few globals).
     """
-    def __init__(self, input_channels, action_dim=14, input_size=(64, 64), sector_dim=99):
+    def __init__(self, input_channels, action_dim=14, input_size=(64, 64), sector_dim=SECTOR_DIM):
         super(HybridDuelingDQN, self).__init__()
 
         # --- CNN Branch (spatial matrix) ---
@@ -90,10 +93,13 @@ class HybridDuelingDQN(nn.Module):
             self.cnn_flat_size = x.view(1, -1).size(1)
 
         # --- Sector Branch (scalar vector) ---
+        # First layer is wide enough that each of the 8 per-sector bands can
+        # be mixed with its neighbours; output stays 128 so the merge layer
+        # (and its checkpoint weights) is unchanged.
         self.sector_net = nn.Sequential(
-            nn.Linear(sector_dim, 128),
+            nn.Linear(sector_dim, 256),
             nn.LeakyReLU(negative_slope=0.01),
-            nn.Linear(128, 128),
+            nn.Linear(256, 128),
             nn.LeakyReLU(negative_slope=0.01),
         )
         self.sector_out_size = 128
