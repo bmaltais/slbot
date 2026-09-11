@@ -206,10 +206,13 @@ class PrioritizedReplayBuffer:
     FRAME_HEADROOM = 0.125
 
     def __init__(self, capacity, alpha=0.6, beta_start=0.4, beta_frames=100000,
-                 frame_capacity=None, pin_memory=None):
+                 frame_capacity=None, pin_memory=None, priority_eps=1e-5):
         self.tree = SumTree(capacity)
         self.capacity = capacity
         self.alpha = alpha
+        # Floor added to |td error| before the alpha power, so a row whose
+        # error hits zero keeps a nonzero chance of being drawn again.
+        self.priority_eps = float(priority_eps)
         self.beta_start = beta_start
         self.beta_frames = beta_frames
         self.frame = 1 # Start at 1 to avoid div by zero if logic changes
@@ -305,9 +308,40 @@ class PrioritizedReplayBuffer:
 
         return self.store.gather(slots, self.frames), idxs, is_weight.astype(np.float32)
 
+    def sample_uniform(self, n):
+        """n distinct transitions drawn uniformly, ignoring priorities.
+
+        For evaluation (no IS weights, no priority bookkeeping). Same batch
+        dict as sample(); the matrix tensors are reused by the next gather.
+        """
+        if self.frames is None or self.store is None or len(self) == 0:
+            raise ValueError("replay buffer is empty")
+        n = min(int(n), len(self))
+        slots = np.random.choice(len(self), size=n, replace=False)
+        return self.store.gather(slots, self.frames)
+
+    def iter_epoch(self, batch_size):
+        """Yield (batch, tree_idxs, is_weights) over every transition once.
+
+        One shuffled pass: each stored transition appears in exactly one
+        batch (the last batch may be short). No prioritisation; weights are
+        all ones. tree_idxs are real, so update_priorities() still works.
+        """
+        if self.frames is None or self.store is None or len(self) == 0:
+            raise ValueError("replay buffer is empty")
+        order = np.random.permutation(len(self))
+        for start in range(0, len(order), int(batch_size)):
+            slots = order[start:start + int(batch_size)]
+            batch = self.store.gather(slots, self.frames)
+            yield batch, slots + (self.capacity - 1), np.ones(len(slots), dtype=np.float32)
+
+    def epoch_batches(self, batch_size):
+        """Number of batches one iter_epoch() pass yields."""
+        return int(np.ceil(len(self) / float(batch_size)))
+
     def update_priorities(self, idxs, errors):
         for idx, error in zip(idxs, errors):
-            p = (error + 1e-5) ** self.alpha
+            p = (error + self.priority_eps) ** self.alpha
             self.tree.update(idx, p)
 
     def nbytes(self):

@@ -69,10 +69,29 @@ class ReplayBufferConfig:
     beta_frames: int = 100000
 
 @dataclass
+class DemoConfig:
+    """Learning from recorded human play (DQfD-style). See demo.py.
+
+    Demonstrations live in their own replay buffer that is never evicted.
+    Each batch mixes `ratio` of them with live transitions, and demo rows add
+    a large-margin loss that keeps the human's action ahead of the others.
+    """
+    ratio: float = 0.25           # fraction of each batch drawn from demonstrations
+    margin: float = 0.8           # Q gap the human's action must hold over the rest
+    margin_weight: float = 1.0    # weight of the margin loss relative to the TD loss
+    pretrain_steps: int = 0       # gradient steps on demos alone before live play
+    pretrain_epochs: int = 0      # or: shuffled passes over every demo transition (wins over steps)
+    pretrain_target_every: int = 1000  # target-net sync interval while pretraining
+    start_eps: float = 0.2        # epsilon live play starts at after pretraining
+    min_score: int = 0            # skip demo episodes whose peak length is below this
+    priority_eps: float = 1e-3    # PER priority floor for demo rows (live rows: 1e-5)
+
+@dataclass
 class Config:
     env: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     opt: OptimizationConfig = field(default_factory=OptimizationConfig)
     buffer: ReplayBufferConfig = field(default_factory=ReplayBufferConfig)
+    demo: DemoConfig = field(default_factory=DemoConfig)
     browser_backend: str = "selenium"  # "selenium" | "websocket"
     ws_server_url: str = ""            # Override: "ws://1.2.3.4:444/slither"

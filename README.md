@@ -414,6 +414,57 @@ Every 50 episodes, the trainer saves a checkpoint containing the network weights
 
 Training metrics are logged to CSV with columns for reward, steps, food, death cause, Q-values, gradient norms, action distributions, and more.
 
+### Learning from human play (guided learning)
+
+The bot can be kick-started from your own games instead of from random
+flailing. The approach is DQfD (Deep Q-learning from Demonstrations): recorded
+human episodes go into a second replay buffer that is never evicted, every
+training batch mixes some of them in, and demo rows carry an extra
+*large-margin* loss that keeps the human's action scored above the others.
+That is what stops early random play from washing the demonstrations out.
+
+**Recording.** `record_demo.py` opens a real, playable Chrome window. You steer
+with the mouse and boost with click or space; the env runs in passive mode
+(`step(None)`) and never sends an action. Every frame-skip window it builds the
+exact observation the bot would see, labels what you did with the nearest
+discrete action (the mouse heading `wang` relative to `ang` snapped to the 14
+turn buckets, boost from speed), and scores it with the chosen stage's reward
+function. Each episode is saved as one `.npz` under `demos/`, named with its
+peak snake length and step count. Only the selenium backend can record; the
+websocket backend sends its own packets.
+
+Two labelling caveats: mouse steering is continuous, so tiny corrections under
+about 5 degrees become "keep direction"; and the action space cannot express
+boost plus a hard turn, so a boosting turn wider than the micro bucket is
+labelled with the turn alone.
+
+**Training.** `--demos DIR` loads every episode in the folder (filter weak
+rounds with `--demo-min-score N`, a peak-length floor). `--pretrain-steps N`
+runs N gradient steps on demonstrations alone before live play, syncs the
+target net, drops epsilon to 0.2 so the pretrained policy is actually acted
+on, and saves the checkpoint. `--pretrain-epochs N` sizes it in passes
+instead: one epoch is one shuffled pass in which every demo transition is
+used exactly once, so the cost scales with how much you recorded (3060
+transitions at batch 128 is 24 steps per epoch). Ctrl+C during pretraining
+stops early, saves the checkpoint with what was learned so far, closes the
+browsers and exits; resume live training from it with `--resume`. After that, normal RL continues with
+`--demo-ratio` (default 0.25) of each batch drawn from demos. The existing
+best-fitness bar still decides when a model file is written; a human game is
+never compared with the bot's, it is only ever a dataset.
+
+**Watching it.** Pretraining runs before the TUI exists, so it has its own
+terminal view (`pretrain_view.py`): the loaded episodes as a table, then a
+live panel with a progress bar and ETA, loss / margin loss / Q numbers with
+sparkline trends, and *agreement*, the share of sampled demo states where the
+network's greedy action now matches yours, next to your action mix and the
+policy's. Margin loss falling toward zero and agreement rising is what "the
+demos took" looks like. Without a terminal it prints one line per update.
+
+Demos are scored under one stage's rewards and stored with that stage's
+gamma, so record with the `--stage` you plan to train on. Tunables live in
+`DemoConfig` in `config.py` (margin 0.8, margin weight 1.0, target sync every
+1000 pretraining steps, demo priority floor 1e-3).
+
 ## AI Supervisor
 
 An optional LLM-based hyperparameter tuner that runs alongside training. Every N episodes it collects training statistics, sends them to an LLM (Claude, GPT-4o, Gemini, or a local Ollama model), and applies the recommended parameter changes — all without restarting the trainer.
@@ -821,6 +872,10 @@ python trainer.py --resume-best
 
 # Full reset (deletes logs, checkpoints, CSV)
 python trainer.py --reset
+
+# Guided learning: record your own play, then kick-start the bot from it
+python record_demo.py --stage 1 --episodes 5
+python trainer.py --demos demos --pretrain-steps 3000 --stage 1
 ```
 
 All other agents run headless; `--view`/`--view-plus` just launch agent 0's
@@ -860,6 +915,16 @@ checkpoint was computed with the old formula.
 | `--ai-lookback N` | Episodes to analyze per consultation (default: 500) |
 | `--ai-model MODEL` | Override LLM model name |
 | `--ai-key KEY` | API key (default: from `.env` or env var) |
+| `--demos DIR` | Learn from recorded human episodes in DIR (see `record_demo.py`) |
+| `--demo-ratio F` | Fraction of each batch drawn from demos (default: 0.25) |
+| `--demo-min-score N` | Skip demo episodes whose peak length is below N |
+| `--pretrain-steps N` | Gradient steps on demos alone before live play (saves a checkpoint) |
+| `--pretrain-epochs N` | Same, sized as N shuffled passes over every demo transition (wins over steps) |
+
+`record_demo.py` flags: `--out DIR` (default `demos/`), `--episodes N` (default:
+until Ctrl+C), `--stage N` / `--style-name NAME` (rewards used to score the
+demo), `--min-steps N` (discard shorter episodes, default 30), `--max-steps N`,
+`--nickname`, `--url`, `--vision-size`.
 
 ## File Structure
 
@@ -873,6 +938,9 @@ checkpoint was computed with the old formula.
 | `config.py` | Configuration dataclasses (hyperparameters, buffer settings) |
 | `styles.py` | Reward weight definitions for each curriculum stage and training style |
 | `per.py` | Prioritized Experience Replay with SumTree |
+| `action_space.py` | The 14 discrete actions: decode to heading/boost, snap human steering to a label |
+| `demo.py` | Demonstration episode file format and frame-stacked replay |
+| `record_demo.py` | Record your own play as demonstration episodes |
 | `training_progress_analyzer.py` | Post-training analysis — 19 charts + 2 GIFs + markdown report |
 | `charts/` | Generated analysis charts (PNGs + animated GIFs) |
 | `ai_supervisor.py` | LLM-based hyperparameter tuner (Claude/OpenAI/Gemini/Ollama) |
@@ -905,6 +973,12 @@ checkpoint was computed with the old formula.
 - **Late-stage Q-value instability**: Stages 5-6 with gamma=0.99 and no step limit can produce exploding Q-values if length_bonus or survival escalation create runaway reward signals. The AI Supervisor helps by clamping parameters to safe ranges.
 
 ## Changelog
+
+### 2026-09-11 — Guided learning from recorded human play (DQfD)
+
+**Why** — a fresh network spends its first thousands of episodes dying at random before the reward signal says anything useful. A few rounds of human play show it what "playing" looks like from step one.
+
+**What** — `record_demo.py` opens a playable window and, in the env's new passive mode (`step(None)`), records the bot's own observation plus the human's action snapped to the 14-action space and the stage's reward. The trainer's `--demos DIR` loads those episodes into a permanent second replay buffer mixed into every batch (`--demo-ratio`), with a large-margin loss on demo rows; `--pretrain-steps N` trains on demos alone first, then saves the checkpoint. The action table moved to `action_space.py` so the env, agent and labeller share one definition.
 
 ### 2026-09-11 — Observation upgrade: food mass vs distance, wall band, enemy size
 

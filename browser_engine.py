@@ -32,23 +32,30 @@ class SlitherBrowser:
     MAX_BODY_PTS = 150   # Max body points per enemy (increased for better visibility)
     
     def __init__(self, headless=True, nickname="NEATBot", base_url="http://slither.io",
-                 use_cdp=False):
+                 use_cdp=False, human_control=False):
+        """human_control: a person plays in this window (demo recording).
+        Opens a larger window and leaves the game's graphics untouched so it
+        is actually playable; the env then never steers it."""
         self.nickname = nickname
         self.base_url = base_url
         self._use_cdp = use_cdp
+        self.human_control = bool(human_control)
         self._cdp = None  # CDPInterceptor instance (if use_cdp=True)
         self._cdp_rearm_t0 = None
         self._cdp_rearm_ms = None
         self._cdp_fallback_ticks = 0
         self.options = Options()
 
-        if headless:
+        if headless and not self.human_control:
             self.options.add_argument("--headless=new")
 
         self.options.add_argument("--mute-audio")
         self.options.add_argument("--disable-gpu")
         self.options.add_argument("--disable-dev-shm-usage")
-        self.options.add_argument("--window-size=800,600")
+        if self.human_control:
+            self.options.add_argument("--window-size=1280,900")
+        else:
+            self.options.add_argument("--window-size=800,600")
         self.options.add_argument("--disable-extensions")
         self.options.add_argument("--disable-infobars")
         self.options.add_argument("--disable-notifications")
@@ -335,7 +342,7 @@ class SlitherBrowser:
         Steering is done via CDP Input.dispatchMouseEvent (trusted mouse events).
         This only handles graphics optimization and boost setup.
         """
-        js_code = """
+        graphics_js = """
         // Graphics optimization
         if (typeof window.want_quality !== 'undefined') window.want_quality = 0;
         if (typeof window.high_quality !== 'undefined') window.high_quality = false;
@@ -343,7 +350,10 @@ class SlitherBrowser:
 
         // Disable visual effects
         window.redraw = window.redraw || function(){};
-
+        """
+        if self.human_control:
+            graphics_js = "// human at the controls: keep the game's own rendering\n"
+        js_code = graphics_js + """
         window._botSteering = true;
         window._botTargetAng = 0;
 
