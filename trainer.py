@@ -101,6 +101,34 @@ if not logger.hasHandlers():
     logger.addHandler(f_handler_app)
     logger.addHandler(f_handler_train)
 
+def resolve_best_bar(saved_value, saved_stage, current_stage, label, log=None):
+    """Decide whether a persisted best-* bar can be reused in this run.
+
+    best_fitness and best_avg_reward are both scaled by stage-specific
+    config (max_steps varies non-monotonically per curriculum stage; reward
+    shaping and gamma also change per stage), so a bar earned in a
+    different stage is not comparable to the current one. Returns the bar
+    to use: the restored float when `saved_stage` matches `current_stage`
+    (or is None, for checkpoints saved before stage-tagging existed, in
+    which case it's restored best-effort), otherwise -inf so the run starts
+    a fresh bar. Pulled out as a standalone function so the stage-mismatch
+    decision is unit-testable without spinning up a full training run.
+    """
+    if saved_value is None:
+        return -float('inf')
+    if saved_stage is not None and saved_stage != current_stage:
+        if log:
+            log.info(
+                f"  Best {label} bar from stage {saved_stage} discarded "
+                f"(resuming into stage {current_stage})"
+            )
+        return -float('inf')
+    value = float(saved_value)
+    if log:
+        log.info(f"  Restored best {label} bar: {value:.2f} (stage {current_stage})")
+    return value
+
+
 # Rolling env-step rate shown on the Agents Board.
 SPS_WINDOW_S = 10.0
 
@@ -2120,21 +2148,25 @@ def train(args):
     best_fitness = -float('inf')
     episodes_since_improvement = 0
     if not getattr(args, "reset_best", False):
-        saved_fit = getattr(agent, "saved_best_fitness", None)
-        saved_rw = getattr(agent, "saved_best_avg_reward", None)
-        if saved_fit is not None:
-            best_fitness = float(saved_fit)
-            logger.info(f"  Restored best fitness bar: {best_fitness:.1f}")
-        if saved_rw is not None:
-            best_avg_reward = float(saved_rw)
+        best_fitness = resolve_best_bar(
+            getattr(agent, "saved_best_fitness", None),
+            getattr(agent, "saved_best_fitness_stage", None),
+            curriculum.current_stage, "fitness", log=logger,
+        )
+        best_avg_reward = resolve_best_bar(
+            getattr(agent, "saved_best_avg_reward", None),
+            getattr(agent, "saved_best_avg_reward_stage", None),
+            curriculum.current_stage, "avg-reward", log=logger,
+        )
     else:
         logger.info("  --reset-best: fitness bar cleared; next window can save a new best")
 
     def persist(path):
         agent.save_checkpoint(
-            path, start_episode, max_steps_per_episode,
-            curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid,
-            best_fitness=best_fitness, best_avg_reward=best_avg_reward,
+            path, start_episode, max_steps=max_steps_per_episode,
+            supervisor_state=curriculum.get_state(), run_uid=run_uid, parent_uid=parent_uid,
+            best_fitness=best_fitness, best_fitness_stage=curriculum.current_stage,
+            best_avg_reward=best_avg_reward, best_avg_reward_stage=curriculum.current_stage,
         )
 
     # Metrics tracking
@@ -2478,6 +2510,19 @@ def train(args):
             env.set_stage(stage_cfg)
             agent.set_gamma(stage_cfg.get('gamma', cfg.opt.gamma))
             super_pattern.reset_stage(stage_cfg)
+            # Fitness (mainly avg_steps) is scaled by the stage's max_steps,
+            # which isn't monotonic across stages, and reward shaping/gamma
+            # also change per stage — neither bar is comparable across the
+            # boundary. Reset both plus the rolling windows and stagnation
+            # counter that feed them, so the new stage earns its own best.
+            best_fitness = -float('inf')
+            best_avg_reward = -float('inf')
+            episodes_since_improvement = 0
+            reward_window.clear()
+            food_window.clear()
+            steps_window.clear()
+            length_window.clear()
+            logger.info(f"  Best fitness/reward bars reset for stage {curriculum.current_stage}")
             # Save checkpoint on promotion
             persist(checkpoint_path)
             if dashboard:

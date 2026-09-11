@@ -21,7 +21,9 @@ class DDQNAgent:
         self.config = config
         self.reflex5_enabled = False  # Body encirclement reflex (off by default)
         self.saved_best_fitness = None
+        self.saved_best_fitness_stage = None
         self.saved_best_avg_reward = None
+        self.saved_best_avg_reward_stage = None
 
         # Device selection: CUDA -> MPS -> CPU
         if torch.cuda.is_available():
@@ -598,7 +600,7 @@ class DDQNAgent:
         missing, unexpected = model.load_state_dict(filtered, strict=False)
         return missing, unexpected, skipped
 
-    def save_checkpoint(self, filepath, episode, max_steps=None, supervisor_state=None, run_uid=None, parent_uid=None, best_fitness=None, best_avg_reward=None):
+    def save_checkpoint(self, filepath, episode, *, max_steps=None, supervisor_state=None, run_uid=None, parent_uid=None, best_fitness=None, best_fitness_stage=None, best_avg_reward=None, best_avg_reward_stage=None):
         checkpoint = {
             'episode': episode,
             'steps_done': self.steps_done,
@@ -612,7 +614,16 @@ class DDQNAgent:
             'run_uid': run_uid,
             'parent_uid': parent_uid,
             'best_fitness': best_fitness,
+            # Curriculum stage best_fitness was computed under. Fitness (esp.
+            # avg_steps) isn't comparable across stages since max_steps varies
+            # non-monotonically per stage, so the bar is only meaningful when
+            # resumed into the same stage it was earned in — see trainer.py.
+            'best_fitness_stage': best_fitness_stage,
             'best_avg_reward': best_avg_reward,
+            # Same rationale as best_fitness_stage: reward shaping and gamma
+            # both vary per curriculum stage, so this watchdog bar is only
+            # meaningful within the stage it was earned in.
+            'best_avg_reward_stage': best_avg_reward_stage,
         }
         torch.save(checkpoint, filepath)
 
@@ -640,5 +651,7 @@ class DDQNAgent:
         max_steps = checkpoint.get('max_steps', 200)  # Default to 200 for old checkpoints
         run_uid = checkpoint.get('run_uid', None)
         self.saved_best_fitness = checkpoint.get('best_fitness')
+        self.saved_best_fitness_stage = checkpoint.get('best_fitness_stage')
         self.saved_best_avg_reward = checkpoint.get('best_avg_reward')
+        self.saved_best_avg_reward_stage = checkpoint.get('best_avg_reward_stage')
         return checkpoint['episode'], max_steps, checkpoint.get('supervisor_state'), run_uid
