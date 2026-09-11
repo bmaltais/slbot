@@ -2013,6 +2013,24 @@ def train(args):
     cfg.browser_backend = args.backend
     cfg.ws_server_url = args.ws_server_url
 
+    # Learning from recorded human play
+    demo_dir = getattr(args, "demos", None)
+    if getattr(args, "demo_ratio", None) is not None:
+        cfg.demo.ratio = args.demo_ratio
+    if getattr(args, "demo_min_score", None) is not None:
+        cfg.demo.min_score = args.demo_min_score
+    if getattr(args, "pretrain_steps", None) is not None:
+        cfg.demo.pretrain_steps = args.pretrain_steps
+    if cfg.demo.pretrain_steps > 0 and not demo_dir:
+        raise SystemExit("--pretrain-steps needs --demos DIR")
+    demo_paths = []
+    if demo_dir:
+        # Validate now, before browsers are launched, so a typo fails fast.
+        from demo import list_demos
+        demo_paths = list_demos(demo_dir)
+        if not demo_paths:
+            raise SystemExit(f"--demos {demo_dir}: no demo files found (record some with record_demo.py)")
+
     # Paths
     base_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint_path = os.path.join(base_dir, 'checkpoint.pth')
@@ -2197,6 +2215,25 @@ def train(args):
             best_fitness=best_fitness, best_fitness_stage=curriculum.current_stage,
             best_avg_reward=best_avg_reward, best_avg_reward_stage=curriculum.current_stage,
         )
+
+    # Demonstrations: load after set_gamma() so their n-step returns use the
+    # stage gamma, and before the loop so the first batches already mix them.
+    if demo_paths:
+        summary = agent.load_demos(demo_paths, min_score=cfg.demo.min_score)
+        logger.info(
+            f"[Demos] {summary['episodes']} episode(s), {summary['transitions']} transitions "
+            f"from {demo_dir} (skipped {summary['skipped']} below min_score={cfg.demo.min_score}; "
+            f"best peak length {summary['peak_length']}); batch ratio {cfg.demo.ratio}"
+        )
+        if summary['transitions'] == 0:
+            raise SystemExit("--demos: every episode was filtered out; lower --demo-min-score")
+        if cfg.demo.pretrain_steps > 0:
+            logger.info(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations...")
+            agent.pretrain_from_demos(cfg.demo.pretrain_steps)
+            # A pretrained policy is worth acting on: don't start from eps=1.0.
+            agent.boost_exploration(target_eps=cfg.demo.start_eps)
+            persist(checkpoint_path)
+            logger.info(f"[Demos] Pretraining done; checkpoint saved to {checkpoint_path}")
 
     # Metrics tracking
     total_steps = agent.steps_done
@@ -2845,6 +2882,10 @@ if __name__ == "__main__":
     parser.add_argument("--ws-server-url", type=str, default="", help="WebSocket server URL override (e.g. ws://1.2.3.4:444/slither)")
     parser.add_argument("--max-foods", type=int, default=None, help="Per-step food/prey observation cap (default: 800, or SLBOT_MAX_FOODS)")
     parser.add_argument("--reflex5", action="store_true", help="Enable body encirclement reflex (aggressive, off by default)")
+    parser.add_argument("--demos", type=str, default=None, help="Directory of recorded human episodes (record_demo.py) to learn from")
+    parser.add_argument("--demo-ratio", type=float, default=None, help="Fraction of each training batch drawn from demos (default: 0.25)")
+    parser.add_argument("--demo-min-score", type=int, default=None, help="Skip demo episodes whose peak snake length is below this (default: 0)")
+    parser.add_argument("--pretrain-steps", type=int, default=None, help="Gradient steps on demos alone before live play starts (default: 0)")
     parser.add_argument("--reset", action="store_true", help="Total reset: delete logs, CSV, checkpoints, events")
     parser.add_argument("--ai-supervisor", choices=["claude", "openai", "gemini", "ollama"], default=None, help="Enable AI Supervisor with chosen LLM provider")
     parser.add_argument("--ai-interval", type=int, default=200, help="AI Supervisor: consult every N episodes (default: 200)")

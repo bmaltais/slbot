@@ -9,13 +9,13 @@ import os
 import logging
 from collections import deque
 
+from action_space import ACTION_DIM
 from config import Config
 from death_cause import Cause
 from model import DuelingDQN, HybridDuelingDQN
 from per import PrioritizedReplayBuffer
 
 logger = logging.getLogger("slitherbot")
-ACTION_DIM = 14
 
 # torch.load() defaults to weights_only=True (PyTorch >= 2.6), which refuses
 # to unpickle any non-builtin class. CurriculumManager.get_state() no longer
@@ -105,6 +105,11 @@ class DDQNAgent:
         else:
             # Fallback to simple deque if prioritized is disabled (not implemented in per.py but keeping structure open)
             raise NotImplementedError("Only Prioritized Buffer is supported currently.")
+
+        # Recorded human play (see load_demos). Lives in its own buffer so it
+        # is never evicted by live transitions; optimize_model mixes it into
+        # every batch and adds the DQfD margin loss on those rows.
+        self.demo_memory = None
 
         self.steps_done = 0
 
@@ -403,23 +408,27 @@ class DDQNAgent:
             return frame
         return np.clip(frame * 255.0, 0.0, 255.0).astype(np.uint8)
 
-    def _store_stack(self, matrix):
+    def _store_stack(self, matrix, memory=None):
         """Store every frame of a stack. Identical consecutive frames (the
         reset-filled stack at episode start) are stored once."""
+        if memory is None:
+            memory = self.memory
         seqs = []
         prev = None
         for fr in self._split_stack(matrix):
             if prev is not None and np.array_equal(fr, prev):
                 seqs.append(seqs[-1])
             else:
-                seqs.append(self.memory.push_frame(self._quantize(fr)))
+                seqs.append(memory.push_frame(self._quantize(fr)))
             prev = fr
         return seqs
 
-    def _extend_stack(self, seqs, next_matrix):
+    def _extend_stack(self, seqs, next_matrix, memory=None):
         """Stack after one env step: drop the oldest seq, store the newest frame."""
+        if memory is None:
+            memory = self.memory
         newest = self._split_stack(next_matrix)[-1]
-        return seqs[1:] + [self.memory.push_frame(self._quantize(newest))]
+        return seqs[1:] + [memory.push_frame(self._quantize(newest))]
 
     def remember(self, state, action, reward, next_state, done, gamma=None):
         """
@@ -443,11 +452,15 @@ class DDQNAgent:
         self.current_gamma = gamma
         logger.info(f"  Gamma set to {gamma} (effective n-step gamma: {gamma**self.n_step:.3f})")
 
-    def remember_nstep(self, state, action, reward, next_state, done, agent_id=0):
+    def remember_nstep(self, state, action, reward, next_state, done, agent_id=0, memory=None):
         """
         N-step return buffer. Accumulates transitions and pushes
         n-step returns to PER when buffer is full or episode ends.
+        memory: replay buffer to write to (default: the live buffer). Every
+        call for a given agent_id must use the same buffer.
         """
+        if memory is None:
+            memory = self.memory
         if agent_id not in self.n_step_buffers:
             self.n_step_buffers[agent_id] = deque(maxlen=self.n_step)
 
@@ -465,23 +478,25 @@ class DDQNAgent:
             s_seq = tracked[1]
         else:
             if buf:
-                self._flush_nstep(agent_id)
-            s_seq = self._store_stack(s_mat)
-        n_seq = self._extend_stack(s_seq, n_mat)
+                self._flush_nstep(agent_id, memory)
+            s_seq = self._store_stack(s_mat, memory)
+        n_seq = self._extend_stack(s_seq, n_mat, memory)
         self._stack_tracker[agent_id] = (next_state, n_seq)
 
         buf.append((s_seq, s_sec, action, reward, n_seq, n_sec, done))
 
         if done:
             # Flush all remaining transitions in buffer
-            self._flush_nstep(agent_id)
+            self._flush_nstep(agent_id, memory)
             self._stack_tracker.pop(agent_id, None)
         elif len(buf) == self.n_step:
             # Buffer full: compute n-step return for oldest transition
-            self._push_nstep_transition(agent_id)
+            self._push_nstep_transition(agent_id, memory)
 
-    def _push_nstep_transition(self, agent_id):
+    def _push_nstep_transition(self, agent_id, memory=None):
         """Compute n-step return for oldest transition and push to PER."""
+        if memory is None:
+            memory = self.memory
         buf = self.n_step_buffers[agent_id]
         if not buf:
             return
@@ -505,28 +520,139 @@ class DDQNAgent:
             if d:
                 break
 
-        self.memory.push(s_seq_0, s_sec_0, action_0, R, last_n_seq, last_n_sec, last_done, gamma_used)
+        memory.push(s_seq_0, s_sec_0, action_0, R, last_n_seq, last_n_sec, last_done, gamma_used)
 
-    def _flush_nstep(self, agent_id):
+    def _flush_nstep(self, agent_id, memory=None):
         """Flush all remaining transitions at episode end."""
         buf = self.n_step_buffers[agent_id]
         while buf:
-            self._push_nstep_transition(agent_id)
+            self._push_nstep_transition(agent_id, memory)
             buf.popleft()
 
-    def optimize_model(self):
-        if len(self.memory) < self.config.opt.batch_size:
+    # --- demonstrations (recorded human play) -----------------------------
+
+    def load_demos(self, paths, min_score=0):
+        """Load recorded human episodes into the permanent demo buffer.
+
+        paths: demo files written by record_demo.py. Episodes whose peak
+        snake length is below min_score are skipped. Returns a summary dict.
+        Transitions are stored the same way live play is (frame-stacked,
+        n-step returns under the current gamma), so call after set_gamma().
+        """
+        from demo import iter_stacked_transitions, load_demo, select_demos
+
+        kept, skipped = select_demos(list(paths), min_score)
+        demos = [load_demo(p) for p in kept]
+        n_steps = sum(len(d['actions']) for d in demos)
+        summary = {
+            'episodes': len(demos),
+            'skipped': len(skipped),
+            'steps': n_steps,
+            'transitions': 0,
+            'peak_length': max((d['meta'].get('peak_length', 0) for d in demos), default=0),
+        }
+        if n_steps == 0:
+            self.demo_memory = None
+            return summary
+
+        cfg = self.config
+        self.demo_memory = PrioritizedReplayBuffer(
+            capacity=n_steps,
+            alpha=cfg.buffer.alpha,
+            beta_start=cfg.buffer.beta_start,
+            beta_frames=cfg.buffer.beta_frames,
+            # One frame per step plus a reset frame per episode; a little
+            # slack so a demo can never reference an overwritten frame.
+            frame_capacity=n_steps + len(demos) * self.frame_stack + 64,
+            priority_eps=cfg.demo.priority_eps,
+        )
+        key = '__demo__'
+        for d in demos:
+            for state, action, reward, next_state, done in iter_stacked_transitions(d, self.frame_stack):
+                self.remember_nstep(state, action, reward, next_state, done,
+                                    agent_id=key, memory=self.demo_memory)
+            # An episode cut short (Ctrl+C) ends without done: close it out.
+            if self.n_step_buffers.get(key):
+                self._flush_nstep(key, self.demo_memory)
+                self._stack_tracker.pop(key, None)
+        self.n_step_buffers.pop(key, None)
+        summary['transitions'] = len(self.demo_memory)
+        return summary
+
+    def _demo_batch_size(self, batch_size, demo_only=False):
+        """How many rows of the next batch come from demonstrations."""
+        if self.demo_memory is None or len(self.demo_memory) == 0:
+            return 0
+        if demo_only:
+            return min(batch_size, len(self.demo_memory))
+        n_demo = int(round(batch_size * self.config.demo.ratio))
+        n_demo = min(n_demo, len(self.demo_memory))
+        if len(self.memory) < batch_size - n_demo:
+            # Live buffer still filling (start of a run): lean on the demos.
+            n_demo = min(batch_size, len(self.demo_memory))
+        return n_demo
+
+    def _forward(self, net, matrices, sectors):
+        return net(matrices, sectors) if self.use_hybrid else net(matrices)
+
+    def pretrain_from_demos(self, steps, log_every=200):
+        """Gradient steps on demonstrations alone, before any live play.
+
+        Returns the last metrics dict. Syncs the target net every
+        config.demo.pretrain_target_every steps and once at the end.
+        """
+        if self.demo_memory is None or len(self.demo_memory) == 0:
+            raise RuntimeError("no demonstrations loaded; call load_demos() first")
+        sync_every = max(1, int(self.config.demo.pretrain_target_every))
+        metrics = None
+        t0 = time.time()
+        for i in range(1, int(steps) + 1):
+            m = self.optimize_model(demo_only=True)
+            if m is not None:
+                metrics = m
+            if i % sync_every == 0:
+                self.update_target()
+            if log_every and (i % log_every == 0 or i == steps) and metrics:
+                logger.info(
+                    f"  [Pretrain] step {i}/{steps} loss={metrics['loss']:.4f} "
+                    f"margin={metrics['margin_loss']:.4f} q_mean={metrics['q_mean']:.2f} "
+                    f"({time.time() - t0:.0f}s)"
+                )
+        self.update_target()
+        return metrics
+
+    def optimize_model(self, demo_only=False):
+        """One gradient step on a batch of live transitions, demonstrations,
+        or a mix (config.demo.ratio). Returns metrics or None if there is
+        not enough data yet.
+
+        demo_only: draw the whole batch from the demo buffer (pretraining).
+        """
+        batch_size = self.config.opt.batch_size
+        n_demo = self._demo_batch_size(batch_size, demo_only=demo_only)
+        n_live = 0 if demo_only else batch_size - n_demo
+        if n_demo == 0 and n_live == 0:
+            return None
+        if n_live > len(self.memory):
             return None
 
-        # Sample: contiguous uint8 / float32 arrays gathered from the replay store
-        batch, idxs, is_weights = self.memory.sample(self.config.opt.batch_size)
+        # Sample: contiguous uint8 / float32 arrays gathered from the replay
+        # store(s). Live rows come first, demo rows after.
+        parts = []
+        if n_live:
+            parts.append((self.memory, self.memory.sample(n_live)))
+        if n_demo:
+            parts.append((self.demo_memory, self.demo_memory.sample(n_demo)))
         dev = self.device
 
-        action_batch = torch.from_numpy(batch['action']).to(dev).unsqueeze(1)
-        reward_batch = torch.from_numpy(batch['reward']).to(dev)
-        done_batch = torch.from_numpy(batch['done']).to(dev)
-        weights_batch = torch.from_numpy(is_weights).to(dev)
-        gamma_batch = torch.from_numpy(batch['gamma']).to(dev)
+        def _cat_np(key):
+            return np.concatenate([b[key] for _, (b, _, _) in parts])
+
+        action_batch = torch.from_numpy(_cat_np('action')).to(dev).unsqueeze(1)
+        reward_batch = torch.from_numpy(_cat_np('reward')).to(dev)
+        done_batch = torch.from_numpy(_cat_np('done')).to(dev)
+        weights_batch = torch.from_numpy(np.concatenate([w for _, (_, _, w) in parts])).to(dev)
+        gamma_batch = torch.from_numpy(_cat_np('gamma')).to(dev)
 
         # Reward scaling (scale=1.0 preserves signal; clamp wide enough for S5/S6 long episodes)
         # Q-values in S5+ can legitimately reach ~200 (survival escalation + food over 4000 steps)
@@ -538,40 +664,49 @@ class DDQNAgent:
         # less host->device traffic, async copy) and convert on the device.
         # Converting to float32 on the CPU first was ~95% of this method's
         # wall time (157 MB per batch at 160x160x12).
-        s_matrices = batch['s_mat'].to(dev, non_blocking=True).float().div_(255.0)
-        n_matrices = batch['n_mat'].to(dev, non_blocking=True).float().div_(255.0)
-
+        s_matrices = torch.cat([b['s_mat'].to(dev, non_blocking=True) for _, (b, _, _) in parts]).float().div_(255.0)
+        n_matrices = torch.cat([b['n_mat'].to(dev, non_blocking=True) for _, (b, _, _) in parts]).float().div_(255.0)
         if self.use_hybrid:
-            s_sectors = torch.from_numpy(batch['s_sec']).to(dev)
-            n_sectors = torch.from_numpy(batch['n_sec']).to(dev)
-
-            q_values = self.policy_net(s_matrices, s_sectors).gather(1, action_batch)
-
-            with torch.no_grad():
-                next_actions = self.policy_net(n_matrices, n_sectors).max(1)[1].unsqueeze(1)
-                next_q_values = self.target_net(n_matrices, n_sectors).gather(1, next_actions).squeeze(1)
-                next_q_values = torch.clamp(next_q_values, -500.0, 500.0)
-                # Use per-transition gamma from PER (consistent with n-step return computation)
-                gamma_n = gamma_batch ** self.n_step
-                expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
+            s_sectors = torch.from_numpy(_cat_np('s_sec')).to(dev)
+            n_sectors = torch.from_numpy(_cat_np('n_sec')).to(dev)
         else:
-            # Legacy: matrix-only model
-            q_values = self.policy_net(s_matrices).gather(1, action_batch)
+            s_sectors = n_sectors = None
 
-            with torch.no_grad():
-                next_actions = self.policy_net(n_matrices).max(1)[1].unsqueeze(1)
-                next_q_values = self.target_net(n_matrices).gather(1, next_actions).squeeze(1)
-                next_q_values = torch.clamp(next_q_values, -500.0, 500.0)
-                gamma_n = gamma_batch ** self.n_step
-                expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
+        q_all = self._forward(self.policy_net, s_matrices, s_sectors)
+        q_values = q_all.gather(1, action_batch)
 
-        # TD Error for PER
+        with torch.no_grad():
+            next_actions = self._forward(self.policy_net, n_matrices, n_sectors).max(1)[1].unsqueeze(1)
+            next_q_values = self._forward(self.target_net, n_matrices, n_sectors).gather(1, next_actions).squeeze(1)
+            next_q_values = torch.clamp(next_q_values, -500.0, 500.0)
+            # Use per-transition gamma from PER (consistent with n-step return computation)
+            gamma_n = gamma_batch ** self.n_step
+            expected_q_values = torch.clamp((next_q_values * gamma_n * (1 - done_batch)) + norm_rewards, -500.0, 500.0)
+
+        # TD Error for PER — each buffer gets its own rows' errors back
         td_errors_raw = (q_values.squeeze(1) - expected_q_values).detach()
         td_errors = td_errors_raw.abs().cpu().numpy()
-        self.memory.update_priorities(idxs, td_errors)
+        offset = 0
+        for memory, (_, idxs, _) in parts:
+            memory.update_priorities(idxs, td_errors[offset:offset + len(idxs)])
+            offset += len(idxs)
 
         # Loss with IS weights (Huber loss — robust to Q-value outliers, prevents loss explosion)
-        loss = (weights_batch * F.smooth_l1_loss(q_values, expected_q_values.unsqueeze(1), reduction='none').squeeze()).mean()
+        loss = (weights_batch * F.smooth_l1_loss(q_values, expected_q_values.unsqueeze(1), reduction='none').squeeze(1)).mean()
+
+        # DQfD large-margin loss on demo rows: the human's action must score
+        # at least `margin` above every other action, otherwise the gap is
+        # the loss. Keeps the demonstrated policy from being washed out once
+        # live (initially random) transitions dominate the TD signal.
+        margin_loss_val = 0.0
+        if n_demo:
+            q_demo = q_all[-n_demo:]
+            a_demo = action_batch[-n_demo:]
+            margin = torch.full_like(q_demo, float(self.config.demo.margin))
+            margin.scatter_(1, a_demo, 0.0)
+            margin_loss = ((q_demo + margin).max(1)[0] - q_demo.gather(1, a_demo).squeeze(1)).mean()
+            loss = loss + float(self.config.demo.margin_weight) * margin_loss
+            margin_loss_val = margin_loss.item()
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -590,6 +725,8 @@ class DDQNAgent:
                 'q_max': float(np.max(q_vals_np)),
                 'td_error_mean': float(np.mean(td_errors)),
                 'grad_norm': float(grad_norm_pre) if isinstance(grad_norm_pre, (int, float)) else float(grad_norm_pre.item()) if hasattr(grad_norm_pre, 'item') else float(grad_norm_pre),
+                'margin_loss': margin_loss_val,
+                'demo_frac': n_demo / float(n_demo + n_live),
             }
 
         return metrics

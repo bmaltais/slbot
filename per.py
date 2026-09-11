@@ -206,10 +206,13 @@ class PrioritizedReplayBuffer:
     FRAME_HEADROOM = 0.125
 
     def __init__(self, capacity, alpha=0.6, beta_start=0.4, beta_frames=100000,
-                 frame_capacity=None, pin_memory=None):
+                 frame_capacity=None, pin_memory=None, priority_eps=1e-5):
         self.tree = SumTree(capacity)
         self.capacity = capacity
         self.alpha = alpha
+        # Floor added to |td error| before the alpha power, so a row whose
+        # error hits zero keeps a nonzero chance of being drawn again.
+        self.priority_eps = float(priority_eps)
         self.beta_start = beta_start
         self.beta_frames = beta_frames
         self.frame = 1 # Start at 1 to avoid div by zero if logic changes
@@ -307,7 +310,7 @@ class PrioritizedReplayBuffer:
 
     def update_priorities(self, idxs, errors):
         for idx, error in zip(idxs, errors):
-            p = (error + 1e-5) ** self.alpha
+            p = (error + self.priority_eps) ** self.alpha
             self.tree.update(idx, p)
 
     def nbytes(self):

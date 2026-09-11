@@ -62,10 +62,14 @@ from sector_layout import (
     sector_band,
 )
 
-ACTION_DIM = 14
-ACTION_BOOST = 11
-ACTION_BOOST_LEFT = 12
-ACTION_BOOST_RIGHT = 13
+from action_space import (  # noqa: F401 — re-exported for callers/tests
+    ACTION_DIM,
+    ACTION_BOOST,
+    ACTION_BOOST_LEFT,
+    ACTION_BOOST_RIGHT,
+    decode_action,
+    label_human_action,
+)
 
 # Observation frames leave the env as uint8 (0..255). The float [0, 1]
 # render is quantized once here — the replay buffer stores uint8 anyway, and
@@ -173,7 +177,7 @@ def _thick_polyline_samples(px, py, radius):
     return x0[seg] + t * ddx[seg], y0[seg] + t * ddy[seg]
 
 
-def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
+def _create_browser(backend, headless, nickname, base_url, ws_server_url="", human_control=False):
     """Factory: create SlitherBrowser using selected backend."""
     if backend == "websocket":
         # CDP hybrid: Chrome handles anti-bot, CDP intercepts WS frames for speed
@@ -183,7 +187,7 @@ def _create_browser(backend, headless, nickname, base_url, ws_server_url=""):
     else:
         from browser_engine import SlitherBrowser
         return SlitherBrowser(headless=headless, nickname=nickname,
-                              base_url=base_url)
+                              base_url=base_url, human_control=human_control)
 from matplotlib.path import Path as MplPath
 
 
@@ -311,14 +315,20 @@ class _DeathPacketWriter:
 
 
 class SlitherEnv:
-    def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url="", browser: Optional[Backend] = None):
+    def __init__(self, headless=True, nickname="MatrixBot", matrix_size=84, view_plus=False, base_url="http://slither.io", frame_skip=4, backend="selenium", ws_server_url="", browser: Optional[Backend] = None, human_control=False):
         """`browser`, if given, must satisfy browser_backend.Backend and is used
         as-is instead of building one (see browser_backend.FakeBackend for tests).
         `backend` still selects websocket-vs-selenium runtime behaviour below,
         independent of which browser adapter is actually injected.
+        `human_control` opens a playable (visible, full-quality) window for
+        demo recording; drive it with step(None). Selenium backend only.
         """
+        if human_control and backend != "selenium":
+            raise ValueError("human_control needs the selenium backend: the websocket backend sends its own packets")
         self.backend = backend
-        self.browser = browser if browser is not None else _create_browser(backend, headless, nickname, base_url, ws_server_url)
+        self.human_control = bool(human_control)
+        self.browser = browser if browser is not None else _create_browser(
+            backend, headless, nickname, base_url, ws_server_url, human_control=human_control)
         # Fixed Map Constants (Standard Slither.io)
         self.MAP_RADIUS = 21600
         self.MAP_CENTER_X = 21600
@@ -887,28 +897,18 @@ class SlitherEnv:
         11: Boost straight
         12: Boost + Left micro
         13: Boost + Right micro
-        """
-        angle_change = 0
-        boost = 0
 
-        if action == 0:   pass
-        elif action == 1:  angle_change = -0.18  # ~10 deg
-        elif action == 2:  angle_change =  0.18  # ~10 deg
-        elif action == 3:  angle_change = -0.35  # ~20 deg
-        elif action == 4:  angle_change =  0.35  # ~20 deg
-        elif action == 5:  angle_change = -0.61  # ~35 deg
-        elif action == 6:  angle_change =  0.61  # ~35 deg
-        elif action == 7:  angle_change = -0.96  # ~55 deg
-        elif action == 8:  angle_change =  0.96  # ~55 deg
-        elif action == 9:  angle_change = -1.57  # ~90 deg
-        elif action == 10: angle_change =  1.57  # ~90 deg
-        elif action == ACTION_BOOST: boost = 1
-        elif action == ACTION_BOOST_LEFT:
-            angle_change = -0.18
-            boost = 1
-        elif action == ACTION_BOOST_RIGHT:
-            angle_change = 0.18
-            boost = 1
+        action=None is passive mode (human play recording): nothing is sent
+        to the browser, the step just waits out the frame skip, reads what
+        the human did, and labels it with the nearest discrete action. The
+        label is returned as info['human_action'] and the reward is computed
+        for that label exactly as it would be for the bot.
+        """
+        passive = action is None
+        if passive:
+            angle_change, boost = 0.0, 0
+        else:
+            angle_change, boost = decode_action(action)
 
         # Websocket: do not play until CDP is armed. One backend per episode.
         if self.backend == "websocket":
@@ -1007,11 +1007,16 @@ class SlitherEnv:
             # But we have last_valid_data
 
             zeros = self._matrix_zeros()
+            if passive:
+                # The human's last steering is what led here; label it from
+                # the last frame that still had a live snake.
+                action = self._label_human_step(snake, {})
             return zeros, reward, True, self._info(
                 cause=cause,
                 pos=(mx, my),
                 wall_dist=dtw,
                 enemy_dist=min_enemy_dist if min_enemy_dist != float('inf') else -1,
+                **({'human_action': action} if passive else {}),
             )
 
         my_snake = data.get('self', {})
@@ -1054,7 +1059,9 @@ class SlitherEnv:
         # Prefer send_action() — send_action_get_data() also reads game state,
         # which env.step discards and then re-reads after the frame-skip wait.
         send = getattr(self.browser, 'send_action', None)
-        if callable(send):
+        if passive:
+            pass  # human at the mouse: observe only
+        elif callable(send):
             send(target_ang, boost)
         else:
             self.browser.send_action_get_data(target_ang, boost)
@@ -1074,6 +1081,12 @@ class SlitherEnv:
              if self.invalid_frame_count >= self.max_invalid_frames:
                  return self.last_matrix, -5, True, self._info(cause=Cause.INVALID_FRAME)
              return self.last_matrix, 0.0, False, self._info(cause=Cause.INVALID_FRAME)
+
+        if passive:
+            # Label what the human did over the window we just waited out,
+            # then treat that label as the action for reward purposes.
+            action = self._label_human_step(my_snake, (data or {}).get('self') or {})
+            angle_change, boost = decode_action(action)
 
         matrix = self._process_data_to_matrix(data)
         sectors = self._compute_sectors(data)
@@ -1107,6 +1120,7 @@ class SlitherEnv:
                 pos=(pmx, pmy),
                 wall_dist=dtw,
                 enemy_dist=min_enemy_dist if min_enemy_dist != float('inf') else -1,
+                **({'human_action': action} if passive else {}),
             )
 
         # === REWARD CALCULATION ===
@@ -1334,7 +1348,24 @@ class SlitherEnv:
             eaten_mass=eaten_mass,
             server_id=data.get('server_id', ''),
             latency_ms=latency_ms,
+            **({'human_action': action} if passive else {}),
         )
+
+    @staticmethod
+    def _label_human_step(pre_snake, post_snake):
+        """Discrete action label for one passive (human-controlled) step.
+
+        Steering comes from the pre-window frame: `wang` is where the mouse
+        pointed relative to the heading `ang` while the window elapsed.
+        Boost is read from speed on either side of the window, since the
+        snake takes a few ticks to accelerate after the button goes down.
+        """
+        speeds = [
+            s for s in (pre_snake.get('sp'), post_snake.get('sp'))
+            if isinstance(s, (int, float))
+        ]
+        boosting = bool(speeds) and max(speeds) >= BOOST_SPEED_THRESHOLD
+        return label_human_action(pre_snake.get('ang'), pre_snake.get('wang'), boosting)
 
     def _get_state(self):
         data = self.browser.get_game_data()
