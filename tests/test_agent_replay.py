@@ -15,6 +15,8 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sector_layout import SECTOR_DIM
+
 from agent import DDQNAgent
 from config import Config
 
@@ -57,7 +59,7 @@ class _Stacker:
 
     def obs(self):
         return {'matrix': np.concatenate(list(self.frames), axis=0),
-                'sectors': np.zeros(99, dtype=np.float32)}
+                'sectors': np.zeros(SECTOR_DIM, dtype=np.float32)}
 
 
 def _q(mat):

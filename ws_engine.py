@@ -80,6 +80,16 @@ class Snake:
     tsp: float = 0.0       # Target speed
 
 
+def snake_scale_from_parts(num_parts: int) -> float:
+    """Client formula: sc = min(6, 1 + (sct - 2) / 106), sct = body-part count.
+
+    Scale drives body width (29 * sc), head radius and turn rate. It grows
+    with length, not with fullness (fam is the 0..1 fraction of the next
+    body part), so it must be derived from the tracked point count.
+    """
+    return min(6.0, 1.0 + (max(int(num_parts), 2) - 2) / 106.0)
+
+
 @dataclass
 class Food:
     """A food item on the map."""
@@ -607,8 +617,6 @@ class SlitherWSClient:
                 name=name,
             )
 
-            # Calculate scale from fam
-            snake.sc = min(6.0, 1.0 + (fam / 0.2) * 0.1)
 
             # Read body points
             # Body points come as pairs of int24/5 (absolute positions)
@@ -829,8 +837,6 @@ class SlitherWSClient:
         snake = self.state.snakes.get(snake_id)
         if snake:
             snake.fam = fam
-            # Update scale from fam
-            snake.sc = min(6.0, 1.0 + (fam / 0.2) * 0.1)
 
     def _handle_tail_remove(self, pkt: bytes):
         """
@@ -995,7 +1001,7 @@ class SlitherWSClient:
             'y': my,
             'ang': my_snake.ang,
             'sp': my_snake.sp,
-            'sc': my_snake.sc,
+            'sc': snake_scale_from_parts(pts_len),
             'len': pts_len,
             'pts': my_pts,
         }
@@ -1075,7 +1081,7 @@ class SlitherWSClient:
                 'y': snake.y,
                 'ang': snake.ang,
                 'sp': snake.sp,
-                'sc': snake.sc,
+                'sc': snake_scale_from_parts(pts_len_e),
                 'pts': pts,
             })
 

@@ -38,8 +38,18 @@ def configured_max_foods(default: int = MAX_FOODS_DEFAULT) -> int:
 
 
 MAX_FOODS = configured_max_foods()
-FOOD_CHANNEL_LOG_CAP = 20.0
+# Per-pixel food-channel saturation. Overlapping pellets add their sz, so a
+# dead snake's remains (many sz 5-12 pellets a body-point apart) sum well past
+# 20 per pixel; 40 keeps a brightness gradient between a medium and a large
+# pile while a lone sz=1 crumb still paints ~47/255.
+FOOD_CHANNEL_LOG_CAP = 40.0
+# Distance-weighted per-sector score (legacy band).
 FOOD_SECTOR_LOG_CAP = 12.0
+# Unweighted per-sector mass: ~500 is a big snake's remains in one 15° slice,
+# ordinary background pellets sum to a few tens.
+FOOD_SECTOR_MASS_CAP = 500.0
+# Total pellet mass inside the 2000-unit sense disc.
+FOOD_TOTAL_LOG_CAP = 3000.0
 FOOD_KEEP_DIST_BIAS = 80.0
 # World-units of paint radius per food.sz, converted by matrix scale.
 # Crumbs stay ~1 pixel; a sz=12 pellet is a several-pixel blob at 160px.
@@ -73,6 +83,15 @@ def squash_mass(mass: float, cap: float) -> float:
     if mass <= 0.0 or cap <= 0.0:
         return 0.0
     return min(1.0, math.log1p(mass) / math.log1p(cap))
+
+
+def squash_mass_array(mass, cap: float) -> np.ndarray:
+    """Vector form of squash_mass(): (0, 1] log-compressed, 0 for mass <= 0."""
+    m = np.asarray(mass, dtype=np.float64)
+    if cap <= 0.0:
+        return np.zeros(m.shape, dtype=np.float64)
+    out = np.log1p(np.maximum(m, 0.0)) / math.log1p(cap)
+    return np.minimum(out, 1.0)
 
 
 def food_draw_radius_px(sz, scale):

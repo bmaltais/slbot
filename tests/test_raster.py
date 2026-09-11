@@ -15,6 +15,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sector_layout import SECTOR_DIM
+
 import food_sense
 from slither_env import (
     FRAME_DTYPE,
@@ -471,7 +473,7 @@ class TestUint8Transport(unittest.TestCase):
                 pass
 
             def step_wait(self):
-                obs = {'matrix': np.full((3, 4, 4), 200, dtype=np.uint8), 'sectors': np.zeros(99, dtype=np.float32)}
+                obs = {'matrix': np.full((3, 4, 4), 200, dtype=np.uint8), 'sectors': np.zeros(SECTOR_DIM, dtype=np.float32)}
                 return [obs], [0.0], [False], [{'length': 0}]
 
         stack = VecFrameStack(FakeVenv(), k=4)

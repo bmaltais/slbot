@@ -187,7 +187,7 @@ class DDQNAgent:
         One action per observation, with a single batched forward pass.
 
         states: list of dicts {'matrix': (12, H, W) uint8 or float32 [0, 1],
-        'sectors': (99,)}; the legacy (non-hybrid) model also accepts bare
+        'sectors': (SECTOR_DIM,)}; the legacy (non-hybrid) model also accepts bare
         (12, H, W) arrays. agent_ids, when given, must be one per state.
         Reflexes and epsilon-random picks are resolved per agent on the CPU
         (cheap numpy on the sector vector); only the agents that fall through
@@ -278,7 +278,7 @@ class DDQNAgent:
         """
         Emergency reflexes based on sector vector. Returns (action, reflex_name) or (None, None).
 
-        Sector layout (99 floats, alpha-5):
+        Sector layout (see sector_layout.py; the first 99 floats are alpha-5):
           [0..23]   food_score per sector (0=ahead, clockwise 15° each)
           [24..47]  obstacle_score per sector (1.0=touching, 0.0=clear)
           [48..71]  obstacle_type per sector (-1=none, 0=body/wall, 1=head)
@@ -413,8 +413,8 @@ class DDQNAgent:
     def remember(self, state, action, reward, next_state, done, gamma=None):
         """
         Stores a single transition from full stacked observations.
-        state/next_state: dict {'matrix': (12,H,W) float32, 'sectors': (99,) float32}
-        or a bare matrix (legacy). Every frame of both stacks is stored, so
+        state/next_state: dict {'matrix': (12,H,W) float32, 'sectors': (SECTOR_DIM,) float32}
+        or a bare matrix (legacy); sectors are (SECTOR_DIM,) float32. Every frame of both stacks is stored, so
         prefer remember_nstep(), which stores one frame per env step.
         gamma: the gamma used to compute n-step return (stored for consistency across stage changes).
         """

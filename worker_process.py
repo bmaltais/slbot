@@ -13,6 +13,7 @@ import time
 import traceback
 
 from worker_session import (
+    SECTOR_DIM,
     FRAME_DTYPE,
     WorkerSession,
     spawning_obs,
@@ -202,7 +203,7 @@ def echo_worker(remote, parent_remote, worker_id, headless, nickname, matrix_siz
         elif cmd == 'reset':
             remote.send({
                 'matrix': np.zeros((3, matrix_size, matrix_size), dtype=FRAME_DTYPE),
-                'sectors': np.zeros(99, dtype=np.float32),
+                'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
             })
         elif cmd == 'reset_one':
             remote.send(spawning_obs(matrix_size))
@@ -235,7 +236,7 @@ def delayed_echo_worker(remote, parent_remote, worker_id, headless, nickname, ma
         elif cmd == 'reset':
             remote.send({
                 'matrix': np.zeros((3, matrix_size, matrix_size), dtype=FRAME_DTYPE),
-                'sectors': np.zeros(99, dtype=np.float32),
+                'sectors': np.zeros(SECTOR_DIM, dtype=np.float32),
             })
         elif cmd == 'reset_one':
             remote.send(spawning_obs(matrix_size))

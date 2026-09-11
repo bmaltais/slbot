@@ -12,8 +12,8 @@ import threading
 
 import numpy as np
 
+from sector_layout import SECTOR_DIM
 
-SECTOR_DIM = 99
 # Observation frames are uint8 (see slither_env.quantize_frame); this module
 # must stay importable without the env, so the dtype is restated here.
 FRAME_DTYPE = np.uint8

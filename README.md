@@ -15,7 +15,7 @@ The training loop is straightforward:
 
 1. A headless Chrome browser connects to slither.io
 2. Injected JS extracts the game state (snake positions, food, map boundaries)
-3. The state gets converted into a 128x128 pixel matrix + a 99-float sector vector
+3. The state gets converted into a 160x160 pixel matrix + a 201-float sector vector
 4. The neural network picks one of 10 actions (turn left/right at various angles, go straight, or boost)
 5. The reward signal tells the network what worked and what didn't
 6. Repeat thousands of times
@@ -35,7 +35,7 @@ graph TB
     subgraph INPUT ["INPUT LAYER"]
         direction TB
         M["128x128 RGB Matrix<br/><i>3 channels x 4 frames = 12ch</i><br/>Food | Danger | Self"]
-        S["99-float Sector Vector<br/><i>24 sectors x 4 features + 3 globals</i>"]
+        S["201-float Sector Vector<br/><i>24 sectors x 8 features + 9 globals</i>"]
     end
 
     subgraph CNN ["CNN BRANCH — 4 Conv Layers"]
@@ -212,60 +212,40 @@ ego_x = -sin(ang) * dx + cos(ang) * dy
 ego_y = -cos(ang) * dx - sin(ang) * dy
 ```
 
-#### Matrix Input (3 channels x 128x128, stacked x4 = 12 channels)
+#### Matrix Input (3 channels x 160x160, stacked x4 = 12 channels)
+
+The grid is egocentric and covers ±1000 game units around the head (12.5 units per pixel at 160px), independent of the game camera, which is only ~400 units at spawn.
 
 | Channel | Content | Encoding |
 |---------|---------|----------|
-| 0 — Food | Food items within view range | Brightness = closeness. Brighter = nearer food |
-| 1 — Danger | Enemy snake bodies and heads | Bodies = medium brightness, Heads = bright (more dangerous) |
-| 2 — Self | The bot's own body segments | Prevents self-collision awareness |
+| 0 — Food | Every pellet and prey orb within the crop | Each pellet is splatted as a disc whose radius grows with its `sz` and whose value adds `sz` to every cell it covers, then the channel is log-compressed (cap 40 per cell). A lone crumb paints ~47/255; overlapping pellets from a boost trail or a dead snake's remains stack toward 255 and cover many cells, so *area × brightness* reads as mass. If the richest food string is outside the crop, a compass dot on the grid edge points at it, brighter and larger for a richer pile. |
+| 1 — Danger | Enemy snake bodies and heads, the map wall | Bodies = 0.5, heads = 1.0 (a head can turn into you). The wall is rasterized as a solid 1.0 region as soon as it is within the grid's reach, plus a wall compass dot on the edge that brightens as the wall gets closer (out to `wall_alert_dist`). |
+| 2 — Self | The bot's own body segments | Head = 1.0, body = 0.5. Prevents self-collision and shows the current turn radius. |
 
-We stack the last 4 frames together (giving 12 CNN input channels) so the network can perceive motion — is that enemy approaching or moving away?
+We stack the last 4 frames together (giving 12 CNN input channels) so the network can perceive motion — is that enemy approaching or moving away, is that orb a prey that drifts?
 
-#### Sector Vector Input (99 floats)
+#### Sector Vector Input (201 floats, `sector_layout.py`)
 
-```mermaid
-graph TB
-    subgraph SECTORS ["24 Egocentric Sectors (15° each, 360° total)"]
-        direction LR
-        S0["Sector 0<br/>AHEAD<br/>0°-15°"]
-        S1["Sector 1<br/>15°-30°"]
-        SD["..."]
-        S12["Sector 12<br/>BEHIND<br/>180°-195°"]
-        SD2["..."]
-        S23["Sector 23<br/>345°-360°"]
-    end
+The vector is the long-range radar: 24 egocentric pie slices of 15° each (sector 0 = straight ahead, clockwise), everything scored out to 2000 units, well past the 1000-unit grid. The first 99 floats are the alpha-5 layout and their indices are frozen (the emergency reflexes in `agent.py` read them directly); the rest was added so the network can tell *how much* food lies in a direction apart from *how far* it is.
 
-    subgraph PERFEATURE ["Per-Sector Features (floats 0-95)"]
-        direction TB
-        FS["food_score [0..23]<br/><i>Closest food distance in sector</i><br/>1.0 = right here, 0.0 = nothing within 2000 units"]
-        OS["obstacle_score [24..47]<br/><i>Closest enemy/wall distance</i><br/>1.0 = touching, 0.0 = clear"]
-        OT["obstacle_type [48..71]<br/><i>What is the obstacle?</i><br/>-1 = nothing, 0 = body/wall, 1 = enemy head"]
-        EA["enemy_approach [72..95]<br/><i>Dot product of enemy heading vs vector-to-us</i><br/>+1 = charging at us, -1 = moving away"]
-    end
+| Index | Band | Meaning |
+|-------|------|---------|
+| 0–23 | `food_score` | Distance-weighted pellet mass per sector, log-squashed (legacy: a big pile far away and a crumb nearby can tie here). |
+| 24–47 | `obstacle_score` | Closeness of the nearest enemy part or wall (1.0 = touching, 0 = nothing within 2000). |
+| 48–71 | `obstacle_type` | −1 nothing, 0 body segment or wall, 1 enemy head. |
+| 72–95 | `enemy_approach` | Closing rate of the sector's enemy head from relative velocity (+1 charging at us, −1 moving away). |
+| 96 | `wall_dist_norm` | Distance to wall / 2000. |
+| 97 | `snake_length_norm` | Own length / 500. |
+| 98 | `speed_norm` | Own speed / 20. |
+| 99–122 | `food_mass` | Total pellet mass in the sector with **no** distance weighting, log-squashed (cap 500 ≈ a big snake's remains in one slice). A dead snake 1800 units out lights this up; a crumb barely registers. |
+| 123–146 | `food_dist` | 1 − (mass-weighted mean pellet distance / 2000). Together with `food_mass` this separates "large pile far away" from "small pile close by". |
+| 147–170 | `wall_dist` | 1 − (distance to the wall along the sector's centre ray / 2000). Walls used to be visible only when they won `obstacle_score`; now they are always reported separately from snakes. |
+| 171–194 | `enemy_size` | Scale (`sc` / 6) of the closest enemy in the sector. Big snakes turn slower, are wider, and drop far more food. |
+| 195 | `boost` | 1 while our own speed says we are boosting. |
+| 196 | `food_total` | Total pellet mass inside the 2000-unit disc, log-squashed. |
+| 197–200 | `target_*` | Distance, mass, and bearing (sin, cos) of the locked food target — the same richest-string target the reward shaping and the food compass follow, so the network can tie the shaping signal to a direction. |
 
-    subgraph GLOBALS ["Global Features (floats 96-98)"]
-        direction TB
-        G1["[96] wall_dist_norm<br/><i>distance to wall / 2000</i>"]
-        G2["[97] snake_length_norm<br/><i>own length / 500</i>"]
-        G3["[98] speed_norm<br/><i>current speed / 20</i>"]
-    end
-
-    SECTORS --> PERFEATURE
-    PERFEATURE --> GLOBALS
-
-    style SECTORS fill:#1a1a2e,stroke:#e94560,color:#eee
-    style PERFEATURE fill:#16213e,stroke:#0f3460,color:#eee
-    style GLOBALS fill:#1b4332,stroke:#52b788,color:#eee
-```
-
-The sector vector provides distance-based awareness in all directions. Each sector reports:
-- **food_score**: How close is the nearest food? (1.0 = adjacent, 0.0 = nothing within 2000 units)
-- **obstacle_score**: How close is the nearest danger? (1.0 = about to collide)
-- **obstacle_type**: What kind of danger? (-1 = clear, 0 = body segment or wall, 1 = enemy head — more dangerous because it can chase you)
-- **enemy_approach**: Is the nearest enemy in this sector heading toward us? (+1 = charging directly at us, -1 = moving away, 0 = perpendicular). This was added in alpha-5 to give the network earlier threat detection.
-
-Three global values give the network context about the overall situation regardless of direction.
+Why both a grid and a radar: the CNN sees exact shapes close in (which side of a trail to enter, gaps between bodies); the radar sees mass and range in every direction out to 2000 units, which is how the bot notices a kill's remains before they are on the grid and decides whether a distant pile is worth the trip.
 
 ### Action Space
 
@@ -827,7 +807,7 @@ python trainer.py --resume
 # 3 agents with auto-scaling up to 10
 python trainer.py --num_agents 3 --auto-num-agents --max-agents 10
 
-# Watch the bot play (opens browser window)
+# Watch the bot play (opens a real, visible Chrome window for agent 0)
 python trainer.py --view-plus
 
 # Force a specific curriculum stage
@@ -836,18 +816,38 @@ python trainer.py --stage 3
 # Use a specific training style
 python trainer.py --style "Aggressive (Hunter)"
 
+# Resume from the highest-fitness backup instead of the last checkpoint
+python trainer.py --resume-best
+
 # Full reset (deletes logs, checkpoints, CSV)
 python trainer.py --reset
 ```
+
+All other agents run headless; `--view`/`--view-plus` just launch agent 0's
+Chrome non-headless so you can watch it play in a real browser window. Press
+`b` in the TUI to clear the best-fitness bar so the next scoring window can
+save a new best model.
+
+A "best" model is judged every 20 episodes by a composite fitness of the
+window averages: `peak_length * 15 + steps + food * 5`. Peak length (the
+snake's body-part count) carries the largest weight because it is the closest
+proxy for the real game objective, mass actually gained; food count and steps
+act as secondary signals. The weights live in `cleanup_data.py`. If you change
+them, start the next run with `--reset-best`, since the bar saved in the
+checkpoint was computed with the old formula.
 
 ### CLI Reference
 
 | Flag | Description |
 |------|-------------|
 | `--num_agents N` | Number of parallel browser agents |
-| `--view` | Show browser window for first agent |
-| `--view-plus` | Browser + debug overlay |
+| `--view` | View first agent |
+| `--view-plus` | View first agent with bot vision overlay grid |
 | `--resume` | Load from checkpoint |
+| `--resume-best` | Load the highest-fitness `backup_models/*.pth` instead of the checkpoint |
+| `--reset-best` | Clear the best-fitness bar so the next window can save a new best model |
+| `--keep-backups N` | Newest best-model backups to keep (default: 10) |
+| `--keep-events N` | Newest death-event packets to keep (default: 40) |
 | `--stage N` | Force curriculum stage (1-6) |
 | `--style NAME` | Training style name |
 | `--url URL` | Game server URL |
@@ -905,6 +905,17 @@ python trainer.py --reset
 - **Late-stage Q-value instability**: Stages 5-6 with gamma=0.99 and no step limit can produce exploding Q-values if length_bonus or survival escalation create runaway reward signals. The AI Supervisor helps by clamping parameters to safe ranges.
 
 ## Changelog
+
+### 2026-09-11 — Observation upgrade: food mass vs distance, wall band, enemy size
+
+**Why** — the radar's only food feature mixed mass and distance into one number, so a dead snake's remains 1800 units away scored the same as a crumb 100 units away, and the network had no way to see how much food a direction held once it left the 1000-unit grid. Walls were only reported when they beat the nearest snake in a sector, and the websocket backend computed snake scale from fullness instead of body-part count (big enemies were drawn as small ones).
+
+- Sector vector 99 → 201 floats (`sector_layout.py`): added per-sector `food_mass` (unweighted), `food_dist`, `wall_dist`, `enemy_size`, plus `boost`, `food_total` and the locked target's distance/mass/bearing. The first 99 indices are unchanged, so reflexes and old data still line up.
+- Food channel saturation raised from 20 to 40 per cell so a medium pile and a large pile keep a brightness gradient; the off-grid food compass now scales its brightness and size with the pile's mass.
+- Wall rasterized whenever it is within the grid's reach (was gated on the game camera radius, which hid it until ~600 units at spawn even though the grid shows 1000).
+- Websocket backend: `sc = min(6, 1 + (parts − 2) / 106)` per the client, from tracked body points.
+- Sector wall rays and log-squash vectorized (24-way loop removed).
+- Model: sector branch first layer widened to 256. Resuming an old checkpoint keeps the CNN, merge and dueling heads and reinitializes only the two sector-branch layers (optimizer state resets).
 
 ### v4.0.0-beta (2026-02-16) — Alpha-5
 
