@@ -442,7 +442,12 @@ labelled with the turn alone.
 rounds with `--demo-min-score N`, a peak-length floor). `--pretrain-steps N`
 runs N gradient steps on demonstrations alone before live play, syncs the
 target net, drops epsilon to 0.2 so the pretrained policy is actually acted
-on, and saves the checkpoint. After that, normal RL continues with
+on, and saves the checkpoint. `--pretrain-epochs N` sizes it in passes
+instead: one epoch is one shuffled pass in which every demo transition is
+used exactly once, so the cost scales with how much you recorded (3060
+transitions at batch 128 is 24 steps per epoch). Ctrl+C during pretraining
+stops early, saves the checkpoint with what was learned so far, closes the
+browsers and exits; resume live training from it with `--resume`. After that, normal RL continues with
 `--demo-ratio` (default 0.25) of each batch drawn from demos. The existing
 best-fitness bar still decides when a model file is written; a human game is
 never compared with the bot's, it is only ever a dataset.
@@ -914,6 +919,7 @@ checkpoint was computed with the old formula.
 | `--demo-ratio F` | Fraction of each batch drawn from demos (default: 0.25) |
 | `--demo-min-score N` | Skip demo episodes whose peak length is below N |
 | `--pretrain-steps N` | Gradient steps on demos alone before live play (saves a checkpoint) |
+| `--pretrain-epochs N` | Same, sized as N shuffled passes over every demo transition (wins over steps) |
 
 `record_demo.py` flags: `--out DIR` (default `demos/`), `--episodes N` (default:
 until Ctrl+C), `--stage N` / `--style-name NAME` (rewards used to score the

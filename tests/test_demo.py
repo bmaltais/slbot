@@ -299,8 +299,8 @@ def test_margin_loss_pushes_demo_actions_to_the_top(agent, tmp_path):
     def greedy():
         return agent._greedy_actions([state])[0]
 
-    metrics = agent.pretrain_from_demos(60, log_every=0)
-    assert metrics is not None
+    result = agent.pretrain_from_demos(60, log_every=0)
+    assert result['metrics'] is not None and result['steps_done'] == 60 and not result['interrupted']
     assert greedy() == 7
     # target net was synced at the end of pretraining
     for p, t in zip(agent.policy_net.parameters(), agent.target_net.parameters()):
@@ -310,6 +310,13 @@ def test_margin_loss_pushes_demo_actions_to_the_top(agent, tmp_path):
 def test_pretrain_needs_demos(agent):
     with pytest.raises(RuntimeError):
         agent.pretrain_from_demos(1)
+
+
+def test_pretrain_needs_a_size(agent, tmp_path):
+    _write_demo(tmp_path, steps=4, peak_length=1)
+    agent.load_demos(list_demos(str(tmp_path)))
+    with pytest.raises(ValueError):
+        agent.pretrain_from_demos()
 
 
 # --- record_demo loop -------------------------------------------------------
@@ -475,3 +482,77 @@ def test_trainer_does_not_shadow_resource_monitor():
     import re
     src = open(os.path.join(os.path.dirname(__file__), '..', 'trainer.py')).read()
     assert not re.search(r"PretrainMonitor\(\)\s+as\s+monitor\b", src)
+
+
+# --- epoch mode and Ctrl+C ---------------------------------------------------
+
+def test_iter_epoch_visits_every_transition_once(agent, tmp_path):
+    _write_demo(tmp_path, steps=11, peak_length=1, seed=70)
+    _write_demo(tmp_path, steps=6, peak_length=1, seed=80)
+    agent.load_demos(list_demos(str(tmp_path)))
+    buf = agent.demo_memory
+    assert len(buf) == 17 and buf.epoch_batches(8) == 3
+    seen = []
+    sizes = []
+    for batch, idxs, weights in buf.iter_epoch(8):
+        sizes.append(len(batch['action']))
+        assert len(idxs) == len(batch['action']) == len(weights)
+        assert (weights == 1.0).all()
+        seen.extend((idxs - (buf.capacity - 1)).tolist())
+    assert sizes == [8, 8, 1]
+    assert sorted(seen) == list(range(17))
+    # tree indices are real: priority updates on them must not raise
+    buf.update_priorities(np.arange(17) + (buf.capacity - 1), np.ones(17))
+
+
+def test_epoch_mode_step_count_and_progress(agent, tmp_path):
+    _write_demo(tmp_path, steps=20, peak_length=1, seed=90)
+    agent.load_demos(list_demos(str(tmp_path)))
+    updates = []
+    result = agent.pretrain_from_demos(epochs=2, log_every=1, on_progress=updates.append, eval_states=4)
+    per_epoch = agent.demo_memory.epoch_batches(agent.config.opt.batch_size)
+    assert per_epoch == 3  # 20 transitions, batch 8
+    assert result['steps'] == 6 == result['steps_done'] == len(updates)
+    assert result['epochs_done'] == 2 and not result['interrupted']
+    assert [u['epoch'] for u in updates] == [1, 1, 1, 2, 2, 2]
+    assert updates[0]['epochs'] == 2
+    assert all(u['metrics']['demo_frac'] == 1.0 for u in updates)
+
+
+def test_epochs_win_over_steps(agent, tmp_path):
+    _write_demo(tmp_path, steps=20, peak_length=1, seed=91)
+    agent.load_demos(list_demos(str(tmp_path)))
+    result = agent.pretrain_from_demos(steps=500, epochs=1, log_every=0)
+    assert result['steps'] == 3
+
+
+def test_ctrl_c_during_pretraining_keeps_progress_and_syncs_target(agent, tmp_path):
+    _write_demo(tmp_path, steps=20, peak_length=1, seed=92)
+    agent.load_demos(list_demos(str(tmp_path)))
+    before = [p.detach().clone() for p in agent.policy_net.parameters()]
+
+    def interrupt_at_third(update):
+        if update['step'] == 3:
+            raise KeyboardInterrupt
+
+    result = agent.pretrain_from_demos(steps=50, log_every=1, on_progress=interrupt_at_third, eval_states=0)
+    assert result['interrupted'] and result['steps_done'] == 3
+    # weights moved, and were copied into the target net on the way out
+    assert any(not torch.equal(b, p) for b, p in zip(before, agent.policy_net.parameters()))
+    for p, t in zip(agent.policy_net.parameters(), agent.target_net.parameters()):
+        assert torch.equal(p, t)
+
+
+def test_progress_line_and_panel_show_epochs():
+    from pretrain_view import PretrainMonitor, progress_line
+    u = _update(step=6, steps=12)
+    u.update(epoch=1, epochs=2)
+    assert "epoch 1/2" in progress_line(u)
+    pytest.importorskip("rich")
+    import io
+    from rich.console import Console
+    console = Console(file=io.StringIO(), width=120, force_terminal=False)
+    mon = PretrainMonitor(use_rich=True, console=console)
+    mon.update(u)
+    console.print(mon.render())
+    assert "epoch 1/2" in console.file.getvalue()

@@ -320,6 +320,25 @@ class PrioritizedReplayBuffer:
         slots = np.random.choice(len(self), size=n, replace=False)
         return self.store.gather(slots, self.frames)
 
+    def iter_epoch(self, batch_size):
+        """Yield (batch, tree_idxs, is_weights) over every transition once.
+
+        One shuffled pass: each stored transition appears in exactly one
+        batch (the last batch may be short). No prioritisation; weights are
+        all ones. tree_idxs are real, so update_priorities() still works.
+        """
+        if self.frames is None or self.store is None or len(self) == 0:
+            raise ValueError("replay buffer is empty")
+        order = np.random.permutation(len(self))
+        for start in range(0, len(order), int(batch_size)):
+            slots = order[start:start + int(batch_size)]
+            batch = self.store.gather(slots, self.frames)
+            yield batch, slots + (self.capacity - 1), np.ones(len(slots), dtype=np.float32)
+
+    def epoch_batches(self, batch_size):
+        """Number of batches one iter_epoch() pass yields."""
+        return int(np.ceil(len(self) / float(batch_size)))
+
     def update_priorities(self, idxs, errors):
         for idx, error in zip(idxs, errors):
             p = (error + self.priority_eps) ** self.alpha

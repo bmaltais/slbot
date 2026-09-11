@@ -633,51 +633,90 @@ class DDQNAgent:
             'policy_counts': np.bincount(greedy, minlength=ACTION_DIM),
         }
 
-    def pretrain_from_demos(self, steps, log_every=200, on_progress=None, eval_states=256):
-        """Gradient steps on demonstrations alone, before any live play.
+    def pretrain_from_demos(self, steps=0, epochs=0, log_every=200, on_progress=None, eval_states=256):
+        """Train on demonstrations alone, before any live play.
 
-        Returns the last metrics dict. Syncs the target net every
-        config.demo.pretrain_target_every steps and once at the end.
-        Every log_every steps (and at the end) on_progress(update) is called
-        with a dict: step, steps, elapsed, eta, lr, metrics (the last
-        optimize_model dict) and agreement (see demo_agreement, computed on
-        eval_states sampled demo states). The logger only writes to files;
-        the trainer turns these updates into a terminal view.
+        Two ways to size it: `steps` prioritized batches drawn from the demo
+        buffer, or `epochs` shuffled passes in which every demo transition
+        is used exactly once per pass (epochs wins if both are given).
+
+        Syncs the target net every config.demo.pretrain_target_every steps
+        and once at the end. Every log_every steps (and at the end)
+        on_progress(update) is called with a dict: step, steps, epoch,
+        epochs, elapsed, eta, lr, metrics (the last gradient step's dict)
+        and agreement (see demo_agreement on eval_states sampled states).
+
+        Ctrl+C stops early: the loop catches KeyboardInterrupt, still syncs
+        the target net, and returns with interrupted=True so the caller can
+        save what was learned. Returns a dict: metrics (last step's, or
+        None), steps_done, steps, epochs_done, interrupted.
         """
         if self.demo_memory is None or len(self.demo_memory) == 0:
             raise RuntimeError("no demonstrations loaded; call load_demos() first")
-        steps = int(steps)
+        batch_size = self.config.opt.batch_size
+        epochs = int(epochs or 0)
+        per_epoch = self.demo_memory.epoch_batches(batch_size) if epochs else 0
+        steps = epochs * per_epoch if epochs else int(steps or 0)
+        if steps <= 0:
+            raise ValueError("pretrain_from_demos needs steps > 0 or epochs > 0")
         sync_every = max(1, int(self.config.demo.pretrain_target_every))
+
+        def _gradient_steps():
+            if epochs:
+                for _ in range(epochs):
+                    for batch, idxs, weights in self.demo_memory.iter_epoch(batch_size):
+                        yield self.optimize_on_demo_batch(batch, idxs, weights)
+            else:
+                for _ in range(steps):
+                    yield self.optimize_model(demo_only=True)
+
         metrics = None
+        i = 0
+        interrupted = False
         t0 = time.time()
-        for i in range(1, steps + 1):
-            m = self.optimize_model(demo_only=True)
-            if m is not None:
-                metrics = m
-            if i % sync_every == 0:
-                self.update_target()
-            if log_every and (i % log_every == 0 or i == steps) and metrics:
-                elapsed = time.time() - t0
-                update = {
-                    'step': i,
-                    'steps': steps,
-                    'elapsed': elapsed,
-                    'eta': elapsed / i * (steps - i),
-                    'lr': float(self.optimizer.param_groups[0]['lr']),
-                    'metrics': dict(metrics),
-                    'agreement': self.demo_agreement(eval_states) if eval_states else None,
-                }
-                agree = update['agreement']
-                logger.info(
-                    f"  [Pretrain] step {i}/{steps} loss={metrics['loss']:.4f} "
-                    f"margin={metrics['margin_loss']:.4f} q_mean={metrics['q_mean']:.2f} "
-                    + (f"agree={agree['agreement']:.0%} " if agree else "")
-                    + f"({elapsed:.0f}s, ~{update['eta']:.0f}s left)"
-                )
-                if on_progress:
-                    on_progress(update)
+        try:
+            for m in _gradient_steps():
+                i += 1
+                if m is not None:
+                    metrics = m
+                if i % sync_every == 0:
+                    self.update_target()
+                if log_every and (i % log_every == 0 or i == steps) and metrics:
+                    elapsed = time.time() - t0
+                    update = {
+                        'step': i,
+                        'steps': steps,
+                        'epoch': ((i - 1) // per_epoch + 1) if epochs else 0,
+                        'epochs': epochs,
+                        'elapsed': elapsed,
+                        'eta': elapsed / i * (steps - i),
+                        'lr': float(self.optimizer.param_groups[0]['lr']),
+                        'metrics': dict(metrics),
+                        'agreement': self.demo_agreement(eval_states) if eval_states else None,
+                    }
+                    agree = update['agreement']
+                    logger.info(
+                        f"  [Pretrain] step {i}/{steps}"
+                        + (f" epoch {update['epoch']}/{epochs}" if epochs else "")
+                        + f" loss={metrics['loss']:.4f} margin={metrics['margin_loss']:.4f} "
+                        f"q_mean={metrics['q_mean']:.2f} "
+                        + (f"agree={agree['agreement']:.0%} " if agree else "")
+                        + f"({elapsed:.0f}s, ~{update['eta']:.0f}s left)"
+                    )
+                    if on_progress:
+                        on_progress(update)
+        except KeyboardInterrupt:
+            interrupted = True
+            logger.info(f"  [Pretrain] interrupted after {i}/{steps} steps")
         self.update_target()
-        return metrics
+        return {
+            'metrics': metrics,
+            'steps_done': i,
+            'steps': steps,
+            'epochs_done': (i // per_epoch) if epochs else 0,
+            'epochs': epochs,
+            'interrupted': interrupted,
+        }
 
     def optimize_model(self, demo_only=False):
         """One gradient step on a batch of live transitions, demonstrations,
@@ -701,6 +740,15 @@ class DDQNAgent:
             parts.append((self.memory, self.memory.sample(n_live)))
         if n_demo:
             parts.append((self.demo_memory, self.demo_memory.sample(n_demo)))
+        return self._step_on_parts(parts, n_live, n_demo)
+
+    def optimize_on_demo_batch(self, batch, idxs, weights):
+        """One gradient step on an explicit demo batch (epoch-mode pretraining)."""
+        return self._step_on_parts([(self.demo_memory, (batch, idxs, weights))], 0, len(idxs))
+
+    def _step_on_parts(self, parts, n_live, n_demo):
+        """Shared body of optimize_model: parts is [(buffer, (batch, idxs, weights))],
+        live rows first then demo rows."""
         dev = self.device
 
         def _cat_np(key):

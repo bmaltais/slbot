@@ -80,6 +80,7 @@ class DemoConfig:
     margin: float = 0.8           # Q gap the human's action must hold over the rest
     margin_weight: float = 1.0    # weight of the margin loss relative to the TD loss
     pretrain_steps: int = 0       # gradient steps on demos alone before live play
+    pretrain_epochs: int = 0      # or: shuffled passes over every demo transition (wins over steps)
     pretrain_target_every: int = 1000  # target-net sync interval while pretraining
     start_eps: float = 0.2        # epsilon live play starts at after pretraining
     min_score: int = 0            # skip demo episodes whose peak length is below this

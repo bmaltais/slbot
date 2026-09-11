@@ -76,7 +76,8 @@ def progress_line(update):
     m = update['metrics']
     agree = update.get('agreement')
     parts = [
-        f"[Pretrain] {update['step']}/{update['steps']} ({update['step'] / update['steps']:.0%})",
+        f"[Pretrain] {update['step']}/{update['steps']} ({update['step'] / update['steps']:.0%})"
+        + (f" epoch {update['epoch']}/{update['epochs']}" if update.get('epochs') else ""),
         f"loss {m['loss']:.4f}",
         f"margin {m['margin_loss']:.4f}",
         f"td {m['td_error_mean']:.3f}",
@@ -158,8 +159,13 @@ class PretrainMonitor:
             ("Pretraining on demonstrations  ", "bold"),
             (progress_bar(frac), "cyan"),
             f"  {u['step']}/{u['steps']} ({frac:.0%})",
+            (f"   epoch {u['epoch']}/{u['epochs']}" if u.get('epochs') else ""),
         )
-        timing = Text(f"{fmt_duration(u['elapsed'])} elapsed, about {fmt_duration(u['eta'])} left", style="dim")
+        timing = Text(
+            f"{fmt_duration(u['elapsed'])} elapsed, about {fmt_duration(u['eta'])} left"
+            "   (Ctrl+C stops early and saves)",
+            style="dim",
+        )
 
         t = Table.grid(padding=(0, 2))
         t.add_column(style="dim", justify="right")

@@ -2021,8 +2021,10 @@ def train(args):
         cfg.demo.min_score = args.demo_min_score
     if getattr(args, "pretrain_steps", None) is not None:
         cfg.demo.pretrain_steps = args.pretrain_steps
-    if cfg.demo.pretrain_steps > 0 and not demo_dir:
-        raise SystemExit("--pretrain-steps needs --demos DIR")
+    if getattr(args, "pretrain_epochs", None) is not None:
+        cfg.demo.pretrain_epochs = args.pretrain_epochs
+    if (cfg.demo.pretrain_steps > 0 or cfg.demo.pretrain_epochs > 0) and not demo_dir:
+        raise SystemExit("--pretrain-steps / --pretrain-epochs need --demos DIR")
     demo_paths = []
     if demo_dir:
         # Validate now, before browsers are launched, so a typo fails fast.
@@ -2235,19 +2237,35 @@ def train(args):
             _say(line)
         if summary['transitions'] == 0:
             raise SystemExit("--demos: every episode was filtered out; lower --demo-min-score")
-        if cfg.demo.pretrain_steps > 0:
-            _say(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations "
-                 f"(batch {cfg.opt.batch_size}, target sync every {cfg.demo.pretrain_target_every})...")
+        if cfg.demo.pretrain_steps > 0 or cfg.demo.pretrain_epochs > 0:
+            if cfg.demo.pretrain_epochs > 0:
+                per_epoch = agent.demo_memory.epoch_batches(cfg.opt.batch_size)
+                _say(f"[Demos] Pretraining {cfg.demo.pretrain_epochs} epoch(s) over all "
+                     f"{summary['transitions']} transitions ({per_epoch} batches of {cfg.opt.batch_size} per epoch, "
+                     f"target sync every {cfg.demo.pretrain_target_every} steps)...")
+            else:
+                _say(f"[Demos] Pretraining {cfg.demo.pretrain_steps} steps on demonstrations "
+                     f"(batch {cfg.opt.batch_size}, target sync every {cfg.demo.pretrain_target_every})...")
             # Not `monitor`: that name is the ResourceMonitor used by the loop.
             with PretrainMonitor() as pretrain_view:
-                agent.pretrain_from_demos(cfg.demo.pretrain_steps, on_progress=pretrain_view.update)
+                result = agent.pretrain_from_demos(
+                    steps=cfg.demo.pretrain_steps, epochs=cfg.demo.pretrain_epochs,
+                    on_progress=pretrain_view.update,
+                )
             final = pretrain_view.last
             if final and final.get('agreement'):
-                _say(f"[Demos] Final agreement with your play: {final['agreement']['agreement']:.0%} "
+                _say(f"[Demos] Agreement with your play: {final['agreement']['agreement']:.0%} "
                      f"of {final['agreement']['n']} demo states; margin loss {final['metrics']['margin_loss']:.4f}")
             # A pretrained policy is worth acting on: don't start from eps=1.0.
             agent.boost_exploration(target_eps=cfg.demo.start_eps)
             persist(checkpoint_path)
+            if result['interrupted']:
+                _say(f"[Demos] Pretraining interrupted at step {result['steps_done']}/{result['steps']}; "
+                     f"checkpoint saved to {checkpoint_path}")
+                _say("[Demos] Resume live training from it with: "
+                     f"python trainer.py --demos {demo_dir} --resume --stage {curriculum.current_stage}")
+                env.close()
+                return
             _say(f"[Demos] Pretraining done (eps -> {agent.get_epsilon():.2f}); checkpoint saved to {checkpoint_path}")
 
     # Metrics tracking
@@ -2901,6 +2919,7 @@ if __name__ == "__main__":
     parser.add_argument("--demo-ratio", type=float, default=None, help="Fraction of each training batch drawn from demos (default: 0.25)")
     parser.add_argument("--demo-min-score", type=int, default=None, help="Skip demo episodes whose peak snake length is below this (default: 0)")
     parser.add_argument("--pretrain-steps", type=int, default=None, help="Gradient steps on demos alone before live play starts (default: 0)")
+    parser.add_argument("--pretrain-epochs", type=int, default=None, help="Pretrain for N shuffled passes over every demo transition instead of a step count")
     parser.add_argument("--reset", action="store_true", help="Total reset: delete logs, CSV, checkpoints, events")
     parser.add_argument("--ai-supervisor", choices=["claude", "openai", "gemini", "ollama"], default=None, help="Enable AI Supervisor with chosen LLM provider")
     parser.add_argument("--ai-interval", type=int, default=200, help="AI Supervisor: consult every N episodes (default: 200)")
