@@ -2016,10 +2016,16 @@ def train(args):
     # Learning from recorded human play
     demo_dir = getattr(args, "demos", None)
     if getattr(args, "demo_ratio", None) is not None:
+        if not 0 <= args.demo_ratio <= 1:
+            raise SystemExit("--demo-ratio must be between 0 and 1")
         cfg.demo.ratio = args.demo_ratio
     if getattr(args, "demo_min_score", None) is not None:
+        if args.demo_min_score < 0:
+            raise SystemExit("--demo-min-score must be >= 0")
         cfg.demo.min_score = args.demo_min_score
     if getattr(args, "pretrain_steps", None) is not None:
+        if args.pretrain_steps < 0:
+            raise SystemExit("--pretrain-steps must be >= 0")
         cfg.demo.pretrain_steps = args.pretrain_steps
     if getattr(args, "pretrain_epochs", None) is not None:
         cfg.demo.pretrain_epochs = args.pretrain_epochs
